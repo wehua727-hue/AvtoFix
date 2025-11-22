@@ -1,3 +1,17 @@
+#!/bin/bash
+
+# Ecosystem.config.cjs faylini tozalash va qayta yaratish
+
+cd /var/www/avtofix-shop/AvtoFix
+
+echo "=== Ecosystem.config.cjs faylini tozalash ==="
+echo ""
+
+# Faylni yedeklash
+cp ecosystem.config.cjs ecosystem.config.cjs.backup 2>/dev/null || echo "Yedek olinmadi"
+
+# To'g'ri faylni yozish
+cat > ecosystem.config.cjs << 'EOF'
 /**
  * PM2 Ecosystem Configuration
  * ESM module uchun to'liq sozlangan
@@ -54,3 +68,20 @@ module.exports = {
     },
   ],
 };
+EOF
+
+echo "✓ Fayl to'g'ri yaratildi"
+echo ""
+
+# Syntax tekshirish
+echo "Syntax tekshirilmoqda..."
+node -c ecosystem.config.cjs && echo "✓ Syntax to'g'ri" || echo "✗ Syntax xatosi"
+echo ""
+
+echo "=== Tozalash yakunlandi ==="
+echo ""
+echo "Endi quyidagi buyruqlarni bajaring:"
+echo "  pm2 start ecosystem.config.cjs"
+echo "  pm2 save"
+echo "  pm2 status"
+
