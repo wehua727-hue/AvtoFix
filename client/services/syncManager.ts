@@ -8,9 +8,24 @@ import {
   deleteProduct,
 } from '@/db/indexeddb';
 
-const API_BASE_URL = typeof window !== 'undefined' && window.location.protocol === 'file:'
-  ? 'http://127.0.0.1:3000'
-  : '';
+// API base URL - production va development uchun
+const API_BASE_URL = (() => {
+  if (typeof window === 'undefined') return '';
+  
+  // Electron (file://) uchun
+  if (window.location.protocol === 'file:') {
+    return 'http://127.0.0.1:5173';
+  }
+  
+  // Production yoki development - relative URL ishlatamiz (same origin)
+  const envApiUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envApiUrl) {
+    return envApiUrl;
+  }
+  
+  // Default: same origin (relative URL)
+  return '';
+})();
 
 class SyncManager {
   private isSyncing = false;

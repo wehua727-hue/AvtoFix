@@ -15,7 +15,7 @@ module.exports = {
       // Environment variables
       env: {
         NODE_ENV: 'production',
-        PORT: 3000,
+        PORT: 5173,
       },
       
       // PM2 sozlamalari

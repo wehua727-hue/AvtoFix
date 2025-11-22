@@ -57,7 +57,7 @@ const isMainModule = import.meta.url === `file://${process.argv[1]?.replace(/\\/
 
 if (isMainModule || process.env.RUN_SERVER === 'true') {
   const app = createServer();
-  const port = process.env.PORT || 3000;
+  const port = process.env.PORT || 5173;
 
   app.listen(port, () => {
     console.log(`🚀 Fusion Starter server running on port ${port}`);

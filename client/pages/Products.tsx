@@ -38,10 +38,25 @@ interface CategoryOption {
   parentId?: string | null;
 }
 
-// Electron (file://) uchun backendga to'g'ri ulanish
-const API_BASE_URL = typeof window !== 'undefined' && window.location.protocol === 'file:'
-  ? 'http://127.0.0.1:3000'
-  : '';
+// API base URL - production va development uchun
+const API_BASE_URL = (() => {
+  if (typeof window === 'undefined') return '';
+  
+  // Electron (file://) uchun
+  if (window.location.protocol === 'file:') {
+    return 'http://127.0.0.1:5173';
+  }
+  
+  // Production yoki development - relative URL ishlatamiz (same origin)
+  // Agar backend boshqa domain'da bo'lsa, environment variable yoki config'dan olish kerak
+  const envApiUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envApiUrl) {
+    return envApiUrl;
+  }
+  
+  // Default: same origin (relative URL)
+  return '';
+})();
 
 const resolveMediaUrl = (url?: string | null): string => {
   if (!url) return '';
