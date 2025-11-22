@@ -1,0 +1,223 @@
+/** @import must precede all other statements */
+@import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap");
+
+@theme {
+  --color-border: hsl(0 0% 30%);
+  --color-input: hsl(0 0% 30%);
+  --color-ring: hsl(0 72% 51%);
+  --color-background: hsl(0 0% 15%);
+  --color-foreground: hsl(0 0% 95%);
+  --color-primary: hsl(0 72% 51%);
+  --color-primary-foreground: hsl(0 0% 100%);
+  --color-secondary: hsl(0 0% 30%);
+  --color-secondary-foreground: hsl(0 0% 95%);
+  --color-destructive: hsl(0 84% 60%);
+  --color-destructive-foreground: hsl(0 0% 100%);
+  --color-muted: hsl(0 0% 25%);
+  --color-muted-foreground: hsl(0 0% 60%);
+  --color-accent: hsl(0 72% 51%);
+  --color-accent-foreground: hsl(0 0% 100%);
+  --color-popover: hsl(0 0% 20%);
+  --color-popover-foreground: hsl(0 0% 95%);
+  --color-card: hsl(0 0% 20%);
+  --color-card-foreground: hsl(0 0% 95%);
+  --color-sidebar: hsl(0 0% 18%);
+  --color-sidebar-foreground: hsl(0 0% 90%);
+  --color-sidebar-primary: hsl(0 72% 51%);
+  --color-sidebar-primary-foreground: hsl(0 0% 100%);
+  --color-sidebar-accent: hsl(0 0% 25%);
+  --color-sidebar-accent-foreground: hsl(0 0% 95%);
+  --color-sidebar-border: hsl(0 0% 28%);
+  --color-sidebar-ring: hsl(0 72% 51%);
+  --radius: 0.75rem;
+}
+
+@keyframes theme-wave {
+  0% {
+    transform: scale(0);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+.theme-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.theme-splash-circle {
+  position: absolute;
+  width: 300vmax;
+  height: 300vmax;
+  border-radius: 9999px;
+  transform: translate(-50%, -50%) scale(0);
+  transform-origin: center;
+  animation: theme-wave 0.65s ease-out forwards;
+}
+
+.theme-splash-light {
+  background: radial-gradient(circle, rgba(255,255,255,0.9), rgba(255,255,255,0));
+}
+
+.theme-splash-dark {
+  background: radial-gradient(circle, rgba(15,23,42,0.98), rgba(15,23,42,0));
+}
+
+@keyframes circle-reveal-liquid {
+  0% {
+    transform: translate(-50%, -50%) scale(0.1);
+    opacity: 0.9;
+    filter: blur(20px);
+  }
+  40% {
+    transform: translate(-50%, -50%) scale(1.1);
+    opacity: 0.95;
+    filter: blur(8px);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.6);
+    opacity: 0;
+    filter: blur(24px);
+  }
+}
+
+.circle-reveal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.circle-reveal-blob {
+  position: absolute;
+  width: 320vmax;
+  height: 320vmax;
+  border-radius: 9999px;
+  transform-origin: center;
+  transform: translate(-50%, -50%) scale(0.1);
+  animation: circle-reveal-liquid 0.8s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+  backdrop-filter: blur(30px);
+}
+
+.circle-reveal-light {
+  background: radial-gradient(circle at 30% 70%, rgba(255,255,255,0.95), rgba(248,250,252,0.9), rgba(226,232,240,0.7));
+  box-shadow: 0 0 40px rgba(255,255,255,0.4);
+}
+
+.circle-reveal-dark {
+  background: radial-gradient(circle at 30% 70%, rgba(15,23,42,0.98), rgba(15,23,42,0.9), rgba(15,23,42,0.85));
+  box-shadow: 0 0 40px rgba(0,0,0,0.5);
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+}
+
+:where(p, span, li, h1, h2, h3, h4, h5, h6, a, button, label, td, th) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+pre,
+code {
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* Print Styles - Receipt Format */
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+    margin: 0;
+    padding: 0;
+  }
+
+  .print\:hidden {
+    display: none !important;
+  }
+
+  .print\:pt-8 {
+    padding-top: 8mm !important;
+  }
+
+  .print\:pb-0 {
+    padding-bottom: 0 !important;
+  }
+
+  .print\:max-w-\[80mm\] {
+    max-width: 80mm !important;
+  }
+
+  .print\:shadow-none {
+    box-shadow: none !important;
+  }
+
+  .print\:rounded-none {
+    border-radius: 0 !important;
+  }
+
+  .print\:p-0 {
+    padding: 0 !important;
+  }
+
+  .print\:mx-0 {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .print\:px-0 {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .print\:bg-white {
+    background: white !important;
+  }
+
+  .print\:bg-gray-900 {
+    background: #111827 !important;
+  }
+
+  /* Remove all animations and transitions for print */
+  * {
+    animation: none !important;
+    transition: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Ensure proper page breaks */
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+  }
+
+  /* Avoid breaking inside elements */
+  div, section, article {
+    page-break-inside: avoid;
+  }
+
+  /* Optimize text for thermal printers */
+  body {
+    font-family: 'Courier New', monospace;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

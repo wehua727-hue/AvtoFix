@@ -1,0 +1,49 @@
+{
+  "name": "Oflayn Dokon - Store Management",
+  "short_name": "Oflayn Dokon",
+  "description": "Offline-first store management system with automatic sync",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#dc2626",
+  "icons": [
+    {
+      "src": "/logo.webp",
+      "sizes": "192x192",
+      "type": "image/webp",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.webp",
+      "sizes": "512x512",
+      "type": "image/webp",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "screenshots": [
+    {
+      "src": "/photo_2025-11-17_22-06-09.jpg",
+      "sizes": "1280x720",
+      "type": "image/jpeg",
+      "form_factor": "wide"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Mahsulot qo'shish",
+      "short_name": "Qo'shish",
+      "description": "Yangi mahsulot qo'shish",
+      "url": "/?action=add-product",
+      "icons": [
+        {
+          "src": "/logo.webp",
+          "sizes": "96x96",
+          "type": "image/webp"
+        }
+      ]
+    }
+  ]
+}
