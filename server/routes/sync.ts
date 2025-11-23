@@ -166,6 +166,8 @@ export const handleGetAllProducts: RequestHandler = async (req, res) => {
       id: p._id?.toString?.() ?? '',
       name: p.name ?? '',
       price: typeof p.price === 'number' ? p.price : null,
+      basePrice: typeof (p as any).basePrice === 'number' ? (p as any).basePrice : null,
+      priceMultiplier: typeof (p as any).priceMultiplier === 'number' ? (p as any).priceMultiplier : null,
       sku: p.sku ?? '',
       categoryId: p.categoryId ? p.categoryId.toString?.() ?? null : null,
       stock: typeof p.stock === 'number' ? p.stock : null,
@@ -198,6 +200,8 @@ export const handleCreateProduct: RequestHandler = async (req, res) => {
       name,
       sku,
       price,
+      basePrice,
+      priceMultiplier,
       stock,
       categoryId,
       store,
@@ -241,6 +245,8 @@ export const handleCreateProduct: RequestHandler = async (req, res) => {
       name: String(name),
       sku: String(sku),
       price: typeof price === 'number' ? price : Number(price) || 0,
+      basePrice: typeof basePrice === 'number' ? basePrice : (basePrice != null ? Number(basePrice) : null),
+      priceMultiplier: typeof priceMultiplier === 'number' ? priceMultiplier : (priceMultiplier != null ? Number(priceMultiplier) : null),
       stock: typeof stock === 'number' ? stock : Number(stock) || 0,
       status: status || 'available',
       imagePath,
@@ -271,6 +277,8 @@ export const handleCreateProduct: RequestHandler = async (req, res) => {
       name: doc.name,
       sku: doc.sku,
       price: doc.price,
+      basePrice: doc.basePrice,
+      priceMultiplier: doc.priceMultiplier,
       stock: doc.stock,
       categoryId: doc.categoryId ? (doc.categoryId.toString?.() ?? doc.categoryId) : null,
       store: doc.store ? (doc.store.toString?.() ?? doc.store) : null,
@@ -305,6 +313,8 @@ export const handleUpdateProduct: RequestHandler = async (req, res) => {
       name,
       sku,
       price,
+      basePrice,
+      priceMultiplier,
       stock,
       categoryId,
       store,
@@ -328,6 +338,8 @@ export const handleUpdateProduct: RequestHandler = async (req, res) => {
     if (typeof name === 'string') update.name = name;
     if (typeof sku === 'string') update.sku = sku;
     if (price !== undefined) update.price = typeof price === 'number' ? price : Number(price) || 0;
+    if (basePrice !== undefined) update.basePrice = typeof basePrice === 'number' ? basePrice : (basePrice != null ? Number(basePrice) : null);
+    if (priceMultiplier !== undefined) update.priceMultiplier = typeof priceMultiplier === 'number' ? priceMultiplier : (priceMultiplier != null ? Number(priceMultiplier) : null);
     if (stock !== undefined) update.stock = typeof stock === 'number' ? stock : Number(stock) || 0;
     if (typeof status === 'string') update.status = status;
     if (Array.isArray(variants)) update.variants = variants;
@@ -383,6 +395,8 @@ export const handleUpdateProduct: RequestHandler = async (req, res) => {
       id: p._id?.toString?.() ?? '',
       name: p.name ?? '',
       price: typeof p.price === 'number' ? p.price : null,
+      basePrice: typeof (p as any).basePrice === 'number' ? (p as any).basePrice : null,
+      priceMultiplier: typeof (p as any).priceMultiplier === 'number' ? (p as any).priceMultiplier : null,
       sku: p.sku ?? '',
       categoryId: p.categoryId ? p.categoryId.toString?.() ?? null : null,
       stock: typeof p.stock === 'number' ? p.stock : null,
