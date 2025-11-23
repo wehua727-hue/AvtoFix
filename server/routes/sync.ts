@@ -12,6 +12,8 @@ interface ProductDoc {
   _id: any;
   name?: string;
   price?: number;
+  basePrice?: number;
+  priceMultiplier?: number;
   sku?: string;
   categoryId?: any;
   stock?: number;
@@ -64,6 +66,8 @@ export const handleProductsSync: RequestHandler = async (req, res) => {
           name: product.name,
           sku: product.sku,
           price: product.price,
+          basePrice: product.basePrice != null ? (typeof product.basePrice === 'number' ? product.basePrice : Number(product.basePrice)) : null,
+          priceMultiplier: product.priceMultiplier != null ? (typeof product.priceMultiplier === 'number' ? product.priceMultiplier : Number(product.priceMultiplier)) : null,
           stock: product.stock,
           status: product.status || 'available',
           imagePath: product.imageUrl,

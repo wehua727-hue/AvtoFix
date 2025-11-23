@@ -31,6 +31,8 @@ interface ProductDoc {
   _id: any;
   name?: string;
   price?: number;
+  basePrice?: number;
+  priceMultiplier?: number;
   sku?: string;
   categoryId?: any;
   stock?: number;
@@ -411,6 +413,8 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
       id: createdId,
       name: doc.name,
       price: doc.price,
+      basePrice: typeof doc.basePrice === "number" ? doc.basePrice : null,
+      priceMultiplier: typeof doc.priceMultiplier === "number" ? doc.priceMultiplier : null,
       sku: doc.sku,
       categoryId: doc.categoryId ? doc.categoryId.toString?.() ?? null : null,
       stock: typeof doc.stock === "number" ? doc.stock : null,
@@ -707,6 +711,8 @@ export const handleProductUpdate: RequestHandler = async (req, res) => {
       id: idStr,
       name: doc.name ?? "",
       price: typeof doc.price === "number" ? doc.price : null,
+      basePrice: typeof (doc as any).basePrice === "number" ? (doc as any).basePrice : null,
+      priceMultiplier: typeof (doc as any).priceMultiplier === "number" ? (doc as any).priceMultiplier : null,
       sku: doc.sku ?? "",
       categoryId: doc.categoryId ? doc.categoryId.toString?.() ?? null : null,
       stock: typeof doc.stock === "number" ? doc.stock : null,
