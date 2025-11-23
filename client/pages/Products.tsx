@@ -515,12 +515,30 @@ export default function Products() {
           }
         }
 
-        if (imageBase64) {
-          console.log('[Products] Adding imageBase64 to payload');
+        // Send multiple images if available, otherwise single image
+        if (imagePreviews.length > 0 && imageFiles.length > 0) {
+          console.log(`[Products] Adding ${imageFiles.length} images to payload`);
+          const imagesBase64Array: string[] = [];
+          for (let i = 0; i < imageFiles.length; i++) {
+            try {
+              const imgBase64 = await toBase64(imageFiles[i]);
+              imagesBase64Array.push(imgBase64);
+            } catch (err) {
+              console.error(`[Products] Failed to convert image ${i + 1} to base64:`, err);
+            }
+          }
+          if (imagesBase64Array.length > 0) {
+            payload.imagesBase64 = imagesBase64Array;
+            // Also send first image as imageBase64 for backward compatibility
+            payload.imageBase64 = imagesBase64Array[0];
+          }
+        } else if (imageBase64) {
+          console.log('[Products] Adding single imageBase64 to payload');
           payload.imageBase64 = imageBase64;
         } else if (editingId && removeExistingImage) {
           // Tahrirlash rejimida foydalanuvchi rasmini o'chirgan bo'lsa, backendga bo'sh qiymat yuboramiz
           payload.imageBase64 = '';
+          payload.imagesBase64 = [];
         } else {
           console.log('[Products] No image to upload');
         }
@@ -592,29 +610,8 @@ export default function Products() {
           reader.readAsDataURL(file);
         });
 
-      // Convert image and video to base64
-      let imageBase64: string | undefined;
+      // Convert video to base64 (images will be processed in submitPayload)
       let videoBase64: string | undefined;
-
-      // Process image - use imagePreviews to check if image exists
-      console.log('[Products] imageFiles.length:', imageFiles.length, 'imagePreviews.length:', imagePreviews.length);
-      if (imagePreviews.length > 0 && imageFiles.length > 0) {
-        const firstImage = imageFiles[0];
-        console.log('[Products] Converting image to base64:', firstImage.name, firstImage.size);
-        setImageError(null);
-        try {
-          imageBase64 = await toBase64(firstImage);
-          console.log('[Products] Image converted successfully, length:', imageBase64?.length);
-        } catch (err) {
-          console.error('Failed to convert image to base64', err);
-        }
-      } else if (imagePreviews.length > 0 && imagePreviews[0]?.startsWith('data:')) {
-        // If preview is already base64 (from new upload), use it directly
-        console.log('[Products] Using existing preview as base64');
-        imageBase64 = imagePreviews[0];
-      } else {
-        console.log('[Products] No image files selected. imageFiles:', imageFiles.length, 'previews:', imagePreviews.length);
-      }
 
       // Process video (only if it's a new upload with actual file data)
       if (videoFile && videoFile.size > 0 && videoPreviewUrl && !videoPreviewUrl.startsWith('http')) {
@@ -628,7 +625,7 @@ export default function Products() {
       }
 
       // Submit with both image and video
-      await submitPayload(imageBase64, videoBase64);
+      await submitPayload(videoBase64);
     } catch (err) {
       console.error('Error creating product:', err);
     } finally {

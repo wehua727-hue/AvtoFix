@@ -37,6 +37,7 @@ interface ProductDoc {
   categoryId?: any;
   stock?: number;
   imagePath?: string | null;
+  imagePaths?: string[]; // Bir nechta rasmlar uchun
   sizes?: string[];
   variants?: ProductVariantDoc[];
   store?: any;
@@ -77,6 +78,9 @@ export const handleProductsGet: RequestHandler = async (req, res) => {
           : normalizedSizes;
 
       const imageUrl = (p as any).imageUrl || p.imagePath || null;
+      const imagePaths = Array.isArray((p as any).imagePaths) && (p as any).imagePaths.length > 0 
+        ? (p as any).imagePaths 
+        : (imageUrl ? [imageUrl] : []);
       let video = (p as any).video || null;
 
       if (video && video.gridfsId && !video.url) {
@@ -95,6 +99,7 @@ export const handleProductsGet: RequestHandler = async (req, res) => {
         sizes: sizesFromVariants,
         variants: normalizedVariants,
         imageUrl,
+        imagePaths,
         video,
         store: p.store ? p.store.toString?.() ?? null : null,
         status: normalizeProductStatus((p as any).status),
@@ -198,7 +203,7 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
     }
     console.log("[api/products POST] MongoDB connected successfully");
 
-    const { name, sku, price, basePrice, priceMultiplier, categoryId, stock, imageBase64, sizes, variants, store, status, videoFilename, videoSize, videoBase64 } = req.body as {
+    const { name, sku, price, basePrice, priceMultiplier, categoryId, stock, imageBase64, imagesBase64, sizes, variants, store, status, videoFilename, videoSize, videoBase64 } = req.body as {
       name?: string;
       sku?: string;
       price?: number;
@@ -289,9 +294,48 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
       doc.variants = cleanVariants;
     }
 
-    if (typeof imageBase64 === "string" && imageBase64.trim()) {
+    // Process multiple images (imagesBase64) or single image (imageBase64)
+    const imagePaths: string[] = [];
+    const uploadsRoot = path.join(uploadsBase, "products");
+    
+    if (!fs.existsSync(uploadsRoot)) {
       try {
-        console.log("[api/products POST] Processing image, length:", imageBase64.length);
+        fs.mkdirSync(uploadsRoot, { recursive: true });
+        console.log("[api/products POST] Directory created successfully");
+      } catch (mkdirErr) {
+        console.error("[api/products POST] Failed to create directory:", mkdirErr);
+      }
+    }
+
+    // Process multiple images if provided
+    if (Array.isArray(imagesBase64) && imagesBase64.length > 0) {
+      console.log(`[api/products POST] Processing ${imagesBase64.length} images`);
+      for (let i = 0; i < imagesBase64.length; i++) {
+        const imgBase64 = imagesBase64[i];
+        if (typeof imgBase64 === "string" && imgBase64.trim()) {
+          try {
+            const base64Data = imgBase64.includes(",") ? imgBase64.split(",")[1] : imgBase64;
+            if (!base64Data || base64Data.trim().length === 0) continue;
+            
+            const originalBuffer = Buffer.from(base64Data, "base64");
+            if (originalBuffer.length === 0) continue;
+            
+            const compressed = await compressImageToBuffer(originalBuffer);
+            const fileName = `${Date.now()}-${i}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+            const absPath = path.join(uploadsRoot, fileName);
+            fs.writeFileSync(absPath, compressed);
+            const publicPath = `/uploads/products/${fileName}`;
+            imagePaths.push(publicPath);
+            console.log(`[api/products POST] Image ${i + 1} saved: ${publicPath}`);
+          } catch (e) {
+            console.error(`[api/products POST] Failed to process image ${i + 1}:`, e);
+          }
+        }
+      }
+    } else if (typeof imageBase64 === "string" && imageBase64.trim()) {
+      // Process single image (backward compatibility)
+      try {
+        console.log("[api/products POST] Processing single image");
         const base64Data = imageBase64.includes(",") ? imageBase64.split(",")[1] : imageBase64;
         
         if (!base64Data || base64Data.trim().length === 0) {
@@ -299,51 +343,31 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
         }
         
         const originalBuffer = Buffer.from(base64Data, "base64");
-        console.log("[api/products POST] Buffer size:", originalBuffer.length);
-        
         if (originalBuffer.length === 0) {
           throw new Error("Buffer is empty after decoding");
         }
         
         const compressed = await compressImageToBuffer(originalBuffer);
-        console.log("[api/products POST] Compressed size:", compressed.length);
-
-        const uploadsRoot = path.join(uploadsBase, "products");
-        console.log("[api/products POST] Uploads root:", uploadsRoot);
-        console.log("[api/products POST] Uploads base:", uploadsBase);
-        console.log("[api/products POST] Directory exists:", fs.existsSync(uploadsRoot));
-        
-        if (!fs.existsSync(uploadsRoot)) {
-          console.log("[api/products POST] Creating uploads directory");
-          try {
-            fs.mkdirSync(uploadsRoot, { recursive: true });
-            console.log("[api/products POST] Directory created successfully");
-          } catch (mkdirErr) {
-            console.error("[api/products POST] Failed to create directory:", mkdirErr);
-            throw mkdirErr;
-          }
-        }
-        
         const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
         const absPath = path.join(uploadsRoot, fileName);
-        console.log("[api/products POST] Saving to:", absPath);
-        
-        try {
-          fs.writeFileSync(absPath, compressed);
-          console.log("[api/products POST] Image saved successfully!");
-        } catch (writeErr) {
-          console.error("[api/products POST] Failed to write file:", writeErr);
-          throw writeErr;
-        }
-
+        fs.writeFileSync(absPath, compressed);
         const publicPath = `/uploads/products/${fileName}`;
-        doc.imagePath = publicPath;
+        imagePaths.push(publicPath);
+        doc.imagePath = publicPath; // Backward compatibility
+        console.log("[api/products POST] Single image saved:", publicPath);
       } catch (e) {
         console.error("[api/products POST] failed to process imageBase64", e);
         return res.status(400).json({ success: false, message: `Image processing failed: ${e instanceof Error ? e.message : String(e)}` });
       }
+    }
+
+    // Set imagePaths array and first image as imagePath for backward compatibility
+    if (imagePaths.length > 0) {
+      doc.imagePaths = imagePaths;
+      doc.imagePath = imagePaths[0]; // First image for backward compatibility
+      console.log(`[api/products POST] Total ${imagePaths.length} images saved`);
     } else {
-      console.log("[api/products POST] No image provided");
+      console.log("[api/products POST] No images provided");
     }
 
     if (categoryId) {

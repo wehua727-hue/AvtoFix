@@ -10,6 +10,7 @@ interface Product {
   stock: number;
   price: number;
   imageUrl?: string | null;
+  imagePaths?: string[]; // Bir nechta rasmlar uchun
   video?: {
     filename: string;
     url?: string;
@@ -181,6 +182,7 @@ export default function ProductDetail() {
             stock: typeof p.stock === "number" ? p.stock : 0,
             price: typeof p.price === "number" ? p.price : 0,
             imageUrl: p.imageUrl ?? null,
+            imagePaths: Array.isArray((p as any).imagePaths) ? (p as any).imagePaths : (p.imageUrl ? [p.imageUrl] : []),
           });
         }
       } catch (err) {
@@ -489,22 +491,63 @@ export default function ProductDetail() {
             <div className="flex flex-col md:flex-row gap-6 items-stretch">
               {/* Left: Product media (image or video) */}
               <div className="flex-shrink-0 flex flex-col gap-3">
-                {/* Main media display */}
+                {/* Main media display with carousel */}
                 <div 
-                  className="w-full md:w-48 aspect-square rounded-2xl overflow-hidden border-2 border-red-600/40 bg-gray-900/60 flex items-center justify-center shadow-xl shadow-red-900/30 hover:border-red-500/60 transition-all cursor-pointer group"
+                  className="w-full md:w-48 aspect-square rounded-2xl overflow-hidden border-2 border-red-600/40 bg-gray-900/60 flex items-center justify-center shadow-xl shadow-red-900/30 hover:border-red-500/60 transition-all cursor-pointer group relative"
                   onClick={() => {
-                    if (product.video?.filename) {
+                    const images = product.imagePaths && product.imagePaths.length > 0 ? product.imagePaths : (product.imageUrl ? [product.imageUrl] : []);
+                    if (images.length > 0) {
+                      setIsImageModalOpen(true);
+                    } else if (product.video?.filename) {
                       setIsVideoModalOpen(true);
                     }
                   }}
                 >
-                  {product.imageUrl ? (
-                    <img
-                      src={resolveMediaUrl(product.imageUrl)}
-                      alt={product.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : product.video?.filename ? (
+                  {(() => {
+                    const images = product.imagePaths && product.imagePaths.length > 0 ? product.imagePaths : (product.imageUrl ? [product.imageUrl] : []);
+                    if (images.length > 0) {
+                      return (
+                        <>
+                          <img
+                            src={resolveMediaUrl(images[currentImageIndex])}
+                            alt={`${product.name} - ${currentImageIndex + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                          {images.length > 1 && (
+                            <>
+                              {/* Navigation buttons */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+                                }}
+                                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 z-10"
+                              >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCurrentImageIndex((prev) => (prev + 1) % images.length);
+                                }}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 z-10"
+                              >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                              </button>
+                              {/* Image counter */}
+                              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-2 py-1 rounded-full bg-black/60 text-white text-xs">
+                                {currentImageIndex + 1} / {images.length}
+                              </div>
+                            </>
+                          )}
+                        </>
+                      );
+                    } else if (product.video?.filename) {
+                      return (
                     <div className="flex flex-col items-center gap-2 p-4 text-center relative">
                       <svg className="w-16 h-16 text-red-400 group-hover:text-red-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
@@ -530,16 +573,18 @@ export default function ProductDetail() {
                 </div>
                 
                 {/* Media info badges */}
-                {(product.imageUrl || product.video?.filename) && (
-                  <div className="flex flex-col gap-1.5">
-                    {product.imageUrl && (
-                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-900/60 border border-red-600/20">
-                        <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        <span className="text-xs text-gray-300">Rasm mavjud</span>
-                      </div>
-                    )}
+                {(() => {
+                  const images = product.imagePaths && product.imagePaths.length > 0 ? product.imagePaths : (product.imageUrl ? [product.imageUrl] : []);
+                  return (images.length > 0 || product.video?.filename) && (
+                    <div className="flex flex-col gap-1.5">
+                      {images.length > 0 && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-900/60 border border-red-600/20">
+                          <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          <span className="text-xs text-gray-300">{images.length} ta rasm mavjud</span>
+                        </div>
+                      )}
                     {product.video?.filename && (
                       <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-900/60 border border-red-600/20">
                         <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -918,6 +963,87 @@ export default function ProductDetail() {
             >
               ✕
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Images carousel modal */}
+      {isImageModalOpen && product && (() => {
+        const images = product.imagePaths && product.imagePaths.length > 0 ? product.imagePaths : (product.imageUrl ? [product.imageUrl] : []);
+        return images.length > 0;
+      })() && (
+        <div
+          className="fixed inset-0 z-[999] flex items-center justify-center bg-black/95 backdrop-blur-sm px-4"
+          onClick={() => setIsImageModalOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-6xl bg-gradient-to-br from-gray-800/95 to-gray-900/95 rounded-2xl border-2 border-red-600/40 shadow-2xl shadow-red-900/50 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setIsImageModalOpen(false)}
+              className="absolute -top-4 -right-4 flex h-10 w-10 items-center justify-center rounded-full bg-red-600 hover:bg-red-700 text-2xl text-white transition shadow-lg z-10"
+            >
+              ×
+            </button>
+            
+            {(() => {
+              const images = product.imagePaths && product.imagePaths.length > 0 ? product.imagePaths : (product.imageUrl ? [product.imageUrl] : []);
+              return (
+                <div className="flex flex-col gap-4">
+                  <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-gray-900">
+                    <img
+                      src={resolveMediaUrl(images[currentImageIndex])}
+                      alt={`${product.name} - ${currentImageIndex + 1}`}
+                      className="w-full h-full object-contain"
+                    />
+                    {images.length > 1 && (
+                      <>
+                        <button
+                          onClick={() => setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length)}
+                          className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center transition-all"
+                        >
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => setCurrentImageIndex((prev) => (prev + 1) % images.length)}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center transition-all"
+                        >
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-black/70 text-white text-sm">
+                          {currentImageIndex + 1} / {images.length}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  {images.length > 1 && (
+                    <div className="flex gap-2 overflow-x-auto pb-2">
+                      {images.map((img, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setCurrentImageIndex(idx)}
+                          className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                            currentImageIndex === idx ? 'border-red-500 scale-105' : 'border-gray-600 hover:border-gray-400'
+                          }`}
+                        >
+                          <img
+                            src={resolveMediaUrl(img)}
+                            alt={`${product.name} - ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
