@@ -1,7 +1,7 @@
 {
-  "name": "Oflayn Dokon - Store Management",
-  "short_name": "Oflayn Dokon",
-  "description": "Offline-first store management system with automatic sync",
+  "name": "AvtoFix offline do'koni",
+  "short_name": "AvtoFix",
+  "description": "AvtoFix offline do'koni - Zamonaviy do'kon boshqaruv tizimi",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -10,16 +10,16 @@
   "theme_color": "#dc2626",
   "icons": [
     {
-      "src": "/logo.webp",
-      "sizes": "192x192",
+      "src": "https://chatgpt.com/backend-api/estuary/content?id=file_00000000158471f4ac5755c71e9cbf1f&ts=489962&p=fs&cid=1&sig=a19c72981a6d17f436791ef470bc83566beb7e5507239a25bc5115bfab10a073&v=0",
+      "sizes": "512x512",
       "type": "image/webp",
       "purpose": "any"
     },
     {
-      "src": "/logo.webp",
-      "sizes": "512x512",
+      "src": "https://chatgpt.com/backend-api/estuary/content?id=file_00000000158471f4ac5755c71e9cbf1f&ts=489962&p=fs&cid=1&sig=a19c72981a6d17f436791ef470bc83566beb7e5507239a25bc5115bfab10a073&v=0",
+      "sizes": "1024x1024",
       "type": "image/webp",
-      "purpose": "any"
+      "purpose": "any maskable"
     }
   ],
   "categories": ["business", "productivity"],
