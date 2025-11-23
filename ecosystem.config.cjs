@@ -6,7 +6,7 @@ module.exports = {
   apps: [
     {
       name: 'oflayn-dokon',
-      script: './dist/server/production.mjs',
+      script: './dist/server/node-build.mjs',
       
       // ESM module uchun sozlash
       interpreter: 'node',
