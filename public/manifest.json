@@ -1,0 +1,49 @@
+{
+  "name": "AvtoFix offline do'koni",
+  "short_name": "AvtoFix",
+  "description": "AvtoFix offline do'koni - Zamonaviy do'kon boshqaruv tizimi",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#dc2626",
+  "icons": [
+    {
+      "src": "/white text.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/white text.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "screenshots": [
+    {
+      "src": "/photo_2025-11-17_22-06-09.jpg",
+      "sizes": "1280x720",
+      "type": "image/jpeg",
+      "form_factor": "wide"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Mahsulot qo'shish",
+      "short_name": "Qo'shish",
+      "description": "Yangi mahsulot qo'shish",
+      "url": "/?action=add-product",
+      "icons": [
+        {
+          "src": "/white text.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}
