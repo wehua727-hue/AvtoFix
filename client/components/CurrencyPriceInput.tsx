@@ -72,24 +72,24 @@ interface CurrencyPriceInputProps {
 function cleanPrice(value: string): string {
   if (!value) return '';
   
-  // Remove all currency symbols and text
+  // Remove currency symbols and text, but keep numbers, dots, and commas
   let cleaned = value
     .replace(/\$/g, '')           // Remove $ symbol
     .replace(/uzs/gi, '')         // Remove "uzs" (case insensitive)
     .replace(/so['']m/gi, '')     // Remove "so'm" or "so'm"
     .replace(/usd/gi, '')         // Remove "usd" (case insensitive)
-    .replace(/,/g, '')            // Remove commas (thousand separators)
+    .replace(/rub/gi, '')         // Remove "rub" (case insensitive)
+    .replace(/cny/gi, '')         // Remove "cny" (case insensitive)
+    .replace(/yuan/gi, '')        // Remove "yuan" (case insensitive)
+    .replace(/rubl/gi, '')        // Remove "rubl" (case insensitive)
+    .replace(/dollar/gi, '')      // Remove "dollar" (case insensitive)
     .replace(/\s+/g, '')          // Remove all whitespace
     .trim();
   
-  // Only keep numbers and decimal point
-  cleaned = cleaned.replace(/[^\d.]/g, '');
+  // Keep numbers, dots, and commas as they are
+  cleaned = cleaned.replace(/[^\d.,]/g, '');
   
-  // Ensure only one decimal point
-  const parts = cleaned.split('.');
-  if (parts.length > 2) {
-    cleaned = parts[0] + '.' + parts.slice(1).join('');
-  }
+  // Don't convert comma to dot - keep both as user typed them
   
   return cleaned;
 }
@@ -196,7 +196,9 @@ export default function CurrencyPriceInput({
       return;
     }
 
-    const numValue = parseFloat(cleaned);
+    // Faqat hisoblash uchun vergulni nuqtaga aylantirish (ko'rsatishda emas)
+    const numericValue = cleaned.replace(/,/g, '.');
+    const numValue = parseFloat(numericValue);
     if (!Number.isFinite(numValue) || numValue <= 0) {
       setConvertedPrice(null);
       return;
@@ -218,10 +220,13 @@ export default function CurrencyPriceInput({
   // Handle input change
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value;
-    const cleaned = cleanPrice(rawValue);
     
-    setInputValue(cleaned);
-    onChange(cleaned, currency);
+    // Faqat valyuta belgilari bo'lsa tozalash, aks holda asl holatda qoldirish
+    const hasSymbols = /[\$]|uzs|so['']m|usd|rub|cny|yuan|rubl|dollar/gi.test(rawValue);
+    const valueToSend = hasSymbols ? cleanPrice(rawValue) : rawValue;
+    
+    setInputValue(rawValue); // Input maydonida asl qiymat ko'rsatiladi
+    onChange(valueToSend, currency); // Parent ga tozalangan yoki asl qiymat uzatiladi
   }, [currency, onChange]);
 
   // Handle currency change
@@ -318,7 +323,8 @@ export default function CurrencyPriceInput({
           <div className="relative flex-1 group">
             <input
               type="text"
-              value={formatNumber(inputValue)}
+              inputMode="decimal"
+              value={inputValue}
               onChange={handleInputChange}
               placeholder={getPlaceholder()}
               disabled={disabled}

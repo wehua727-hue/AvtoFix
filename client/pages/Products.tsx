@@ -668,7 +668,9 @@ export default function Products() {
         });
 
         // Convert price to UZS based on selected currency
-        let finalPrice = Number(price) || 0;
+        // Vergulni nuqtaga aylantirish faqat hisoblash uchun
+        const numericPrice = price.replace(/,/g, '.');
+        let finalPrice = Number(numericPrice) || 0;
         if (priceCurrency !== 'UZS' && finalPrice > 0) {
           try {
             // Fetch exchange rates
@@ -689,7 +691,9 @@ export default function Products() {
         }
 
         // Convert basePrice to UZS as well
-        let finalBasePrice = Number(basePrice) || 0;
+        // Vergulni nuqtaga aylantirish faqat hisoblash uchun
+        const numericBasePrice = basePrice.replace(/,/g, '.');
+        let finalBasePrice = Number(numericBasePrice) || 0;
         if (priceCurrency !== 'UZS' && finalBasePrice > 0) {
           try {
             const rateResponse = await fetch(`${API_BASE_URL}/api/currency/rates`);
@@ -711,14 +715,16 @@ export default function Products() {
         const payload: any = {
           name: name.trim(),
           sku: sku.trim(),
-          price: finalPrice, // Always in UZS
-          basePrice: finalBasePrice, // Always in UZS
+          price: finalPrice, // Always in UZS (number)
+          basePrice: finalBasePrice, // Always in UZS (number)
           priceMultiplier: Number(priceMultiplier) || 0,
           stock: Number(stock) || 0,
           categoryId,
           store: currentStoreId,
           status: productStatus,
           currency: priceCurrency, // Include currency info for reference
+          originalPriceString: price, // Asl format (string)
+          originalBasePriceString: basePrice, // Asl format (string)
         };
         
         console.log('[Products] Payload to send:', { 
@@ -1405,14 +1411,27 @@ export default function Products() {
                       <div>
                         <label className="block text-xs font-semibold text-foreground mb-1.5">Asl narxi</label>
                         <input
-                          type="number"
+                          type="text"
                           inputMode="decimal"
-                          step="0.01"
                           value={basePrice}
                           onChange={(e) => {
-                            setBasePrice(e.target.value);
-                            // Asl narx o'zgarsa, agar narx qo'lda o'zgartirilgan bo'lsa foiz qayta hisoblanadi
-                            // Aks holda narx qayta hisoblanadi (useEffect orqali)
+                            const value = e.target.value;
+                            // Faqat raqamlar, nuqta va vergulga ruxsat berish
+                            if (/^[0-9.,]*$/.test(value)) {
+                              setBasePrice(value);
+                              // Asl narx o'zgarsa, agar narx qo'lda o'zgartirilgan bo'lsa foiz qayta hisoblanadi
+                              // Aks holda narx qayta hisoblanadi (useEffect orqali)
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            // Raqamlar, nuqta, vergul, backspace, delete, arrow keys, tab ga ruxsat berish
+                            const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter'];
+                            const isNumber = /^[0-9]$/.test(e.key);
+                            const isDecimal = e.key === '.' || e.key === ',';
+                            
+                            if (!isNumber && !isDecimal && !allowedKeys.includes(e.key)) {
+                              e.preventDefault();
+                            }
                           }}
                           onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                           className="w-full px-4 py-2.5 rounded-xl bg-background border border-input text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
@@ -1428,14 +1447,27 @@ export default function Products() {
                           )}
                         </label>
                         <input
-                          type="number"
+                          type="text"
                           inputMode="decimal"
-                          step="0.01"
                           value={priceMultiplier}
                           onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                           onChange={(e) => {
-                            setPriceMultiplier(e.target.value);
-                            setIsPriceManuallyEdited(false); // Foiz o'zgarsa, narx avtomatik hisoblanadi
+                            const value = e.target.value;
+                            // Faqat raqamlar, nuqta va vergulga ruxsat berish
+                            if (/^[0-9.,]*$/.test(value)) {
+                              setPriceMultiplier(value);
+                              setIsPriceManuallyEdited(false); // Foiz o'zgarsa, narx avtomatik hisoblanadi
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            // Raqamlar, nuqta, vergul, backspace, delete, arrow keys, tab ga ruxsat berish
+                            const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter'];
+                            const isNumber = /^[0-9]$/.test(e.key);
+                            const isDecimal = e.key === '.' || e.key === ',';
+                            
+                            if (!isNumber && !isDecimal && !allowedKeys.includes(e.key)) {
+                              e.preventDefault();
+                            }
                           }}
                           className="w-full px-4 py-2.5 rounded-xl bg-background border border-input text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
                           placeholder="Masalan: 10"
@@ -1462,10 +1494,26 @@ export default function Products() {
                     <div>
                       <label className="block text-xs font-semibold text-foreground mb-1.5">Ombordagi soni</label>
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
                         value={stock}
                         onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
-                        onChange={(e) => setStock(e.target.value)}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          // Faqat raqamlarga ruxsat berish (ombordagi son uchun nuqta va vergul kerak emas)
+                          if (/^[0-9]*$/.test(value)) {
+                            setStock(value);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          // Faqat raqamlar, backspace, delete, arrow keys, tab ga ruxsat berish
+                          const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter'];
+                          const isNumber = /^[0-9]$/.test(e.key);
+                          
+                          if (!isNumber && !allowedKeys.includes(e.key)) {
+                            e.preventDefault();
+                          }
+                        }}
                         className="w-full px-4 py-2.5 rounded-xl bg-background border border-input text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
                         placeholder="Masalan: 10"
                         disabled={isSaving}
@@ -2593,8 +2641,12 @@ export default function Products() {
                                 
                                 // For prices, we need to convert back from UZS to original currency for editing
                                 const existingPrice = (() => {
+                                  // Avval asl string formatni ishlatishga harakat qilamiz
+                                  if (productData.originalPriceString) {
+                                    return productData.originalPriceString;
+                                  }
+                                  // Agar asl format yo'q bo'lsa, konvertatsiya qilamiz (eski mahsulotlar uchun)
                                   if (productData.price != null) {
-                                    // Convert UZS price back to original currency for display/editing
                                     const convertedPrice = convertFromUZS(productData.price, originalCurrency);
                                     return String(convertedPrice);
                                   } else if (p.price != null) {
@@ -2605,8 +2657,12 @@ export default function Products() {
                                 })();
                                 
                                 const existingBasePrice = (() => {
+                                  // Avval asl string formatni ishlatishga harakat qilamiz
+                                  if (productData.originalBasePriceString) {
+                                    return productData.originalBasePriceString;
+                                  }
+                                  // Agar asl format yo'q bo'lsa, konvertatsiya qilamiz (eski mahsulotlar uchun)
                                   if (productData.basePrice != null) {
-                                    // Convert UZS basePrice back to original currency for display/editing
                                     const convertedBasePrice = convertFromUZS(productData.basePrice, originalCurrency);
                                     return String(convertedBasePrice);
                                   } else if (p.basePrice != null) {

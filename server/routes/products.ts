@@ -350,6 +350,8 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
       basePrice: cleanBasePrice,
       priceMultiplier: cleanPriceMultiplier,
       currency: typeof currency === "string" ? currency : "UZS", // Pul birligini saqlash
+      originalPriceString: typeof (req.body as any).originalPriceString === "string" ? (req.body as any).originalPriceString : undefined, // Asl format
+      originalBasePriceString: typeof (req.body as any).originalBasePriceString === "string" ? (req.body as any).originalBasePriceString : undefined, // Asl format
       stock: cleanStock,
       status: cleanStatus,
     };

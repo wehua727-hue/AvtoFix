@@ -338,11 +338,26 @@ export default function VariantModal({ isOpen, onClose, onSave, exchangeRates, m
                     Asl narxi <span className="text-destructive">*</span>
                   </label>
                   <input
-                    type="number"
+                    type="text"
                     inputMode="decimal"
-                    step="0.01"
                     value={basePrice}
-                    onChange={(e) => setBasePrice(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Faqat raqamlar, nuqta va vergulga ruxsat berish
+                      if (/^[0-9.,]*$/.test(value)) {
+                        setBasePrice(value);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      // Raqamlar, nuqta, vergul, backspace, delete, arrow keys, tab ga ruxsat berish
+                      const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter'];
+                      const isNumber = /^[0-9]$/.test(e.key);
+                      const isDecimal = e.key === '.' || e.key === ',';
+                      
+                      if (!isNumber && !isDecimal && !allowedKeys.includes(e.key)) {
+                        e.preventDefault();
+                      }
+                    }}
                     onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                     className="w-full px-4 py-3 rounded-xl bg-background border border-input text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all"
                     placeholder="10000"
@@ -358,13 +373,26 @@ export default function VariantModal({ isOpen, onClose, onSave, exchangeRates, m
                     )}
                   </label>
                   <input
-                    type="number"
+                    type="text"
                     inputMode="decimal"
-                    step="0.01"
                     value={priceMultiplier}
                     onChange={(e) => {
-                      setPriceMultiplier(e.target.value);
-                      setIsPriceManuallyEdited(false);
+                      const value = e.target.value;
+                      // Faqat raqamlar, nuqta va vergulga ruxsat berish
+                      if (/^[0-9.,]*$/.test(value)) {
+                        setPriceMultiplier(value);
+                        setIsPriceManuallyEdited(false);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      // Raqamlar, nuqta, vergul, backspace, delete, arrow keys, tab ga ruxsat berish
+                      const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter'];
+                      const isNumber = /^[0-9]$/.test(e.key);
+                      const isDecimal = e.key === '.' || e.key === ',';
+                      
+                      if (!isNumber && !isDecimal && !allowedKeys.includes(e.key)) {
+                        e.preventDefault();
+                      }
                     }}
                     onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                     className="w-full px-4 py-3 rounded-xl bg-background border border-input text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all"
@@ -395,9 +423,25 @@ export default function VariantModal({ isOpen, onClose, onSave, exchangeRates, m
                 Ombordagi soni <span className="text-destructive">*</span>
               </label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 value={stock}
-                onChange={(e) => setStock(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Faqat raqamlarga ruxsat berish (ombordagi son uchun nuqta va vergul kerak emas)
+                  if (/^[0-9]*$/.test(value)) {
+                    setStock(value);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  // Faqat raqamlar, backspace, delete, arrow keys, tab ga ruxsat berish
+                  const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter'];
+                  const isNumber = /^[0-9]$/.test(e.key);
+                  
+                  if (!isNumber && !allowedKeys.includes(e.key)) {
+                    e.preventDefault();
+                  }
+                }}
                 onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
                 className="w-full px-4 py-3 rounded-xl bg-background border border-input text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all"
                 placeholder="10"
