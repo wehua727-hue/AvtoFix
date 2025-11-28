@@ -1358,7 +1358,7 @@ export default function ProductDetail() {
                     </p>
                   </div>
                   <p className="text-gray-400 text-xs">
-                    Mahsulotning jami narxi va sof foydasi.
+                    Mahsulotning tan narxi, daromadi va sof foydasi.
                   </p>
                 </div>
               </div>
@@ -1433,7 +1433,7 @@ export default function ProductDetail() {
                   </div>
                 </div>
 
-                {/* Daromad (eski Sof foyda) */}
+                {/* Daromad (eski Jami narx) */}
                 <div className="group relative overflow-hidden rounded-2xl border border-green-500/30 bg-gradient-to-br from-green-600/10 via-green-700/10 to-green-600/10 hover:from-green-600/20 hover:via-green-700/20 hover:to-green-600/20 p-6 transition-all duration-300 hover:shadow-xl hover:shadow-green-900/30 hover:border-green-500/50">
                   {/* Background decoration */}
                   <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-500/10 to-transparent rounded-full blur-3xl"></div>
@@ -1445,15 +1445,86 @@ export default function ProductDetail() {
                       <div className="flex items-center gap-3">
                         <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center shadow-lg shadow-green-500/25 group-hover:shadow-green-500/40 transition-all">
                           <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                           </svg>
                         </div>
                         <div>
                           <p className="text-sm font-bold text-green-300">Daromad</p>
-                          <p className="text-xs text-green-400/80">Foizdan kelib chiqadigan foyda</p>
+                          <p className="text-xs text-green-400/80">Sotiladigan narx × Ombordagi soni</p>
                         </div>
                       </div>
                       <div className="w-2 h-2 rounded-full bg-green-400 group-hover:bg-green-300 transition-colors animate-pulse"></div>
+                    </div>
+                    
+                    <div className="text-center py-4">
+                      <p className="text-3xl font-black text-white mb-2 tracking-tight">
+                        {(() => {
+                          const currency = selectedVariant ? selectedVariant.currency : product.currency;
+                          const price = selectedVariant ? (selectedVariant.price ?? 0) : (product.price ?? 0);
+                          const stock = selectedVariant ? (selectedVariant.stock ?? 0) : (product.stock ?? 0);
+                          
+                          const convertedPrice = convertFromUZS(price, currency);
+                          const total = convertedPrice * stock;
+                          return formatMoney(total);
+                        })()}
+                      </p>
+                      
+                      {/* Currency description */}
+                      {(() => {
+                        const currency = selectedVariant ? selectedVariant.currency : product.currency;
+                        const currencyNames: Record<string, string> = {
+                          'USD': 'Dollarda',
+                          'RUB': 'Rublda',
+                          'CNY': 'Yuanda',
+                          'UZS': 'So\'mda'
+                        };
+                        return (
+                          <span className="inline-flex items-center px-3 py-1 rounded-full bg-green-500/20 border border-green-500/30 text-xs font-medium text-green-300 mb-3">
+                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                            </svg>
+                            {currencyNames[currency || 'UZS']} hisoblangan
+                          </span>
+                        );
+                      })()}
+                      
+                      <div className="bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2">
+                        <p className="text-xs font-mono text-green-300/80">
+                          {(() => {
+                            const currency = selectedVariant ? selectedVariant.currency : product.currency;
+                            const price = selectedVariant ? (selectedVariant.price ?? 0) : (product.price ?? 0);
+                            const stock = selectedVariant ? (selectedVariant.stock ?? 0) : (product.stock ?? 0);
+                            
+                            const convertedPrice = convertFromUZS(price, currency);
+                            return `${formatMoney(convertedPrice)} × ${stock}`;
+                          })()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sof foyda (eski Daromad) */}
+                <div className="group relative overflow-hidden rounded-2xl border border-purple-500/30 bg-gradient-to-br from-purple-600/10 via-purple-700/10 to-purple-600/10 hover:from-purple-600/20 hover:via-purple-700/20 hover:to-purple-600/20 p-6 transition-all duration-300 hover:shadow-xl hover:shadow-purple-900/30 hover:border-purple-500/50">
+                  {/* Background decoration */}
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-500/10 to-transparent rounded-full blur-3xl"></div>
+                  <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-purple-500/10 to-transparent rounded-full blur-2xl"></div>
+                  
+                  {/* Content */}
+                  <div className="relative z-10">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/25 group-hover:shadow-purple-500/40 transition-all">
+                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-purple-300">Sof foyda</p>
+                          <p className="text-xs text-purple-400/80">Foizdan kelib chiqadigan foyda</p>
+                        </div>
+                      </div>
+                      <div className="w-2 h-2 rounded-full bg-purple-400 group-hover:bg-purple-300 transition-colors animate-pulse"></div>
                     </div>
                     
                     <div className="text-center py-4">
@@ -1482,7 +1553,7 @@ export default function ProductDetail() {
                           'UZS': 'So\'mda'
                         };
                         return (
-                          <span className="inline-flex items-center px-3 py-1 rounded-full bg-green-500/20 border border-green-500/30 text-xs font-medium text-green-300 mb-3">
+                          <span className="inline-flex items-center px-3 py-1 rounded-full bg-purple-500/20 border border-purple-500/30 text-xs font-medium text-purple-300 mb-3">
                             <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                             </svg>
@@ -1491,8 +1562,8 @@ export default function ProductDetail() {
                         );
                       })()}
                       
-                      <div className="bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2">
-                        <p className="text-xs font-mono text-green-300/80 break-all">
+                      <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg px-3 py-2">
+                        <p className="text-xs font-mono text-purple-300/80 break-all">
                           {(() => {
                             const currency = selectedVariant ? selectedVariant.currency : product.currency;
                             const price = selectedVariant ? (selectedVariant.price ?? 0) : (product.price ?? 0);
@@ -1503,77 +1574,6 @@ export default function ProductDetail() {
                             const convertedBasePrice = convertFromUZS(basePrice, currency);
                             
                             return `(${formatMoney(convertedPrice)} - ${formatMoney(convertedBasePrice)}) × ${stock}`;
-                          })()}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Jami narx (yangi) */}
-                <div className="group relative overflow-hidden rounded-2xl border border-purple-500/30 bg-gradient-to-br from-purple-600/10 via-purple-700/10 to-purple-600/10 hover:from-purple-600/20 hover:via-purple-700/20 hover:to-purple-600/20 p-6 transition-all duration-300 hover:shadow-xl hover:shadow-purple-900/30 hover:border-purple-500/50">
-                  {/* Background decoration */}
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-500/10 to-transparent rounded-full blur-3xl"></div>
-                  <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-purple-500/10 to-transparent rounded-full blur-2xl"></div>
-                  
-                  {/* Content */}
-                  <div className="relative z-10">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/25 group-hover:shadow-purple-500/40 transition-all">
-                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-purple-300">Jami narx</p>
-                          <p className="text-xs text-purple-400/80">Sotiladigan narx × Ombordagi soni</p>
-                        </div>
-                      </div>
-                      <div className="w-2 h-2 rounded-full bg-purple-400 group-hover:bg-purple-300 transition-colors animate-pulse"></div>
-                    </div>
-                    
-                    <div className="text-center py-4">
-                      <p className="text-3xl font-black text-white mb-2 tracking-tight">
-                        {(() => {
-                          const currency = selectedVariant ? selectedVariant.currency : product.currency;
-                          const price = selectedVariant ? (selectedVariant.price ?? 0) : (product.price ?? 0);
-                          const stock = selectedVariant ? (selectedVariant.stock ?? 0) : (product.stock ?? 0);
-                          
-                          const convertedPrice = convertFromUZS(price, currency);
-                          const total = convertedPrice * stock;
-                          return formatMoney(total);
-                        })()}
-                      </p>
-                      
-                      {/* Currency description */}
-                      {(() => {
-                        const currency = selectedVariant ? selectedVariant.currency : product.currency;
-                        const currencyNames: Record<string, string> = {
-                          'USD': 'Dollarda',
-                          'RUB': 'Rublda',
-                          'CNY': 'Yuanda',
-                          'UZS': 'So\'mda'
-                        };
-                        return (
-                          <span className="inline-flex items-center px-3 py-1 rounded-full bg-purple-500/20 border border-purple-500/30 text-xs font-medium text-purple-300 mb-3">
-                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                            </svg>
-                            {currencyNames[currency || 'UZS']} hisoblangan
-                          </span>
-                        );
-                      })()}
-                      
-                      <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg px-3 py-2">
-                        <p className="text-xs font-mono text-purple-300/80">
-                          {(() => {
-                            const currency = selectedVariant ? selectedVariant.currency : product.currency;
-                            const price = selectedVariant ? (selectedVariant.price ?? 0) : (product.price ?? 0);
-                            const stock = selectedVariant ? (selectedVariant.stock ?? 0) : (product.stock ?? 0);
-                            
-                            const convertedPrice = convertFromUZS(price, currency);
-                            return `${formatMoney(convertedPrice)} × ${stock}`;
                           })()}
                         </p>
                       </div>
