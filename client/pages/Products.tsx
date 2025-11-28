@@ -784,10 +784,12 @@ export default function Products() {
             const variantPayload: any = {
               name: v.name,
               sku: v.sku, // SKU ni ham qo'shamiz
-              basePrice: basePrice,
+              basePrice: basePrice, // UZS da saqlangan narx
               priceMultiplier: priceMultiplier,
-              price: price,
+              price: price, // UZS da saqlangan narx
               currency: variantCurrency, // Include currency info
+              originalBasePrice: typeof v.basePrice === 'number' ? v.basePrice : parseFloat(v.basePrice) || 0, // Asl valyutadagi narx
+              originalPrice: typeof v.price === 'number' ? v.price : parseFloat(v.price) || 0, // Asl valyutadagi narx
               stock: stock,
               status: v.status,
               imagePaths: v.imagePaths || [],
@@ -1774,8 +1776,15 @@ export default function Products() {
                                         // Get variant currency and convert prices back to original currency for editing
                                         const variantCurrency = v?.currency ?? priceCurrency ?? 'UZS';
                                         
-                                        // Convert UZS prices back to original currency for editing
+                                        // Use original prices if available, otherwise convert from UZS (for backward compatibility)
                                         const convertedBasePrice = (() => {
+                                          // Agar asl narx mavjud bo'lsa, uni ishlatamiz (konvertatsiya qilmasdan)
+                                          if (v?.originalBasePrice != null && Number.isFinite(v.originalBasePrice)) {
+                                            console.log('[Products] Using original basePrice for variant:', v.name, v.originalBasePrice);
+                                            return String(v.originalBasePrice);
+                                          }
+                                          // Agar asl narx yo'q bo'lsa (eski xillar uchun), UZS dan konvertatsiya qilamiz
+                                          console.log('[Products] Converting basePrice from UZS for variant:', v.name);
                                           if (baseFromVariant != null && Number.isFinite(baseFromVariant)) {
                                             const converted = convertFromUZS(baseFromVariant, variantCurrency);
                                             return String(converted);
@@ -1787,6 +1796,13 @@ export default function Products() {
                                         })();
                                         
                                         const convertedPrice = (() => {
+                                          // Agar asl narx mavjud bo'lsa, uni ishlatamiz (konvertatsiya qilmasdan)
+                                          if (v?.originalPrice != null && Number.isFinite(v.originalPrice)) {
+                                            console.log('[Products] Using original price for variant:', v.name, v.originalPrice);
+                                            return String(v.originalPrice);
+                                          }
+                                          // Agar asl narx yo'q bo'lsa (eski xillar uchun), UZS dan konvertatsiya qilamiz
+                                          console.log('[Products] Converting price from UZS for variant:', v.name);
                                           if (priceFromVariant != null && Number.isFinite(priceFromVariant)) {
                                             const converted = convertFromUZS(priceFromVariant, variantCurrency);
                                             return String(converted);

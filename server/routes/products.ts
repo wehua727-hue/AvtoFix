@@ -488,10 +488,12 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
         const variantData = {
           name: (v.name || '').toString().trim(),
           sku: typeof v.sku === 'string' ? v.sku.trim() : '', // SKU ni qo'shamiz
-          basePrice: typeof v.basePrice === 'number' ? v.basePrice : (parseFloat(v.basePrice) || 0),
+          basePrice: typeof v.basePrice === 'number' ? v.basePrice : (parseFloat(v.basePrice) || 0), // UZS da saqlangan
           priceMultiplier: typeof v.priceMultiplier === 'number' ? v.priceMultiplier : (parseFloat(v.priceMultiplier) || 0),
-          price: typeof v.price === 'number' ? v.price : (parseFloat(v.price) || 0),
+          price: typeof v.price === 'number' ? v.price : (parseFloat(v.price) || 0), // UZS da saqlangan
           currency: typeof v.currency === 'string' && v.currency ? v.currency : 'UZS', // Variant pul birligini majburiy tekshirish
+          originalBasePrice: typeof v.originalBasePrice === 'number' ? v.originalBasePrice : (parseFloat(v.originalBasePrice) || 0), // Asl valyutadagi narx
+          originalPrice: typeof v.originalPrice === 'number' ? v.originalPrice : (parseFloat(v.originalPrice) || 0), // Asl valyutadagi narx
           stock: typeof v.stock === 'number' ? v.stock : (parseInt(v.stock) || 0),
           status: typeof v.status === 'string' ? v.status : 'available',
           imagePaths: [...existingPaths, ...newPaths],
@@ -914,10 +916,12 @@ export const handleProductUpdate: RequestHandler = async (req, res) => {
         update.variantSummaries = variantSummaries.map((v: any) => ({
           name: (v.name || '').toString().trim(),
           sku: typeof v.sku === 'string' ? v.sku.trim() : '', // SKU ni qo'shamiz
-          basePrice: typeof v.basePrice === 'number' ? v.basePrice : 0,
+          basePrice: typeof v.basePrice === 'number' ? v.basePrice : 0, // UZS da saqlangan
           priceMultiplier: typeof v.priceMultiplier === 'number' ? v.priceMultiplier : 0,
-          price: typeof v.price === 'number' ? v.price : 0,
+          price: typeof v.price === 'number' ? v.price : 0, // UZS da saqlangan
           currency: typeof v.currency === 'string' && v.currency ? v.currency : 'UZS', // Pul birligini majburiy qo'shish
+          originalBasePrice: typeof v.originalBasePrice === 'number' ? v.originalBasePrice : 0, // Asl valyutadagi narx
+          originalPrice: typeof v.originalPrice === 'number' ? v.originalPrice : 0, // Asl valyutadagi narx
           stock: typeof v.stock === 'number' ? v.stock : 0,
           status: typeof v.status === 'string' ? v.status : 'available',
           imagePaths: Array.isArray(v.imagePaths) ? v.imagePaths : [],
