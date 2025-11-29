@@ -36,8 +36,11 @@ interface VariantSummaryDoc {
   priceMultiplier?: number;
   price?: number;
   currency?: string; // Variant pul birligi
+  originalBasePrice?: number;
+  originalPrice?: number;
   stock?: number;
   status?: string;
+  categoryId?: string; // Xil uchun kategoriya
   imagePaths?: string[];
 }
 
@@ -112,8 +115,11 @@ export const handleProductsGet: RequestHandler = async (req, res) => {
             priceMultiplier: typeof v.priceMultiplier === "number" ? v.priceMultiplier : undefined,
             price: typeof v.price === "number" ? v.price : undefined,
             currency: typeof v.currency === "string" ? v.currency : undefined, // Variant pul birligi
+            originalBasePrice: typeof v.originalBasePrice === "number" ? v.originalBasePrice : undefined,
+            originalPrice: typeof v.originalPrice === "number" ? v.originalPrice : undefined,
             stock: typeof v.stock === "number" ? v.stock : undefined,
             status: typeof v.status === "string" ? v.status : undefined,
+            categoryId: typeof v.categoryId === "string" ? v.categoryId : null, // Kategoriya ID sini qaytarish
             imagePaths: Array.isArray(v.imagePaths) ? v.imagePaths : [],
           }))
         : [];
@@ -216,8 +222,11 @@ export const handleProductGetById: RequestHandler = async (req, res) => {
           priceMultiplier: typeof v.priceMultiplier === "number" ? v.priceMultiplier : undefined,
           price: typeof v.price === "number" ? v.price : undefined,
           currency: typeof v.currency === "string" ? v.currency : undefined, // Variant pul birligi
+          originalBasePrice: typeof v.originalBasePrice === "number" ? v.originalBasePrice : undefined,
+          originalPrice: typeof v.originalPrice === "number" ? v.originalPrice : undefined,
           stock: typeof v.stock === "number" ? v.stock : undefined,
           status: typeof v.status === "string" ? v.status : undefined,
+          categoryId: typeof v.categoryId === "string" ? v.categoryId : null, // Kategoriya ID sini qaytarish
           imagePaths: Array.isArray(v.imagePaths) ? v.imagePaths : [],
         }))
       : [];
@@ -487,7 +496,7 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
           }
         }
 
-        const variantData = {
+        const variantData: any = {
           name: (v.name || '').toString().trim(),
           sku: typeof v.sku === 'string' ? v.sku.trim() : '', // SKU ni qo'shamiz
           basePrice: typeof v.basePrice === 'number' ? v.basePrice : (parseFloat(v.basePrice) || 0), // UZS da saqlangan
@@ -498,6 +507,7 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
           originalPrice: typeof v.originalPrice === 'number' ? v.originalPrice : (parseFloat(v.originalPrice) || 0), // Asl valyutadagi narx
           stock: typeof v.stock === 'number' ? v.stock : (parseInt(v.stock) || 0),
           status: typeof v.status === 'string' ? v.status : 'available',
+          categoryId: typeof v.categoryId === 'string' && v.categoryId ? v.categoryId : null, // Xil uchun kategoriya
           imagePaths: [...existingPaths, ...newPaths],
         };
         
@@ -616,7 +626,20 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
               : [],
           }))
         : [],
-      variantSummaries: Array.isArray(doc.variantSummaries) ? doc.variantSummaries : [],
+      variantSummaries: Array.isArray(doc.variantSummaries) ? doc.variantSummaries.map((v: any) => ({
+        name: v.name,
+        sku: v.sku,
+        basePrice: v.basePrice,
+        priceMultiplier: v.priceMultiplier,
+        price: v.price,
+        currency: v.currency,
+        originalBasePrice: v.originalBasePrice,
+        originalPrice: v.originalPrice,
+        stock: v.stock,
+        status: v.status,
+        categoryId: v.categoryId || null, // Kategoriya ID sini qaytarish
+        imagePaths: v.imagePaths || [],
+      })) : [],
       imageUrl: (doc as any).imageUrl || doc.imagePath || null,
       imagePaths: Array.isArray(doc.imagePaths) ? doc.imagePaths : [],
       video: finalVideo || null,
@@ -815,15 +838,18 @@ export const handleProductUpdate: RequestHandler = async (req, res) => {
           }
         }
 
-        const variantData = {
+        const variantData: any = {
           name: (v.name || '').toString().trim(),
           sku: typeof v.sku === 'string' ? v.sku.trim() : '',
           basePrice: typeof v.basePrice === 'number' ? v.basePrice : (parseFloat(v.basePrice) || 0),
           priceMultiplier: typeof v.priceMultiplier === 'number' ? v.priceMultiplier : (parseFloat(v.priceMultiplier) || 0),
           price: typeof v.price === 'number' ? v.price : (parseFloat(v.price) || 0),
           currency: typeof v.currency === 'string' && v.currency ? v.currency : 'UZS',
+          originalBasePrice: typeof v.originalBasePrice === 'number' ? v.originalBasePrice : (parseFloat(v.originalBasePrice) || 0),
+          originalPrice: typeof v.originalPrice === 'number' ? v.originalPrice : (parseFloat(v.originalPrice) || 0),
           stock: typeof v.stock === 'number' ? v.stock : (parseInt(v.stock) || 0),
           status: typeof v.status === 'string' ? v.status : 'available',
+          categoryId: typeof v.categoryId === 'string' && v.categoryId ? v.categoryId : null, // Xil uchun kategoriya
           imagePaths: [...existingPaths, ...newPaths],
         };
         
@@ -834,6 +860,7 @@ export const handleProductUpdate: RequestHandler = async (req, res) => {
           priceMultiplier: variantData.priceMultiplier,
           price: variantData.price,
           currency: variantData.currency,
+          categoryId: variantData.categoryId,
           stock: variantData.stock,
           imagePathsCount: variantData.imagePaths.length
         });
@@ -1041,8 +1068,11 @@ export const handleProductUpdate: RequestHandler = async (req, res) => {
           priceMultiplier: typeof v.priceMultiplier === "number" ? v.priceMultiplier : undefined,
           price: typeof v.price === "number" ? v.price : undefined,
           currency: typeof v.currency === "string" ? v.currency : undefined,
+          originalBasePrice: typeof v.originalBasePrice === "number" ? v.originalBasePrice : undefined,
+          originalPrice: typeof v.originalPrice === "number" ? v.originalPrice : undefined,
           stock: typeof v.stock === "number" ? v.stock : undefined,
           status: typeof v.status === "string" ? v.status : undefined,
+          categoryId: typeof v.categoryId === "string" ? v.categoryId : null, // Kategoriya ID sini qaytarish
           imagePaths: Array.isArray(v.imagePaths) ? v.imagePaths : [],
         }))
       : [];

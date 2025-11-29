@@ -760,12 +760,39 @@ export default function Products() {
           const variantSummariesPayload: any[] = [];
 
           for (const v of variantSummaries) {
+            // Helper function to parse price string (handles comma as decimal separator)
+            const parsePriceString = (val: any): number => {
+              if (typeof val === 'number') return val;
+              if (typeof val === 'string') {
+                // Vergulni nuqtaga almashtirish (O'zbekiston formati)
+                const normalized = val.replace(/,/g, '.');
+                return parseFloat(normalized) || 0;
+              }
+              return 0;
+            };
+
+            // Asl valyutadagi narxlarni saqlash (konvertatsiya qilmasdan)
+            // Agar originalBasePrice mavjud bo'lsa, uni ishlatamiz (tahrirlashda)
+            // Aks holda, basePrice dan olamiz (yangi xil qo'shishda)
+            const originalBasePriceValue = typeof v.originalBasePrice === 'number' && v.originalBasePrice > 0
+              ? v.originalBasePrice
+              : parsePriceString(v.basePrice);
+            const originalPriceValue = typeof v.originalPrice === 'number' && v.originalPrice > 0
+              ? v.originalPrice
+              : parsePriceString(v.price);
+            
             // Ensure numeric values are properly converted
-            let basePrice = typeof v.basePrice === 'number' ? v.basePrice : parseFloat(v.basePrice) || 0;
-            const priceMultiplier = typeof v.priceMultiplier === 'number' ? v.priceMultiplier : parseFloat(v.priceMultiplier) || 0;
-            let price = typeof v.price === 'number' ? v.price : parseFloat(v.price) || 0;
+            let basePrice = parsePriceString(v.basePrice);
+            const priceMultiplier = parsePriceString(v.priceMultiplier);
+            let price = parsePriceString(v.price);
             const stock = typeof v.stock === 'number' ? v.stock : parseInt(v.stock) || 0;
             const variantCurrency = v.priceCurrency || priceCurrency; // Use variant currency or main product currency
+
+            console.log(`[Products] Variant "${v.name}" original prices:`, {
+              originalBasePrice: originalBasePriceValue,
+              originalPrice: originalPriceValue,
+              currency: variantCurrency
+            });
 
             // Convert variant prices to UZS if needed
             if (variantCurrency !== 'UZS') {
@@ -794,15 +821,17 @@ export default function Products() {
               priceMultiplier: priceMultiplier,
               price: price, // UZS da saqlangan narx
               currency: variantCurrency, // Include currency info
-              originalBasePrice: typeof v.basePrice === 'number' ? v.basePrice : parseFloat(v.basePrice) || 0, // Asl valyutadagi narx
-              originalPrice: typeof v.price === 'number' ? v.price : parseFloat(v.price) || 0, // Asl valyutadagi narx
+              originalBasePrice: originalBasePriceValue, // Asl valyutadagi narx (konvertatsiya qilinmagan)
+              originalPrice: originalPriceValue, // Asl valyutadagi narx (konvertatsiya qilinmagan)
               stock: stock,
               status: v.status,
+              categoryId: v.categoryId || null, // Xil uchun kategoriya
               imagePaths: v.imagePaths || [],
             };
 
             console.log('[Products] Processing variant:', {
               name: v.name,
+              categoryId: v.categoryId, // Kategoriya ID sini log qilish
               hasImages: Array.isArray(v.images),
               imagesLength: v.images?.length || 0,
               images: v.images
@@ -926,6 +955,7 @@ export default function Products() {
                 
                 console.log(`[Products] Variant ${index} after save:`, {
                   name: serverV.name,
+                  categoryId: serverV.categoryId, // Kategoriya ID sini log qilish
                   imagePathsCount: imagePaths.length,
                   imagePreviewsCount: imagePreviews.length
                 });
@@ -1900,6 +1930,12 @@ export default function Products() {
                                         console.log('[Products] Opening variant for edit:', {
                                           name: v?.name,
                                           sku: v?.sku,
+                                          categoryId: v?.categoryId,
+                                          basePrice: v?.basePrice,
+                                          originalBasePrice: v?.originalBasePrice,
+                                          price: v?.price,
+                                          originalPrice: v?.originalPrice,
+                                          currency: v?.currency,
                                           imagePaths: existingImagePaths,
                                           resolvedPreviews: resolvedImagePreviews
                                         });
@@ -1958,6 +1994,7 @@ export default function Products() {
                                           priceCurrency: variantCurrency,
                                           stock: v?.stock != null ? String(v.stock) : (stock || ''),
                                           status: v?.status ?? 'available',
+                                          categoryId: v?.categoryId ?? '', // Kategoriya ID sini yuklash
                                           images: [], // No File objects for existing images
                                           imagePreviews: resolvedImagePreviews, // Server URLs
                                         });
@@ -3183,6 +3220,100 @@ export default function Products() {
             initialData={editingVariantInitialData}
             productCurrency={priceCurrency}
             exchangeRates={exchangeRates}
+            categories={categories}
+            onCreateCategory={async (name: string, parentId?: string) => {
+              // Kategoriya yaratish
+              const payload: any = { name };
+              if (parentId) {
+                const parent = categories.find(c => c.id === parentId);
+                payload.parentId = parentId;
+                payload.level = (parent?.level ?? 0) + 1;
+              } else {
+                payload.parentId = null;
+                payload.level = 0;
+              }
+
+              const res = await fetch(`${API_BASE_URL}/api/categories`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+              });
+
+              if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Kategoriya yaratishda xatolik');
+              }
+
+              const data = await res.json();
+              if (!data?.success || !data.category) {
+                throw new Error('Kategoriya yaratilmadi');
+              }
+
+              const newCategory = {
+                id: data.category.id,
+                name: data.category.name,
+                level: typeof data.category.level === 'number' ? data.category.level : 0,
+                parentId: data.category.parentId ?? null,
+              };
+
+              // Kategoriyalar ro'yxatini yangilash
+              setCategories((prev) => [...prev, newCategory].sort((a, b) => a.level - b.level));
+
+              return newCategory;
+            }}
+            onEditCategory={async (catId: string, newName: string) => {
+              console.log('[Products] onEditCategory called:', { catId, newName });
+              
+              // Kategoriya tahrirlash
+              try {
+                const response = await fetch(`${API_BASE_URL}/api/categories/${catId}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ name: newName }),
+                });
+
+                console.log('[Products] Edit category response status:', response.status);
+
+                if (!response.ok) {
+                  const errorData = await response.json().catch(() => ({}));
+                  console.error('[Products] Edit category error:', errorData);
+                  // Xatolik bo'lsa ham lokal state ni yangilaymiz (offline rejim uchun)
+                }
+
+                // Lokal state ni yangilash - MUHIM: yangi array yaratish kerak
+                setCategories((prev) => {
+                  const updated = prev.map((cat) =>
+                    cat.id === catId ? { ...cat, name: newName } : cat
+                  );
+                  console.log('[Products] Categories updated:', updated.find(c => c.id === catId));
+                  return [...updated]; // Yangi array qaytarish
+                });
+              } catch (err) {
+                console.error('[Products] Edit category exception:', err);
+                // Xatolik bo'lsa ham lokal state ni yangilaymiz
+                setCategories((prev) => {
+                  const updated = prev.map((cat) =>
+                    cat.id === catId ? { ...cat, name: newName } : cat
+                  );
+                  return [...updated];
+                });
+              }
+            }}
+            onDeleteCategory={async (categoryId: string) => {
+              // Kategoriya o'chirish
+              const response = await fetch(`${API_BASE_URL}/api/categories/${categoryId}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+              });
+
+              if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Kategoriyani o\'chirishda xatolik');
+              }
+
+              // Lokal state dan o'chirish
+              setCategories((prev) => prev.filter((cat) => cat.id !== categoryId));
+            }}
             nextSku={(() => {
               // Hozirgi mahsulot SKU va barcha variantlar SKU larini yig'ib, keyingi SKU ni topamiz
               const allSkus: number[] = [];
@@ -3212,7 +3343,8 @@ export default function Products() {
                 basePrice: variant.basePrice,
                 priceMultiplier: variant.priceMultiplier,
                 price: variant.price,
-                priceCurrency: variant.priceCurrency
+                priceCurrency: variant.priceCurrency,
+                categoryId: variant.categoryId // Kategoriya ID sini log qilish
               });
               
               // Narxni nuqta bilan saqlash (vergul muammosini oldini olish uchun)
@@ -3260,16 +3392,24 @@ export default function Products() {
                       totalImages: existingPaths.length + variant.images.length
                     });
 
+                    // Asl narxlarni saqlash (konvertatsiya qilmasdan)
+                    const editOriginalBasePrice = parseFloat(variant.basePrice.replace(/,/g, '.')) || 0;
+                    const editOriginalPrice = parseFloat(variant.price.replace(/,/g, '.')) || 0;
+
                     copy[editingVariantIndex] = {
                       ...current,
                       name: variant.name,
                       sku: variant.sku,
-                      basePrice: parseFloat(variant.basePrice.replace(/,/g, '.')) || 0,
+                      basePrice: editOriginalBasePrice, // Hozircha asl narx
                       priceMultiplier: parseFloat(variant.priceMultiplier.replace(/,/g, '.')) || 0,
-                      price: parseFloat(variant.price.replace(/,/g, '.')) || 0,
+                      price: editOriginalPrice, // Hozircha asl narx
+                      priceCurrency: variant.priceCurrency, // Valyutani ham saqlaymiz
                       currency: variant.priceCurrency, // Valyutani ham saqlaymiz
+                      originalBasePrice: editOriginalBasePrice, // Asl valyutadagi narx
+                      originalPrice: editOriginalPrice, // Asl valyutadagi narx
                       stock: parseInt(variant.stock) || 0,
                       status: variant.status,
+                      categoryId: variant.categoryId, // Kategoriya ID sini saqlaymiz
                       images: variant.images, // NEW File objects to upload
                       imagePaths: existingPaths, // EXISTING server paths to keep
                       imagePreviews: variant.imagePreviews || [], // All previews for display
@@ -3287,19 +3427,28 @@ export default function Products() {
                   sku: variant.sku,
                   basePrice: variant.basePrice,
                   priceMultiplier: variant.priceMultiplier,
+                  categoryId: variant.categoryId, // Kategoriya ID sini log qilish
                   imagesCount: variant.images.length,
                   imagePreviewsCount: variant.imagePreviews.length
                 });
 
+                // Asl narxlarni saqlash (konvertatsiya qilmasdan)
+                const originalBasePriceVal = parseFloat(variant.basePrice.replace(/,/g, '.')) || 0;
+                const originalPriceVal = parseFloat(variant.price.replace(/,/g, '.')) || 0;
+
                 const newVariantSummary = {
                   name: variant.name,
                   sku: variant.sku,
-                  basePrice: parseFloat(variant.basePrice.replace(/,/g, '.')) || 0,
+                  basePrice: originalBasePriceVal, // Hozircha asl narx, serverga yuborishda UZS ga konvertatsiya qilinadi
                   priceMultiplier: parseFloat(variant.priceMultiplier.replace(/,/g, '.')) || 0,
-                  price: parseFloat(variant.price.replace(/,/g, '.')) || 0,
+                  price: originalPriceVal, // Hozircha asl narx, serverga yuborishda UZS ga konvertatsiya qilinadi
+                  priceCurrency: variant.priceCurrency, // Valyutani ham saqlaymiz
                   currency: variant.priceCurrency, // Valyutani ham saqlaymiz
+                  originalBasePrice: originalBasePriceVal, // Asl valyutadagi narx
+                  originalPrice: originalPriceVal, // Asl valyutadagi narx
                   stock: parseInt(variant.stock) || 0,
                   status: variant.status,
+                  categoryId: variant.categoryId, // Kategoriya ID sini saqlaymiz
                   imagePaths: [], // Will be filled after upload
                   images: variant.images, // File objects to upload
                   imagePreviews: variant.imagePreviews || [], // Blob URLs for preview

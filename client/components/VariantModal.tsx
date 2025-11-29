@@ -4,6 +4,13 @@ import { type ProductStatus } from '@/components/ProductStatusSelector';
 import CurrencyPriceInput, { type Currency } from '@/components/CurrencyPriceInput';
 import { X, Plus, Trash2, CheckCircle2, Clock, XCircle } from 'lucide-react';
 
+interface CategoryOption {
+  id: string;
+  name: string;
+  level: number;
+  parentId?: string | null;
+}
+
 interface VariantData {
   name: string;
   sku: string; // Xil uchun alohida SKU/kod
@@ -13,6 +20,7 @@ interface VariantData {
   priceCurrency: Currency;
   stock: string;
   status: ProductStatus;
+  categoryId?: string; // Xil uchun kategoriya
   images: File[]; // New File objects to upload
   imagePreviews: string[]; // All previews (server URLs + blob URLs)
   existingImageUrls?: string[]; // Existing server URLs to keep
@@ -27,9 +35,13 @@ interface VariantModalProps {
   initialData?: VariantData | null;
   nextSku?: string; // Keyingi avtomatik SKU
   productCurrency?: Currency; // Mahsulotning pul birligi
+  categories?: CategoryOption[]; // Kategoriyalar ro'yxati
+  onCreateCategory?: (name: string, parentId?: string) => Promise<CategoryOption>; // Kategoriya yaratish funksiyasi
+  onEditCategory?: (categoryId: string, newName: string) => Promise<void>; // Kategoriya tahrirlash
+  onDeleteCategory?: (categoryId: string) => Promise<void>; // Kategoriya o'chirish
 }
 
-export default function VariantModal({ isOpen, onClose, onSave, exchangeRates, mode = 'create', initialData, nextSku, productCurrency }: VariantModalProps) {
+export default function VariantModal({ isOpen, onClose, onSave, exchangeRates, mode = 'create', initialData, nextSku, productCurrency, categories = [], onCreateCategory, onEditCategory, onDeleteCategory }: VariantModalProps) {
   
   const [name, setName] = useState('');
   const [sku, setSku] = useState('');
@@ -43,6 +55,20 @@ export default function VariantModal({ isOpen, onClose, onSave, exchangeRates, m
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [imageError, setImageError] = useState<string | null>(null);
   const [isPriceManuallyEdited, setIsPriceManuallyEdited] = useState(false);
+  
+  // Kategoriya state lari
+  const [categoryId, setCategoryId] = useState('');
+  const [selectedParent, setSelectedParent] = useState<CategoryOption | null>(null);
+  const [selectedPath, setSelectedPath] = useState<CategoryOption[]>([]);
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [createCategoryLoading, setCreateCategoryLoading] = useState(false);
+  const [createCategoryError, setCreateCategoryError] = useState<string | null>(null);
+  
+  // Kategoriya tahrirlash state lari
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editingCategoryName, setEditingCategoryName] = useState('');
+  const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null);
 
   // Set initial currency when productCurrency changes
   useEffect(() => {
@@ -64,10 +90,17 @@ export default function VariantModal({ isOpen, onClose, onSave, exchangeRates, m
       setPriceCurrency(initialData.priceCurrency ?? 'UZS');
       setStock(initialData.stock ?? '');
       setStatus(initialData.status ?? 'available');
+      setCategoryId(initialData.categoryId ?? '');
       setImages(initialData.images ?? []);
       setImagePreviews(initialData.imagePreviews ?? []);
       setImageError(null);
       setIsPriceManuallyEdited(false);
+      // Kategoriya state larini reset qilish
+      setSelectedParent(null);
+      setSelectedPath([]);
+      setIsCreatingCategory(false);
+      setNewCategoryName('');
+      setCreateCategoryError(null);
     } else {
       setName('');
       setSku(nextSku ?? ''); // Avtomatik keyingi SKU
@@ -77,10 +110,17 @@ export default function VariantModal({ isOpen, onClose, onSave, exchangeRates, m
       setPriceCurrency(productCurrency || 'UZS'); // Mahsulotning currency sini ishlatish
       setStock('');
       setStatus('available');
+      setCategoryId('');
       setImages([]);
       setImagePreviews([]);
       setImageError(null);
       setIsPriceManuallyEdited(false);
+      // Kategoriya state larini reset qilish
+      setSelectedParent(null);
+      setSelectedPath([]);
+      setIsCreatingCategory(false);
+      setNewCategoryName('');
+      setCreateCategoryError(null);
     }
   }, [isOpen, mode, initialData, nextSku]);
 
@@ -228,6 +268,46 @@ export default function VariantModal({ isOpen, onClose, onSave, exchangeRates, m
     setImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Kategoriya yaratish funksiyasi
+  const handleCreateCategory = async () => {
+    const trimmedName = newCategoryName.trim();
+    if (!trimmedName) {
+      setCreateCategoryError('Kategoriya nomi kiritilishi shart');
+      return;
+    }
+
+    if (!onCreateCategory) {
+      setCreateCategoryError('Kategoriya yaratish funksiyasi mavjud emas');
+      return;
+    }
+
+    setCreateCategoryLoading(true);
+    setCreateCategoryError(null);
+
+    try {
+      const parentId = selectedParent?.id;
+      const newCategory = await onCreateCategory(trimmedName, parentId);
+      
+      // Yangi kategoriyani tanlash
+      setCategoryId(newCategory.id);
+      if (selectedParent) {
+        setSelectedPath([selectedParent, newCategory]);
+      } else {
+        setSelectedPath([newCategory]);
+        setSelectedParent(newCategory);
+      }
+      
+      // Formani tozalash
+      setIsCreatingCategory(false);
+      setNewCategoryName('');
+    } catch (err) {
+      console.error('Error creating category:', err);
+      setCreateCategoryError(err instanceof Error ? err.message : 'Kategoriya yaratishda xatolik');
+    } finally {
+      setCreateCategoryLoading(false);
+    }
+  };
+
   const handleSave = () => {
     if (!name.trim() || !sku.trim() || !basePrice.trim() || !priceMultiplier.trim() || !stock.trim()) {
       alert('Iltimos, barcha majburiy maydonlarni to\'ldiring');
@@ -237,7 +317,9 @@ export default function VariantModal({ isOpen, onClose, onSave, exchangeRates, m
     // Separate existing URLs from new files
     const existingUrls = imagePreviews.filter(p => !p.startsWith('blob:'));
 
-    onSave({
+    console.log('[VariantModal] Saving variant with categoryId:', categoryId);
+
+    const variantData = {
       name: name.trim(),
       sku: sku.trim(),
       basePrice,
@@ -246,10 +328,15 @@ export default function VariantModal({ isOpen, onClose, onSave, exchangeRates, m
       priceCurrency,
       stock,
       status,
+      categoryId: categoryId || undefined, // Kategoriya ID sini qo'shish
       images, // New File objects
       imagePreviews, // All previews
       existingImageUrls: existingUrls, // Existing server URLs
-    });
+    };
+
+    console.log('[VariantModal] Full variant data:', variantData);
+
+    onSave(variantData);
 
     onClose();
   };
@@ -505,55 +592,296 @@ export default function VariantModal({ isOpen, onClose, onSave, exchangeRates, m
               />
             </div>
 
-            {/* Status */}
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-foreground">
-                Mahsulot statusi <span className="text-destructive">*</span>
-              </label>
-              <div className="relative">
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as ProductStatus)}
-                  className="w-full px-4 py-3 pr-10 rounded-xl bg-background border border-input text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all appearance-none cursor-pointer"
-                >
-                  <option value="available" className="flex items-center gap-2">
-                    ✅ Yangi
-                  </option>
-                  <option value="pending" className="flex items-center gap-2">
-                    ⏱️ O'rtacha
-                  </option>
-                  <option value="out-of-stock" className="flex items-center gap-2">
-                    ❌ Eski
-                  </option>
-                </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                  <svg className="w-5 h-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            {/* Kategoriya */}
+            <div className="rounded-2xl border border-border bg-muted/30 p-4 sm:p-5 space-y-4">
+              {/* Header - Tanlangan kategoriya va Ortga tugmasi */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                   </svg>
+                  <span className="text-sm font-bold text-foreground">Tanlangan kategoriya:</span>
+                  <span className="text-sm font-semibold text-primary">
+                    {categoryId ? (categories.find(c => c.id === categoryId)?.name || 'Tanlanmagan') : 'Tanlanmagan'}
+                  </span>
                 </div>
+                {selectedParent && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Ortga qaytish - parent kategoriyaga
+                      const parentOfParent = categories.find(c => c.id === selectedParent.parentId);
+                      if (parentOfParent) {
+                        setSelectedParent(parentOfParent);
+                        setSelectedPath(prev => prev.slice(0, -1));
+                      } else {
+                        setSelectedParent(null);
+                        setSelectedPath([]);
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted border border-border text-xs font-medium text-foreground hover:bg-muted/80 transition-all"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Ortga
+                  </button>
+                )}
               </div>
-              
-              {/* Status preview */}
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border border-border">
-                {status === 'available' && (
-                  <>
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    <span className="text-xs text-foreground">Yangi yoki deyarli ishlatilmagan mahsulot</span>
-                  </>
-                )}
-                {status === 'pending' && (
-                  <>
-                    <Clock className="w-4 h-4 text-amber-500" />
-                    <span className="text-xs text-foreground">O'rtacha holatda, normal ishlatilgan mahsulot</span>
-                  </>
-                )}
-                {status === 'out-of-stock' && (
-                  <>
-                    <XCircle className="w-4 h-4 text-orange-500" />
-                    <span className="text-xs text-foreground">Eski yoki ko'proq ishlatilgan mahsulot</span>
-                  </>
-                )}
+
+              {/* Kategoriyalar ro'yxati */}
+              <div className="rounded-xl border border-border bg-background overflow-hidden max-h-[200px] overflow-y-auto">
+                {(() => {
+                  // Hozirgi darajadagi kategoriyalarni olish
+                  const currentCategories = selectedParent
+                    ? categories.filter(cat => cat.parentId === selectedParent.id)
+                    : categories.filter(cat => cat.level === 0);
+
+                  if (currentCategories.length === 0) {
+                    return (
+                      <div className="px-4 py-6 text-center text-xs text-muted-foreground">
+                        {selectedParent ? `"${selectedParent.name}" ichida kategoriya yo'q` : "Kategoriyalar yo'q"}
+                      </div>
+                    );
+                  }
+
+                  return currentCategories.map((cat, index) => {
+                    const isSelected = categoryId === cat.id;
+                    const isEditing = editingCategoryId === cat.id;
+                    const isDeleting = deletingCategoryId === cat.id;
+
+                    return (
+                      <div
+                        key={cat.id}
+                        className={`flex items-center justify-between px-4 py-3 ${
+                          index !== currentCategories.length - 1 ? 'border-b border-border' : ''
+                        } ${isSelected ? 'bg-primary/10' : 'hover:bg-muted/50'} transition-colors`}
+                      >
+                        {isEditing ? (
+                          // Tahrirlash rejimi
+                          <div className="flex-1 flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={editingCategoryName}
+                              onChange={(e) => setEditingCategoryName(e.target.value)}
+                              className="flex-1 px-2 py-1 rounded-md bg-background border border-input text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                              autoFocus
+                              onKeyDown={async (e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  if (onEditCategory && editingCategoryName.trim()) {
+                                    try {
+                                      await onEditCategory(cat.id, editingCategoryName.trim());
+                                    } catch (err) {
+                                      console.error('Kategoriya tahrirlashda xatolik:', err);
+                                    }
+                                    setEditingCategoryId(null);
+                                    setEditingCategoryName('');
+                                  }
+                                } else if (e.key === 'Escape') {
+                                  setEditingCategoryId(null);
+                                  setEditingCategoryName('');
+                                }
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (onEditCategory && editingCategoryName.trim()) {
+                                  try {
+                                    await onEditCategory(cat.id, editingCategoryName.trim());
+                                  } catch (err) {
+                                    console.error('Kategoriya tahrirlashda xatolik:', err);
+                                  }
+                                  setEditingCategoryId(null);
+                                  setEditingCategoryName('');
+                                }
+                              }}
+                              className="px-2 py-1 rounded-md bg-primary text-primary-foreground text-[10px] font-medium"
+                            >
+                              Saqlash
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingCategoryId(null);
+                                setEditingCategoryName('');
+                              }}
+                              className="px-2 py-1 rounded-md bg-muted text-foreground text-[10px] font-medium"
+                            >
+                              Bekor
+                            </button>
+                          </div>
+                        ) : isDeleting ? (
+                          // O'chirish tasdiqlash
+                          <div className="flex-1 flex items-center gap-2">
+                            <span className="text-xs text-destructive">O'chirishni tasdiqlaysizmi?</span>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (onDeleteCategory) {
+                                  try {
+                                    await onDeleteCategory(cat.id);
+                                    if (categoryId === cat.id) {
+                                      setCategoryId('');
+                                    }
+                                  } catch (err) {
+                                    console.error('Kategoriya o\'chirishda xatolik:', err);
+                                  }
+                                  setDeletingCategoryId(null);
+                                }
+                              }}
+                              className="px-2 py-1 rounded-md bg-destructive text-destructive-foreground text-[10px] font-medium"
+                            >
+                              Ha
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeletingCategoryId(null)}
+                              className="px-2 py-1 rounded-md bg-muted text-foreground text-[10px] font-medium"
+                            >
+                              Yo'q
+                            </button>
+                          </div>
+                        ) : (
+                          // Normal ko'rinish
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                // Kategoriyani tanlash (ichiga kirmasdan)
+                                console.log('[VariantModal] Selecting category:', cat.id, cat.name);
+                                setCategoryId(cat.id);
+                              }}
+                              className={`flex-1 text-left text-sm font-medium ${
+                                isSelected ? 'text-primary' : 'text-foreground'
+                              }`}
+                            >
+                              {cat.name}
+                            </button>
+                            <div className="flex items-center gap-1.5">
+                              {/* Ichiga kirish tugmasi */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // Ichki kategoriyalarga kirish
+                                  console.log('[VariantModal] Entering category:', cat.id, cat.name);
+                                  setSelectedParent(cat);
+                                  setCategoryId(cat.id);
+                                  if (selectedParent) {
+                                    setSelectedPath([...selectedPath.filter(p => p.id !== cat.id), cat]);
+                                  } else {
+                                    setSelectedPath([cat]);
+                                  }
+                                }}
+                                className="px-2 py-1 rounded-md bg-blue-600/80 hover:bg-blue-600 text-white text-[10px] font-medium transition-colors"
+                              >
+                                Kirish
+                              </button>
+                              {onEditCategory && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingCategoryId(cat.id);
+                                    setEditingCategoryName(cat.name);
+                                  }}
+                                  className="px-2 py-1 rounded-md bg-muted border border-border text-[10px] font-medium text-foreground hover:bg-muted/80 transition-colors"
+                                >
+                                  Tahrir
+                                </button>
+                              )}
+                              {onDeleteCategory && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeletingCategoryId(cat.id);
+                                  }}
+                                  className="px-2 py-1 rounded-md bg-destructive/90 text-destructive-foreground text-[10px] font-medium hover:bg-destructive transition-colors"
+                                >
+                                  O'chir
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
               </div>
+
+              {/* Yangi kategoriya qo'shish */}
+              {onCreateCategory && (
+                <div className="pt-2 border-t border-border/50">
+                  {!isCreatingCategory ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsCreatingCategory(true)}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-primary hover:bg-primary/10 transition-all"
+                    >
+                      <Plus className="w-4 h-4" />
+                      {selectedParent ? `"${selectedParent.name}" ichiga kategoriya qo'shish` : "Yangi kategoriya qo'shish"}
+                    </button>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={newCategoryName}
+                          onChange={(e) => setNewCategoryName(e.target.value)}
+                          placeholder={selectedParent ? `"${selectedParent.name}" ichiga yangi kategoriya` : "Yangi kategoriya nomi"}
+                          className="flex-1 px-3 py-2 rounded-lg bg-background border border-input text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleCreateCategory();
+                            } else if (e.key === 'Escape') {
+                                setIsCreatingCategory(false);
+                                setNewCategoryName('');
+                                setCreateCategoryError(null);
+                              }
+                            }}
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={handleCreateCategory}
+                            disabled={createCategoryLoading || !newCategoryName.trim()}
+                            className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                          >
+                            {createCategoryLoading ? (
+                              <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              'Qo\'shish'
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsCreatingCategory(false);
+                              setNewCategoryName('');
+                              setCreateCategoryError(null);
+                            }}
+                            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                        {createCategoryError && (
+                          <p className="text-xs text-destructive">{createCategoryError}</p>
+                        )}
+                        {selectedParent && (
+                          <p className="text-[10px] text-muted-foreground">
+                            "{selectedParent.name}" kategoriyasi ichiga qo'shiladi
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
             </div>
 
             {/* Rasmlar */}

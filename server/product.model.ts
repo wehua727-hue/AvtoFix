@@ -18,8 +18,11 @@ export interface IVariantSummary {
   priceMultiplier?: number;
   price?: number;
   currency?: string;
+  originalBasePrice?: number;
+  originalPrice?: number;
   stock?: number;
   status?: string;
+  categoryId?: string;
   imagePaths?: string[];
 }
 
@@ -66,8 +69,11 @@ const VariantSummarySchema = new Schema<IVariantSummary>(
     priceMultiplier: { type: Number },
     price: { type: Number },
     currency: { type: String, required: true, default: 'UZS' },
+    originalBasePrice: { type: Number },
+    originalPrice: { type: Number },
     stock: { type: Number },
     status: { type: String, default: 'available' },
+    categoryId: { type: String },
     imagePaths: { type: [String], default: [] },
   },
   { _id: false },

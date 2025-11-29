@@ -38,6 +38,8 @@ interface VariantSummary {
   currency?: 'USD' | 'RUB' | 'CNY' | 'UZS';
   stock?: number;
   status?: string;
+  categoryId?: string;
+  categoryName?: string | null;
   imagePaths?: string[];
   imagePreviews?: string[];
 }
@@ -277,6 +279,29 @@ export default function ProductDetail() {
           setSizes(parsedSizes);
 
           // Parse variantSummaries if present
+          const imagePaths = Array.isArray((p as any).imagePaths) ? (p as any).imagePaths : (p.imageUrl ? [p.imageUrl] : []);
+          
+          // Fetch categories for category names
+          let allCategories: any[] = [];
+          try {
+            const catRes = await fetch(`${API_BASE_URL}/api/categories`);
+            if (catRes.ok) {
+              const catData = await catRes.json();
+              if (Array.isArray(catData?.categories)) {
+                allCategories = catData.categories;
+              }
+            }
+          } catch (err) {
+            console.error('[ProductDetail] Failed to fetch categories:', err);
+          }
+
+          // Helper function to get category name by ID
+          const getCategoryName = (catId: string | null | undefined): string | null => {
+            if (!catId) return null;
+            const category = allCategories.find((c: any) => (c.id || c._id) === catId);
+            return category?.name || null;
+          };
+
           const rawVariantSummaries = (p as any).variantSummaries;
           console.log('[ProductDetail] Raw variantSummaries from API:', rawVariantSummaries);
           if (Array.isArray(rawVariantSummaries) && rawVariantSummaries.length > 0) {
@@ -289,6 +314,8 @@ export default function ProductDetail() {
               currency: v.currency || 'UZS',
               stock: typeof v.stock === 'number' ? v.stock : undefined,
               status: typeof v.status === 'string' ? v.status : undefined,
+              categoryId: typeof v.categoryId === 'string' ? v.categoryId : undefined,
+              categoryName: getCategoryName(v.categoryId),
               imagePaths: Array.isArray(v.imagePaths) ? v.imagePaths : [],
               imagePreviews: Array.isArray(v.imagePaths) ? v.imagePaths.map((path: string) => resolveMediaUrl(path)) : [],
             }));
@@ -299,29 +326,9 @@ export default function ProductDetail() {
             console.log('[ProductDetail] No variantSummaries found');
             setVariantSummaries([]);
           }
-
-          const imagePaths = Array.isArray((p as any).imagePaths) ? (p as any).imagePaths : (p.imageUrl ? [p.imageUrl] : []);
           
-          // Fetch category name if categoryId exists
-          let categoryName: string | null = null;
-          if ((p as any).categoryId) {
-            try {
-              const catRes = await fetch(`${API_BASE_URL}/api/categories`);
-              if (catRes.ok) {
-                const catData = await catRes.json();
-                if (Array.isArray(catData?.categories)) {
-                  const category = catData.categories.find((c: any) => 
-                    (c.id || c._id) === (p as any).categoryId
-                  );
-                  if (category) {
-                    categoryName = category.name || null;
-                  }
-                }
-              }
-            } catch (err) {
-              console.error('[ProductDetail] Failed to fetch category:', err);
-            }
-          }
+          // Get category name for main product
+          const categoryName: string | null = getCategoryName((p as any).categoryId);
           
           setProduct({
             id: p.id,
@@ -1154,7 +1161,7 @@ export default function ProductDetail() {
 
                   {/* 8. Status - for both main product and variant */}
                   {(selectedVariant?.status || (!selectedVariant && product.status)) && (
-                    <div className={`bg-gradient-to-br from-gray-900/80 to-gray-800/80 border border-red-600/30 rounded-xl p-3 hover:border-red-500/50 hover:shadow-lg hover:shadow-red-900/20 transition-all group ${!selectedVariant && !product.categoryName ? 'col-span-2' : ''}`}>
+                    <div className="bg-gradient-to-br from-gray-900/80 to-gray-800/80 border border-red-600/30 rounded-xl p-3 hover:border-red-500/50 hover:shadow-lg hover:shadow-red-900/20 transition-all group">
                       <div className="flex items-center gap-2 mb-2">
                         <div className="w-7 h-7 rounded-lg bg-indigo-600/20 flex items-center justify-center group-hover:bg-indigo-600/30 transition-colors">
                           <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1185,6 +1192,25 @@ export default function ProductDetail() {
                           </>
                         )}
                       </div>
+                    </div>
+                  )}
+
+                  {/* 9. Category - for variant */}
+                  {selectedVariant?.categoryId && (
+                    <div className="bg-gradient-to-br from-gray-900/80 to-gray-800/80 border border-red-600/30 rounded-xl p-3 hover:border-red-500/50 hover:shadow-lg hover:shadow-red-900/20 transition-all group">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-7 h-7 rounded-lg bg-purple-600/20 flex items-center justify-center group-hover:bg-purple-600/30 transition-colors">
+                          <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                          </svg>
+                        </div>
+                        <span className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">
+                          Kategoriya
+                        </span>
+                      </div>
+                      <span className="text-base font-bold text-purple-400">
+                        {selectedVariant.categoryName || selectedVariant.categoryId}
+                      </span>
                     </div>
                   )}
                 </div>
