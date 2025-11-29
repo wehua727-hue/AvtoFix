@@ -1208,6 +1208,8 @@ export default function Products() {
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+
+
           <div className="flex flex-col gap-4 mb-4 sm:flex-row sm:items-center sm:justify-between">
             <h1 className="text-2xl font-bold text-foreground">
               Mahsulotlar
@@ -1223,41 +1225,89 @@ export default function Products() {
                 />
               </div>
               
-              <button
-                onClick={() =>
-                  setShowAddForm((prev) => {
-                    const next = !prev;
-                    if (next) {
-                      setEditingId(null);
-                      setName('');
-                      setPrice('');
-                      setPriceCurrency('UZS');
-                      setBasePrice('');
-                      setPriceMultiplier('');
-                      setStock('');
-                      setCategoryId('');
-                      setSelectedParent(null);
-                      setImageFiles([]);
-                      setImagePreviews([]);
-                      setImageError(null);
-                      setVideoFile(null);
-                      setVideoError(null);
-                      setRemoveExistingImage(false);
-                      setSizesText('');
-                      setSku(getNextAutoSku(products));
-                      setIsCreatingCategory(false);
-                      setNewCategoryName('');
-                      setCreateCategoryError(null);
-                      setProductStatus('available');
-                      setIsPriceManuallyEdited(false);
-                    }
-                    return next;
-                  })
-                }
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 via-red-700 to-red-600 text-white text-sm font-semibold shadow-lg shadow-red-900/40 hover:from-red-700 hover:via-red-800 hover:to-red-700 transition-all"
-              >
-                <span>Mahsulot qo'shish</span>
-              </button>
+              <div className="flex flex-col items-end gap-2">
+                <button
+                  onClick={() =>
+                    setShowAddForm((prev) => {
+                      const next = !prev;
+                      if (next) {
+                        setEditingId(null);
+                        setName('');
+                        setPrice('');
+                        setPriceCurrency('UZS');
+                        setBasePrice('');
+                        setPriceMultiplier('');
+                        setStock('');
+                        setCategoryId('');
+                        setSelectedParent(null);
+                        setImageFiles([]);
+                        setImagePreviews([]);
+                        setImageError(null);
+                        setVideoFile(null);
+                        setVideoError(null);
+                        setRemoveExistingImage(false);
+                        setSizesText('');
+                        setSku(getNextAutoSku(products));
+                        setIsCreatingCategory(false);
+                        setNewCategoryName('');
+                        setCreateCategoryError(null);
+                        setProductStatus('available');
+                        setIsPriceManuallyEdited(false);
+                      }
+                      return next;
+                    })
+                  }
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 via-red-700 to-red-600 text-white text-sm font-semibold shadow-lg shadow-red-900/40 hover:from-red-700 hover:via-red-800 hover:to-red-700 transition-all"
+                >
+                  <span>Mahsulot qo'shish</span>
+                </button>
+                
+                {/* Jami daromad - kichik ko'rinish */}
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-green-600/10 to-green-700/10 border border-green-500/20 backdrop-blur-sm">
+                  <svg className="w-3.5 h-3.5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-xs text-green-300 font-medium">
+                    {(() => {
+                      // Barcha mahsulotlarning cardda ko'rsatilgan daromadini qo'shish
+                      const totalRevenue = products.reduce((sum, p) => {
+                        // Har bir mahsulot uchun cardda ko'rsatilgan daromadni hisoblash
+                        // (aynan cardda ishlatilgan mantiq)
+                        const currency = p.currency || 'UZS';
+                        
+                        // Asosiy mahsulot daromadi (sotiladigan narx × ombordagi son)
+                        const mainPrice = p.price != null ? p.price : 0;
+                        const mainStock = p.stock != null ? p.stock : 0;
+                        const mainRevenue = mainPrice * mainStock;
+                        
+                        // Xillar daromadi (sotiladigan narx × ombordagi son)
+                        const variantSummaries = (p as any).variantSummaries || [];
+                        const variantsRevenue = variantSummaries.reduce((vSum: number, variant: any) => {
+                          const variantPrice = variant.price != null ? variant.price : 0;
+                          const variantStock = variant.stock != null ? variant.stock : 0;
+                          return vSum + (variantPrice * variantStock);
+                        }, 0);
+                        
+                        // Jami daromad (UZS da)
+                        const productTotalRevenue = mainRevenue + variantsRevenue;
+                        
+                        // Barcha narxlar allaqachon UZS da saqlangan, shuning uchun to'g'ridan-to'g'ri qo'shamiz
+                        const revenueInUZS = productTotalRevenue;
+                        
+                        return sum + revenueInUZS;
+                      }, 0);
+                      
+                      // UZS da ko'rsatish (har doim so'm da)
+                      const formatted = totalRevenue.toLocaleString('uz-UZ', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0
+                      });
+                      
+                      return `${formatted} so'm`;
+                    })()}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1768,7 +1818,6 @@ export default function Products() {
                         {sizesText.trim() ? (
                           <div className="flex flex-wrap gap-2">
                             {sizesText
-<<<<<<< HEAD
                               .split(';')
                               .map((s) => s.trim())
                               .filter(Boolean)
@@ -1776,13 +1825,6 @@ export default function Products() {
                                 const [label, priceRaw] = s.split('|');
                                 // Narxni vergul bilan ko'rsatish uchun nuqtani vergulga o'tkazamiz
                                 const price = priceRaw ? priceRaw.replace('.', ',') : '';
-=======
-                              .split(',')
-                              .map((s) => s.trim())
-                              .filter(Boolean)
-                              .map((s, idx) => {
-                                const [label, price] = s.split('|');
->>>>>>> da5fe2d9465930177f205756d8cf3dc75d116d25
                                 return (
                                   <div
                                     key={`${s}-${idx}`}
@@ -1841,40 +1883,25 @@ export default function Products() {
                                         const variantCurrency = v?.currency ?? priceCurrency ?? 'UZS';
                                         
                                         // Use original prices if available, otherwise convert from UZS (for backward compatibility)
-<<<<<<< HEAD
                                         // Helper function to format number with comma
                                         const formatWithComma = (num: number): string => {
                                           if (!Number.isFinite(num)) return '';
                                           return num.toString().replace('.', ',');
                                         };
-
-=======
->>>>>>> da5fe2d9465930177f205756d8cf3dc75d116d25
                                         const convertedBasePrice = (() => {
                                           // Agar asl narx mavjud bo'lsa, uni ishlatamiz (konvertatsiya qilmasdan)
                                           if (v?.originalBasePrice != null && Number.isFinite(v.originalBasePrice)) {
                                             console.log('[Products] Using original basePrice for variant:', v.name, v.originalBasePrice);
-<<<<<<< HEAD
                                             return formatWithComma(v.originalBasePrice);
-=======
-                                            return String(v.originalBasePrice);
->>>>>>> da5fe2d9465930177f205756d8cf3dc75d116d25
                                           }
                                           // Agar asl narx yo'q bo'lsa (eski xillar uchun), UZS dan konvertatsiya qilamiz
                                           console.log('[Products] Converting basePrice from UZS for variant:', v.name);
                                           if (baseFromVariant != null && Number.isFinite(baseFromVariant)) {
                                             const converted = convertFromUZS(baseFromVariant, variantCurrency);
-<<<<<<< HEAD
                                             return formatWithComma(converted);
                                           } else if (priceFromText != null && Number.isFinite(priceFromText)) {
                                             const converted = convertFromUZS(priceFromText, variantCurrency);
                                             return formatWithComma(converted);
-=======
-                                            return String(converted);
-                                          } else if (priceFromText != null && Number.isFinite(priceFromText)) {
-                                            const converted = convertFromUZS(priceFromText, variantCurrency);
-                                            return String(converted);
->>>>>>> da5fe2d9465930177f205756d8cf3dc75d116d25
                                           }
                                           return '';
                                         })();
@@ -1883,27 +1910,16 @@ export default function Products() {
                                           // Agar asl narx mavjud bo'lsa, uni ishlatamiz (konvertatsiya qilmasdan)
                                           if (v?.originalPrice != null && Number.isFinite(v.originalPrice)) {
                                             console.log('[Products] Using original price for variant:', v.name, v.originalPrice);
-<<<<<<< HEAD
                                             return formatWithComma(v.originalPrice);
-=======
-                                            return String(v.originalPrice);
->>>>>>> da5fe2d9465930177f205756d8cf3dc75d116d25
                                           }
                                           // Agar asl narx yo'q bo'lsa (eski xillar uchun), UZS dan konvertatsiya qilamiz
                                           console.log('[Products] Converting price from UZS for variant:', v.name);
                                           if (priceFromVariant != null && Number.isFinite(priceFromVariant)) {
                                             const converted = convertFromUZS(priceFromVariant, variantCurrency);
-<<<<<<< HEAD
                                             return formatWithComma(converted);
                                           } else if (priceFromText != null && Number.isFinite(priceFromText)) {
                                             const converted = convertFromUZS(priceFromText, variantCurrency);
                                             return formatWithComma(converted);
-=======
-                                            return String(converted);
-                                          } else if (priceFromText != null && Number.isFinite(priceFromText)) {
-                                            const converted = convertFromUZS(priceFromText, variantCurrency);
-                                            return String(converted);
->>>>>>> da5fe2d9465930177f205756d8cf3dc75d116d25
                                           }
                                           return '';
                                         })();
@@ -1912,11 +1928,7 @@ export default function Products() {
                                           name: (v?.name ?? lbl ?? ''),
                                           sku: v?.sku ?? '',
                                           basePrice: convertedBasePrice,
-<<<<<<< HEAD
                                           priceMultiplier: v?.priceMultiplier != null ? formatWithComma(v.priceMultiplier) : '',
-=======
-                                          priceMultiplier: v?.priceMultiplier != null ? String(v.priceMultiplier) : '',
->>>>>>> da5fe2d9465930177f205756d8cf3dc75d116d25
                                           price: convertedPrice,
                                           priceCurrency: variantCurrency,
                                           stock: v?.stock != null ? String(v.stock) : (stock || ''),
@@ -2576,23 +2588,27 @@ export default function Products() {
                           {(() => {
                             const currency = p.currency || 'UZS';
                             
-                            // Asosiy mahsulot narxi
+                            // Asosiy mahsulot daromadi (sotiladigan narx × ombordagi son)
                             const mainPrice = p.price != null ? p.price : 0;
+                            const mainStock = p.stock != null ? p.stock : 0;
+                            const mainRevenue = mainPrice * mainStock;
                             
-                            // Barcha xillarning narxlari yig'indisi
+                            // Barcha xillarning daromadlari yig'indisi (sotiladigan narx × ombordagi son)
                             const variantSummaries = (p as any).variantSummaries || [];
-                            const variantsTotal = variantSummaries.reduce((sum: number, variant: any) => {
+                            const variantsRevenue = variantSummaries.reduce((sum: number, variant: any) => {
                               const variantPrice = variant.price != null ? variant.price : 0;
-                              return sum + variantPrice;
+                              const variantStock = variant.stock != null ? variant.stock : 0;
+                              const variantRevenue = variantPrice * variantStock;
+                              return sum + variantRevenue;
                             }, 0);
                             
-                            // Jami narx (asosiy + xillar)
-                            const totalPrice = mainPrice + variantsTotal;
-                            const convertedTotalPrice = convertFromUZS(totalPrice, currency);
+                            // Jami daromad (asosiy mahsulot daromadi + xillar daromadi)
+                            const totalRevenue = mainRevenue + variantsRevenue;
+                            const convertedTotalRevenue = convertFromUZS(totalRevenue, currency);
                             
-                            if (convertedTotalPrice <= 0) return '-';
+                            if (convertedTotalRevenue <= 0) return '0';
                             
-                            return convertedTotalPrice.toLocaleString('uz-UZ', {
+                            return convertedTotalRevenue.toLocaleString('uz-UZ', {
                               minimumFractionDigits: 0,
                               maximumFractionDigits: 2
                             });
@@ -2649,6 +2665,9 @@ export default function Products() {
                       <h3 className="text-sm font-semibold text-white line-clamp-2 leading-tight">
                         {p.name}
                       </h3>
+                      
+                      {/* Daromad label */}
+                      <p className="text-[10px] text-gray-400 mt-1">Jami daromad</p>
                     </div>
 
                     {/* Price info - Simple and clean */}
@@ -3163,7 +3182,6 @@ export default function Products() {
             })()}
             onSave={(variant) => {
               // Xil ma'lumotlarini sizesText formatida saqlash
-<<<<<<< HEAD
               console.log('[Products] Saving variant with data:', {
                 name: variant.name,
                 basePrice: variant.basePrice,
@@ -3180,22 +3198,13 @@ export default function Products() {
               // Xillarni ajratish uchun "; " (nuqta-vergul + bo'sh joy) ishlatamiz
               const existing = sizesText
                 .split(';')
-=======
-              const variantEntry = `${variant.name}|${variant.price}`;
-              const existing = sizesText
-                .split(',')
->>>>>>> da5fe2d9465930177f205756d8cf3dc75d116d25
                 .map((s) => s.trim())
                 .filter(Boolean);
 
               if (editingVariantIndex != null && editingVariantIndex >= 0 && editingVariantIndex < existing.length) {
                 // Mavjud xilni tahrirlash
                 existing[editingVariantIndex] = variantEntry;
-<<<<<<< HEAD
                 setSizesText(existing.join('; '));
-=======
-                setSizesText(existing.join(', '));
->>>>>>> da5fe2d9465930177f205756d8cf3dc75d116d25
 
                 setVariantSummaries((prev) => {
                   const copy = [...prev];
@@ -3230,15 +3239,9 @@ export default function Products() {
                       ...current,
                       name: variant.name,
                       sku: variant.sku,
-<<<<<<< HEAD
                       basePrice: parseFloat(variant.basePrice.replace(/,/g, '.')) || 0,
                       priceMultiplier: parseFloat(variant.priceMultiplier.replace(/,/g, '.')) || 0,
                       price: parseFloat(variant.price.replace(/,/g, '.')) || 0,
-=======
-                      basePrice: parseFloat(variant.basePrice) || 0,
-                      priceMultiplier: parseFloat(variant.priceMultiplier) || 0,
-                      price: parseFloat(variant.price) || 0,
->>>>>>> da5fe2d9465930177f205756d8cf3dc75d116d25
                       currency: variant.priceCurrency, // Valyutani ham saqlaymiz
                       stock: parseInt(variant.stock) || 0,
                       status: variant.status,
@@ -3251,11 +3254,7 @@ export default function Products() {
                 });
               } else {
                 // Yangi xil qo'shish
-<<<<<<< HEAD
                 const next = existing.length ? `${existing.join('; ')}; ${variantEntry}` : variantEntry;
-=======
-                const next = existing.length ? `${existing.join(', ')}, ${variantEntry}` : variantEntry;
->>>>>>> da5fe2d9465930177f205756d8cf3dc75d116d25
                 setSizesText(next);
 
                 console.log('[Products] Creating new variant:', {
@@ -3270,15 +3269,9 @@ export default function Products() {
                 const newVariantSummary = {
                   name: variant.name,
                   sku: variant.sku,
-<<<<<<< HEAD
                   basePrice: parseFloat(variant.basePrice.replace(/,/g, '.')) || 0,
                   priceMultiplier: parseFloat(variant.priceMultiplier.replace(/,/g, '.')) || 0,
                   price: parseFloat(variant.price.replace(/,/g, '.')) || 0,
-=======
-                  basePrice: parseFloat(variant.basePrice) || 0,
-                  priceMultiplier: parseFloat(variant.priceMultiplier) || 0,
-                  price: parseFloat(variant.price) || 0,
->>>>>>> da5fe2d9465930177f205756d8cf3dc75d116d25
                   currency: variant.priceCurrency, // Valyutani ham saqlaymiz
                   stock: parseInt(variant.stock) || 0,
                   status: variant.status,

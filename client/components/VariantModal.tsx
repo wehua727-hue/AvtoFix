@@ -84,7 +84,6 @@ export default function VariantModal({ isOpen, onClose, onSave, exchangeRates, m
     }
   }, [isOpen, mode, initialData, nextSku]);
 
-<<<<<<< HEAD
   // Helper function to parse number input (handles both comma and dot)
   const parseNumberInput = (value: string): number => {
     if (!value || !value.trim()) return 0;
@@ -102,14 +101,10 @@ export default function VariantModal({ isOpen, onClose, onSave, exchangeRates, m
     const formatted = Number.isInteger(value) ? String(value) : value.toFixed(2);
     return formatted.replace('.', ',');
   };
-
-=======
->>>>>>> da5fe2d9465930177f205756d8cf3dc75d116d25
   // Auto-calculate price from basePrice and priceMultiplier
   useEffect(() => {
     if (isPriceManuallyEdited) return;
 
-<<<<<<< HEAD
     const base = parseNumberInput(basePrice);
     const percent = parseNumberInput(priceMultiplier);
 
@@ -121,12 +116,6 @@ export default function VariantModal({ isOpen, onClose, onSave, exchangeRates, m
     });
 
     if (base <= 0) {
-=======
-    const base = parseFloat(basePrice);
-    const percent = parseFloat(priceMultiplier);
-
-    if (!base || isNaN(base)) {
->>>>>>> da5fe2d9465930177f205756d8cf3dc75d116d25
       setPrice('');
       return;
     }
@@ -134,7 +123,6 @@ export default function VariantModal({ isOpen, onClose, onSave, exchangeRates, m
     const percentValue = percent || 0;
     const total = base + base * (percentValue / 100);
     
-<<<<<<< HEAD
     console.log('[VariantModal] Calculation:', { 
       base, 
       percentValue, 
@@ -143,20 +131,13 @@ export default function VariantModal({ isOpen, onClose, onSave, exchangeRates, m
     });
     
     if (!Number.isFinite(total)) {
-=======
-    if (!isFinite(total)) {
->>>>>>> da5fe2d9465930177f205756d8cf3dc75d116d25
       setPrice('');
       return;
     }
 
-<<<<<<< HEAD
     // Format with proper decimal places and comma separator
     const formatted = formatNumberForDisplay(total);
     console.log('[VariantModal] Setting formatted price:', formatted);
-=======
-    const formatted = Number.isInteger(total) ? String(total) : total.toFixed(2);
->>>>>>> da5fe2d9465930177f205756d8cf3dc75d116d25
     setPrice(formatted);
   }, [basePrice, priceMultiplier, isPriceManuallyEdited]);
 
@@ -164,7 +145,6 @@ export default function VariantModal({ isOpen, onClose, onSave, exchangeRates, m
   useEffect(() => {
     if (!isPriceManuallyEdited) return;
 
-<<<<<<< HEAD
     const base = parseNumberInput(basePrice);
     const finalPrice = parseNumberInput(price);
 
@@ -196,25 +176,6 @@ export default function VariantModal({ isOpen, onClose, onSave, exchangeRates, m
     // Format with proper decimal places and comma separator
     const formatted = formatNumberForDisplay(calculatedPercent);
     console.log('[VariantModal] Setting formatted multiplier:', formatted);
-=======
-    const base = parseFloat(basePrice);
-    const finalPrice = parseFloat(price);
-
-    if (!base || base === 0 || !finalPrice || isNaN(base) || isNaN(finalPrice)) {
-      return;
-    }
-
-    const calculatedPercent = ((finalPrice - base) / base) * 100;
-    
-    if (!isFinite(calculatedPercent)) {
-      return;
-    }
-
-    const formatted = Number.isInteger(calculatedPercent) 
-      ? String(calculatedPercent) 
-      : calculatedPercent.toFixed(2);
-    
->>>>>>> da5fe2d9465930177f205756d8cf3dc75d116d25
     setPriceMultiplier(formatted);
   }, [price, basePrice, isPriceManuallyEdited]);
 
@@ -431,16 +392,12 @@ export default function VariantModal({ isOpen, onClose, onSave, exchangeRates, m
                       const value = e.target.value;
                       // Faqat raqamlar, nuqta va vergulga ruxsat berish
                       if (/^[0-9.,]*$/.test(value)) {
-<<<<<<< HEAD
                         console.log('[VariantModal] Base price input changed:', value);
                         setBasePrice(value);
                         // Asl narx o'zgarsa, narx avtomatik hisoblanadi
                         if (value.trim()) {
                           setIsPriceManuallyEdited(false);
                         }
-=======
-                        setBasePrice(value);
->>>>>>> da5fe2d9465930177f205756d8cf3dc75d116d25
                       }
                     }}
                     onKeyDown={(e) => {
@@ -475,17 +432,12 @@ export default function VariantModal({ isOpen, onClose, onSave, exchangeRates, m
                       const value = e.target.value;
                       // Faqat raqamlar, nuqta va vergulga ruxsat berish
                       if (/^[0-9.,]*$/.test(value)) {
-<<<<<<< HEAD
                         console.log('[VariantModal] Price multiplier input changed:', value);
                         setPriceMultiplier(value);
                         // Foiz o'zgarsa, narx avtomatik hisoblanadi
                         if (value.trim()) {
                           setIsPriceManuallyEdited(false);
                         }
-=======
-                        setPriceMultiplier(value);
-                        setIsPriceManuallyEdited(false);
->>>>>>> da5fe2d9465930177f205756d8cf3dc75d116d25
                       }
                     }}
                     onKeyDown={(e) => {
@@ -510,10 +462,7 @@ export default function VariantModal({ isOpen, onClose, onSave, exchangeRates, m
                 <CurrencyPriceInput
                   value={price}
                   onChange={(newPrice, currency) => {
-<<<<<<< HEAD
                     console.log('[VariantModal] Price manually changed via CurrencyPriceInput:', { newPrice, currency });
-=======
->>>>>>> da5fe2d9465930177f205756d8cf3dc75d116d25
                     setPrice(newPrice);
                     setPriceCurrency(currency);
                     setIsPriceManuallyEdited(true);
