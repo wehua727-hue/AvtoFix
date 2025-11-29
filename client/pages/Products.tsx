@@ -1297,13 +1297,38 @@ export default function Products() {
                         return sum + revenueInUZS;
                       }, 0);
                       
-                      // UZS da ko'rsatish (har doim so'm da)
-                      const formatted = totalRevenue.toLocaleString('uz-UZ', {
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: 0
+                      console.log('[Products] Jami daromad hisoblash:', {
+                        totalRevenueUZS: totalRevenue,
+                        exchangeRates: exchangeRates,
+                        usdRate: exchangeRates?.usd
                       });
                       
-                      return `${formatted} so'm`;
+                      // USD da ko'rsatish
+                      if (!exchangeRates || !exchangeRates.usd) {
+                        // Agar kurs yo'q bo'lsa, UZS da ko'rsatish
+                        const formatted = totalRevenue.toLocaleString('uz-UZ', {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 0
+                        });
+                        console.log('[Products] Kurs yo\'q, UZS da ko\'rsatiladi:', formatted);
+                        return `${formatted} so'm`;
+                      }
+                      
+                      // UZS dan USD ga o'tkazish
+                      const totalInUSD = totalRevenue / exchangeRates.usd;
+                      const formatted = totalInUSD.toLocaleString('en-US', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 2
+                      });
+                      
+                      console.log('[Products] USD da hisoblash:', {
+                        totalRevenueUZS: totalRevenue,
+                        usdRate: exchangeRates.usd,
+                        totalInUSD: totalInUSD,
+                        formatted: formatted
+                      });
+                      
+                      return `$${formatted}`;
                     })()}
                   </span>
                 </div>
