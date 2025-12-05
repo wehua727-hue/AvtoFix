@@ -561,6 +561,7 @@ export default function Kassa() {
           id: variantId,
           name: `${product.name} - ${variant.name}`,
           sku: variant.sku || product.sku,
+          barcode: variant.barcode || product.barcode, // Variant barcode
           price: variant.price || product.price,
           currency: variant.currency || product.currency || 'UZS', // Xil valyutasi
           stock: variantStock,
@@ -751,21 +752,86 @@ export default function Kassa() {
     [numpadMode, numpadValue, selectedItemIndex, addProductBySku, updateQuantity]
   );
 
-  // Keyboard handler
+  // Scanner buffer - tez kiritilgan raqamlarni aniqlash uchun
+  const scannerBufferRef = useRef<string>('');
+  const lastKeyTimeRef = useRef<number>(0);
+  const scannerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Keyboard handler - scanner va numpad ni ajratish
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isInputFocused = document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA";
       if (e.key === "F3") { e.preventDefault(); setSearchOpen(true); return; }
       if (e.key === "Escape") { setSearchOpen(false); return; }
       if (searchOpen || paymentOpen || historyOpen || pendingChecksOpen || isInputFocused) return;
-      if (/^[0-9]$/.test(e.key)) { e.preventDefault(); handleNumpadPress(e.key); return; }
+      
+      const now = Date.now();
+      const timeSinceLastKey = now - lastKeyTimeRef.current;
+      
+      // Raqam kiritilganda
+      if (/^[0-9]$/.test(e.key)) {
+        // Agar tez kiritilayotgan bo'lsa (50ms ichida) - bu scanner
+        if (timeSinceLastKey < 50 && scannerBufferRef.current.length > 0) {
+          // Scanner - numpad ga yubormaslik
+          scannerBufferRef.current += e.key;
+          lastKeyTimeRef.current = now;
+          
+          // Timeout ni yangilash
+          if (scannerTimeoutRef.current) {
+            clearTimeout(scannerTimeoutRef.current);
+          }
+          scannerTimeoutRef.current = setTimeout(() => {
+            scannerBufferRef.current = '';
+          }, 500);
+          return; // Numpad ga yubormaslik!
+        }
+        
+        // Birinchi raqam - bufferni boshlash
+        scannerBufferRef.current = e.key;
+        lastKeyTimeRef.current = now;
+        
+        // Timeout - agar keyingi raqam tez kelmasa, numpad ga yuborish
+        if (scannerTimeoutRef.current) {
+          clearTimeout(scannerTimeoutRef.current);
+        }
+        scannerTimeoutRef.current = setTimeout(() => {
+          // Agar faqat 1-2 ta raqam bo'lsa va tez kiritilmagan bo'lsa - numpad
+          if (scannerBufferRef.current.length <= 2) {
+            // Numpad ga yuborish
+            for (const digit of scannerBufferRef.current) {
+              handleNumpadPress(digit);
+            }
+          }
+          scannerBufferRef.current = '';
+        }, 100);
+        
+        e.preventDefault();
+        return;
+      }
+      
+      // Enter - agar scanner buffer bo'sh bo'lsa, numpad OK
+      if (e.key === "Enter" || e.key === "+" || e.key === "Add") {
+        // Agar scanner buffer da raqamlar bo'lsa - bu scanner, useBarcodeScanner handle qiladi
+        if (scannerBufferRef.current.length >= 3) {
+          scannerBufferRef.current = '';
+          return; // Scanner hook handle qiladi
+        }
+        e.preventDefault();
+        handleNumpadPress("OK");
+        return;
+      }
+      
       if (e.key === "." || e.key === "Decimal") { e.preventDefault(); handleNumpadPress("."); return; }
       if (e.key === "Backspace") { e.preventDefault(); handleNumpadPress("⌫"); return; }
       if (e.key === "Delete" || (e.key.toLowerCase() === "c" && !e.ctrlKey)) { e.preventDefault(); handleNumpadPress("C"); return; }
-      if (e.key === "Enter" || e.key === "+" || e.key === "Add") { e.preventDefault(); handleNumpadPress("OK"); return; }
     };
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      if (scannerTimeoutRef.current) {
+        clearTimeout(scannerTimeoutRef.current);
+      }
+    };
   }, [searchOpen, paymentOpen, historyOpen, pendingChecksOpen, handleNumpadPress]);
 
   // Save pending check
@@ -1994,47 +2060,27 @@ export default function Kassa() {
                 <Button 
                   className="w-full h-12 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 rounded-xl text-base font-bold shadow-lg shadow-amber-500/30"
                   onClick={async () => {
-                    const labelPrinter = selectedLabelPrinter || selectedPrinter;
-                    if (!labelPrinter || labelPrinter === 'browser-print') {
-                      // Brauzer print ishlatish
-                      setIsPrinting(true);
-                      try {
-                        const paperWidth = useCustomSize ? customLabelWidth : LABEL_SIZE_CONFIGS[labelSize].width;
-                        const paperHeight = useCustomSize ? customLabelHeight : LABEL_SIZE_CONFIGS[labelSize].height;
-                        
-                        for (let i = 0; i < labelQuantity; i++) {
-                          await printLabel('browser-print', {
-                            name: labelDialogItem.name,
-                            price: labelDialogItem.price,
-                            sku: labelDialogItem.sku,
-                            barcode: labelDialogItem.sku,
-                            barcodeType: "CODE128",
-                            stock: labelStock,
-                            labelSize: useCustomSize ? undefined : labelSize,
-                            paperWidth,
-                            paperHeight,
-                          });
-                        }
-                        setLabelDialogOpen(false);
-                      } catch (e) {
-                        console.error("Label print error:", e);
-                      } finally {
-                        setIsPrinting(false);
-                      }
-                      return;
-                    }
+                    if (!labelDialogItem) return;
+                    
                     setIsPrinting(true);
                     try {
-                      // Qo'lda yoki tayyor o'lcham
+                      // Qisqa barcode ID yaratish - oxirgi 8 ta belgi
+                      // Bu yetarlicha unikal va scanner oson o'qiydi
+                      const fullId = labelDialogItem.productId;
+                      const shortId = fullId.slice(-8).toUpperCase();
+                      
+                      console.log("[Kassa] Using short barcode ID:", shortId, "from:", fullId);
+                      
+                      const labelPrinter = selectedLabelPrinter || selectedPrinter;
                       const paperWidth = useCustomSize ? customLabelWidth : LABEL_SIZE_CONFIGS[labelSize].width;
                       const paperHeight = useCustomSize ? customLabelHeight : LABEL_SIZE_CONFIGS[labelSize].height;
                       
                       for (let i = 0; i < labelQuantity; i++) {
-                        const success = await printLabel(labelPrinter, {
+                        const success = await printLabel(labelPrinter || 'browser-print', {
                           name: labelDialogItem.name,
                           price: labelDialogItem.price,
                           sku: labelDialogItem.sku,
-                          barcode: labelDialogItem.sku,
+                          barcode: shortId, // Qisqa 8 belgili ID
                           barcodeType: "CODE128",
                           stock: labelStock,
                           labelSize: useCustomSize ? undefined : labelSize,
@@ -2048,6 +2094,7 @@ export default function Kassa() {
                       setLabelDialogOpen(false);
                     } catch (e) {
                       console.error("Label print error:", e);
+                      toast.error("Senik chop etishda xatolik");
                     } finally {
                       setIsPrinting(false);
                     }

@@ -217,6 +217,125 @@ export function generateUUID(): string {
 }
 
 // ============================================
+// EAN-13 BARCODE GENERATION
+// ============================================
+
+// Barcode counter - localStorage da saqlanadi
+const BARCODE_COUNTER_KEY = 'ean13_barcode_counter';
+const BARCODE_PREFIX = '478'; // O'zbekiston prefiksi (478)
+
+/**
+ * EAN-13 check digit hisoblash
+ * @param digits - 12 ta raqam (check digit siz)
+ * @returns check digit (0-9)
+ */
+function calculateEAN13CheckDigit(digits: string): number {
+  let sum = 0;
+  for (let i = 0; i < 12; i++) {
+    const digit = parseInt(digits[i], 10);
+    sum += i % 2 === 0 ? digit : digit * 3;
+  }
+  const checkDigit = (10 - (sum % 10)) % 10;
+  return checkDigit;
+}
+
+/**
+ * Keyingi barcode counter ni olish
+ */
+function getNextBarcodeCounter(): number {
+  const stored = localStorage.getItem(BARCODE_COUNTER_KEY);
+  const counter = stored ? parseInt(stored, 10) : 0;
+  const next = counter + 1;
+  localStorage.setItem(BARCODE_COUNTER_KEY, String(next));
+  return next;
+}
+
+/**
+ * EAN-13 barcode generatsiya qilish
+ * Format: 478XXXXXXXXX + check digit
+ * 478 - O'zbekiston prefiksi
+ * XXXXXXXXX - 9 ta raqam (counter)
+ * Check digit - avtomatik hisoblanadi
+ * 
+ * @returns 13 ta raqamli EAN-13 barcode
+ */
+export function generateEAN13Barcode(): string {
+  const counter = getNextBarcodeCounter();
+  // 9 ta raqamga to'ldirish (478 + 9 raqam = 12 raqam)
+  const counterStr = String(counter).padStart(9, '0');
+  const digits12 = BARCODE_PREFIX + counterStr;
+  const checkDigit = calculateEAN13CheckDigit(digits12);
+  return digits12 + checkDigit;
+}
+
+/**
+ * Mahsulot uchun barcode generatsiya qilish va saqlash
+ * Agar mahsulotda barcode yo'q bo'lsa, yangi generatsiya qiladi
+ * 
+ * @param productId - mahsulot ID
+ * @returns generatsiya qilingan barcode
+ */
+export async function generateAndSaveBarcode(productId: string): Promise<string> {
+  const product = await offlineDB.products.get(productId);
+  if (!product) {
+    throw new Error(`Mahsulot topilmadi: ${productId}`);
+  }
+  
+  // Agar barcode allaqachon bor bo'lsa, uni qaytarish
+  if (product.barcode) {
+    return product.barcode;
+  }
+  
+  // Yangi barcode generatsiya qilish
+  const barcode = generateEAN13Barcode();
+  
+  // Mahsulotni yangilash
+  await offlineDB.products.update(productId, { barcode });
+  
+  console.log(`[offlineDB] Generated barcode for ${product.name}: ${barcode}`);
+  
+  return barcode;
+}
+
+/**
+ * Variant uchun barcode generatsiya qilish va saqlash
+ * 
+ * @param productId - asosiy mahsulot ID
+ * @param variantIndex - variant indeksi
+ * @returns generatsiya qilingan barcode
+ */
+export async function generateAndSaveVariantBarcode(productId: string, variantIndex: number): Promise<string> {
+  const product = await offlineDB.products.get(productId);
+  if (!product) {
+    throw new Error(`Mahsulot topilmadi: ${productId}`);
+  }
+  
+  if (!product.variantSummaries || !product.variantSummaries[variantIndex]) {
+    throw new Error(`Variant topilmadi: ${productId}[${variantIndex}]`);
+  }
+  
+  const variant = product.variantSummaries[variantIndex];
+  
+  // Agar barcode allaqachon bor bo'lsa, uni qaytarish
+  if (variant.barcode) {
+    return variant.barcode;
+  }
+  
+  // Yangi barcode generatsiya qilish
+  const barcode = generateEAN13Barcode();
+  
+  // Variantni yangilash
+  const updatedVariants = [...product.variantSummaries];
+  updatedVariants[variantIndex] = { ...variant, barcode };
+  
+  await offlineDB.products.update(productId, { variantSummaries: updatedVariants });
+  
+  console.log(`[offlineDB] Generated barcode for variant ${variant.name}: ${barcode}`);
+  
+  return barcode;
+}
+
+// ============================================
 // DATABASE OPERATIONS
 // ============================================
 
@@ -285,23 +404,33 @@ if (typeof window !== 'undefined') {
  */
 export async function getAllProducts(): Promise<OfflineProduct[]> {
   if (!currentUserId) {
+    console.log('[OfflineDB] getAllProducts: No currentUserId, returning empty');
     return [];
   }
   
-  const allProducts = await offlineDB.products.toArray();
-  const isAdmin = isAdminUser();
-  
-  return allProducts.filter(p => {
-    // Yashirin mahsulotlarni ko'rsatmaslik (ota mahsulot tugamaguncha)
-    if (p.isHidden) return false;
+  try {
+    const allProducts = await offlineDB.products.toArray();
+    console.log('[OfflineDB] getAllProducts: Found', allProducts.length, 'products in IndexedDB');
+    const isAdmin = isAdminUser();
     
-    // Свои товары - всегда показываем
-    if (p.userId === currentUserId) return true;
-    // Товары без userId - только админу
-    if (!p.userId && isAdmin) return true;
-    // Остальное не показываем
-    return false;
-  });
+    const filtered = allProducts.filter(p => {
+      // Yashirin mahsulotlarni ko'rsatmaslik (ota mahsulot tugamaguncha)
+      if (p.isHidden) return false;
+      
+      // Свои товары - всегда показываем
+      if (p.userId === currentUserId) return true;
+      // Товары без userId - только админу
+      if (!p.userId && isAdmin) return true;
+      // Остальное не показываем
+      return false;
+    });
+    
+    console.log('[OfflineDB] getAllProducts: Filtered to', filtered.length, 'products for user', currentUserId);
+    return filtered;
+  } catch (error: any) {
+    console.error('[OfflineDB] getAllProducts error:', error.message || error);
+    return [];
+  }
 }
 
 /**

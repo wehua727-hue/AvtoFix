@@ -29,8 +29,7 @@ module.exports = {
   extraResources: [
     {
       from: 'electron/config.json',
-      to: 'electron/config.json',
-      filter: ['**/*'],
+      to: 'config.json',
     },
   ],
   

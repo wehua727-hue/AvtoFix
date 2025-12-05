@@ -829,21 +829,67 @@ export class ProductSearchEngine {
       }
     }
     
-    // 4. Mahsulot SKU - to'liq moslik
+    // 4. Qisqa ID bo'yicha qidirish (etiketkadan scan qilinganda)
+    // Etiketkaga productId ning oxirgi 8 ta belgisi chop etiladi
+    // Masalan: "9878CA0" yoki "D9878CA0"
+    const shortCode = code.toUpperCase();
+    if (shortCode.length >= 6 && shortCode.length <= 12) {
+      // Variant ID formati: oxirgi 8 ta belgi + "-V" + index
+      const variantShortMatch = shortCode.match(/^(.+)-V(\d+)$/);
+      if (variantShortMatch) {
+        const shortId = variantShortMatch[1];
+        const variantIndex = parseInt(variantShortMatch[2], 10);
+        // Oxirgi 8 ta belgi bo'yicha mahsulot qidirish
+        const product = this.products.find(p => p.id.toUpperCase().endsWith(shortId));
+        if (product && product.variantSummaries && product.variantSummaries[variantIndex]) {
+          console.log(`[SearchEngine] Found variant by short ID: "${shortCode}"`);
+          return { product, variantIndex };
+        }
+      }
+      
+      // Asosiy mahsulot - oxirgi 8 ta belgi bo'yicha qidirish
+      const productByShortId = this.products.find(p => p.id.toUpperCase().endsWith(shortCode));
+      if (productByShortId) {
+        console.log(`[SearchEngine] Found product by short ID: "${shortCode}"`);
+        return { product: productByShortId };
+      }
+    }
+    
+    // 5. To'liq mahsulot ID bo'yicha qidirish
+    // Variant ID formati: "originalProductId-vIndex"
+    const variantIdMatch = code.match(/^(.+)-v(\d+)$/i);
+    if (variantIdMatch) {
+      const originalProductId = variantIdMatch[1];
+      const variantIndex = parseInt(variantIdMatch[2], 10);
+      const product = this.products.find(p => p.id === originalProductId);
+      if (product && product.variantSummaries && product.variantSummaries[variantIndex]) {
+        console.log(`[SearchEngine] Found variant by full productId: "${code}"`);
+        return { product, variantIndex };
+      }
+    }
+    
+    // 6. To'liq asosiy mahsulot ID bo'yicha qidirish
+    const productById = this.products.find(p => p.id === code);
+    if (productById) {
+      console.log(`[SearchEngine] Found product by full ID: "${code}"`);
+      return { product: productById };
+    }
+    
+    // 7. Mahsulot SKU - to'liq moslik
     const productBySku = this.productSkuMap.get(key);
     if (productBySku) {
       console.log(`[SearchEngine] Found product by SKU: "${key}"`);
       return { product: productBySku };
     }
     
-    // 5. Mahsulot barcode - to'liq moslik
+    // 8. Mahsulot barcode - to'liq moslik
     const productByBarcode = this.productBarcodeMap.get(key);
     if (productByBarcode) {
       console.log(`[SearchEngine] Found product by barcode: "${key}"`);
       return { product: productByBarcode };
     }
     
-    // 6. Raqamli qidiruv - mahsulot SKU uchun ham
+    // 9. Raqamli qidiruv - mahsulot SKU uchun ham
     if (/^\d+$/.test(key)) {
       const withoutLeadingZeros = key.replace(/^0+/, '') || '0';
       
@@ -883,6 +929,45 @@ export class ProductSearchEngine {
 
   clearCache(): void {
     this.queryCache.clear();
+  }
+
+  /**
+   * Mahsulot barcode indeksini yangilash
+   * Yangi barcode generatsiya qilinganda chaqiriladi
+   */
+  updateProductBarcode(productId: string, barcode: string): void {
+    const product = this.products.find(p => p.id === productId);
+    if (product) {
+      // Eski barcode ni o'chirish (agar mavjud bo'lsa)
+      if (product.barcode) {
+        this.productBarcodeMap.delete(product.barcode.toLowerCase().trim());
+      }
+      // Yangi barcode ni qo'shish
+      product.barcode = barcode;
+      this.productBarcodeMap.set(barcode.toLowerCase().trim(), product);
+      this.queryCache.clear();
+      console.log(`[SearchEngine] Updated product barcode: ${productId} -> ${barcode}`);
+    }
+  }
+
+  /**
+   * Variant barcode indeksini yangilash
+   * Yangi barcode generatsiya qilinganda chaqiriladi
+   */
+  updateVariantBarcode(productId: string, variantIndex: number, barcode: string): void {
+    const product = this.products.find(p => p.id === productId);
+    if (product && product.variantSummaries && product.variantSummaries[variantIndex]) {
+      const variant = product.variantSummaries[variantIndex];
+      // Eski barcode ni o'chirish (agar mavjud bo'lsa)
+      if (variant.barcode) {
+        this.variantBarcodeMap.delete(variant.barcode.toLowerCase().trim());
+      }
+      // Yangi barcode ni qo'shish
+      variant.barcode = barcode;
+      this.variantBarcodeMap.set(barcode.toLowerCase().trim(), { product, variantIndex });
+      this.queryCache.clear();
+      console.log(`[SearchEngine] Updated variant barcode: ${productId}[${variantIndex}] -> ${barcode}`);
+    }
   }
 }
 

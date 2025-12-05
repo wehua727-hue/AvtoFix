@@ -99,6 +99,27 @@ export async function listPrinters(): Promise<PrinterInfo[]> {
     }
   }
 
+  // Try QZ Tray (brauzer uchun)
+  if (!isElectron()) {
+    try {
+      const { getQZPrinters, isQZConnected, connectQZ } = await import('./qz-tray');
+      await connectQZ();
+      if (isQZConnected()) {
+        const qzPrinters = await getQZPrinters();
+        console.log('[POSPrint] QZ Tray printers:', qzPrinters);
+        for (const name of qzPrinters) {
+          printers.push({
+            id: `qz:${name}`,
+            name: `${name} (QZ Tray)`,
+            type: 'system',
+          });
+        }
+      }
+    } catch (e) {
+      console.log('[POSPrint] QZ Tray not available:', e);
+    }
+  }
+
   // Try WebUSB - oldindan ruxsat berilgan qurilmalar
   if ('usb' in navigator) {
     try {
@@ -106,7 +127,6 @@ export async function listPrinters(): Promise<PrinterInfo[]> {
       console.log('[POSPrint] WebUSB devices found:', devices.length);
       for (const device of devices) {
         console.log('[POSPrint] Device:', device.productName, device.vendorId, device.productId);
-        // Barcha USB qurilmalarni ko'rsatish (printer class tekshirmasdan)
         printers.push({
           id: `usb:${device.vendorId}:${device.productId}`,
           name: device.productName || `USB Qurilma (${device.vendorId.toString(16)}:${device.productId.toString(16)})`,
@@ -417,6 +437,17 @@ export async function printReceipt(
       console.warn('[POSPrint] Electron print failed:', result.error);
     } catch (e) {
       console.error('[POSPrint] Electron print error:', e);
+    }
+  }
+
+  // Try QZ Tray
+  if (printerId?.startsWith('qz:')) {
+    try {
+      const printerName = printerId.replace('qz:', '');
+      const { printReceiptQZ } = await import('./qz-tray');
+      return await printReceiptQZ(printerName, receipt);
+    } catch (e) {
+      console.error('[POSPrint] QZ Tray print error:', e);
     }
   }
 
@@ -988,7 +1019,7 @@ function buildLabelData(label: LabelData): Uint8Array {
   } else if (isMedium) {
     addBytes(ESCPOS.DOUBLE_HEIGHT);
   }
-  addLine(`${label.price.toLocaleString()} so'm`);
+  addLine(`${label.price}`);
   addBytes(ESCPOS.NORMAL_SIZE);
 
   // Barcode
@@ -1093,6 +1124,21 @@ export async function printLabel(
     }
   }
 
+  // Try QZ Tray
+  if (effectivePrinterId?.startsWith('qz:')) {
+    try {
+      const printerName = effectivePrinterId.replace('qz:', '');
+      const { printLabelQZ } = await import('./qz-tray');
+      return await printLabelQZ(printerName, {
+        name: label.name,
+        price: label.price,
+        barcode: label.barcode || label.sku,
+      });
+    } catch (e) {
+      console.error('[POSPrint] QZ Tray label print error:', e);
+    }
+  }
+
   // Try WebUSB - faqat agar USB printer tanlangan bo'lsa
   if (effectivePrinterId?.startsWith('usb:')) {
     try {
@@ -1180,11 +1226,12 @@ export function printLabelViaBrowser(label: LabelData): boolean {
   const priceFontSize = paperWidth >= 60 ? '16px' : paperWidth >= 50 ? '14px' : '12px';
   const smallFontSize = paperWidth >= 60 ? '9px' : '8px';
   
-  // Barcode o'lchamlari - kattaroq
-  const barcodeHeight = paperWidth >= 60 ? 50 : paperWidth >= 50 ? 45 : 35;
-  const barcodeWidth = paperWidth >= 60 ? 2 : paperWidth >= 50 ? 1.8 : 1.5;
+  // Barcode o'lchamlari - kattaroq, scanner o'qishi oson
+  const barcodeHeight = paperWidth >= 60 ? 55 : paperWidth >= 50 ? 50 : 45;
+  const barcodeWidth = paperWidth >= 60 ? 1.2 : paperWidth >= 50 ? 1.0 : 0.8;
   
-  // Barcode qiymati - sku yoki barcode
+  // Barcode qiymati - to'g'ridan-to'g'ri barcode yoki SKU
+  // CODE128 format har qanday belgilarni qo'llab-quvvatlaydi
   const barcodeValue = label.barcode || label.sku || '';
   
   // Senik HTML yaratish - yaxshilangan dizayn
@@ -1255,28 +1302,6 @@ export function printLabelViaBrowser(label: LabelData): boolean {
           max-width: 95%;
           height: auto;
         }
-        .info-footer {
-          width: 100%;
-          display: flex;
-          justify-content: center;
-          gap: 3mm;
-          font-size: ${smallFontSize};
-          color: #333;
-          border-top: 0.3mm solid #ddd;
-          padding-top: 0.5mm;
-          margin-top: -1mm;
-        }
-        .info-item {
-          display: flex;
-          align-items: center;
-          gap: 1mm;
-        }
-        .info-label {
-          color: #666;
-        }
-        .info-value {
-          font-weight: bold;
-        }
         @media print {
           html, body {
             width: ${paperWidth}mm;
@@ -1288,28 +1313,28 @@ export function printLabelViaBrowser(label: LabelData): boolean {
     <body>
       <div class="label">
         <div class="name">${label.name}</div>
-        <div class="price">${label.price.toLocaleString()} so'm</div>
+        <div class="price">${label.price}</div>
         ${barcodeValue ? `
           <div class="barcode-container">
             <svg id="barcode"></svg>
           </div>
         ` : ''}
-        <div class="info-footer">
-          ${label.sku ? `<div class="info-item"><span class="info-label">Kod:</span><span class="info-value">${label.sku}</span></div>` : ''}
-          ${label.stock !== undefined ? `<div class="info-item"><span class="info-label">Ombor:</span><span class="info-value">${label.stock} ta</span></div>` : ''}
-        </div>
       </div>
       ${barcodeValue ? `
         <script>
           try {
+            // CODE128 format - qisqa ID uchun optimallashtirilgan
             JsBarcode("#barcode", "${barcodeValue}", {
               format: "CODE128",
-              width: ${barcodeWidth},
-              height: ${barcodeHeight},
+              width: 3,
+              height: 70,
               displayValue: true,
-              fontSize: ${paperWidth >= 60 ? 10 : 8},
-              margin: 2,
-              textMargin: 2
+              fontSize: 16,
+              margin: 5,
+              textMargin: 5,
+              font: "Arial",
+              fontOptions: "bold",
+              text: "${barcodeValue}"
             });
           } catch(e) {
             console.error('Barcode error:', e);

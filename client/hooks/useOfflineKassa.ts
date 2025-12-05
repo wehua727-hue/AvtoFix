@@ -37,6 +37,7 @@ export interface CartItem {
   productId: string;
   name: string;
   sku?: string;
+  barcode?: string; // Barcode - scanner uchun
   price: number;
   currency?: 'USD' | 'RUB' | 'CNY' | 'UZS'; // Valyuta
   quantity: number;
@@ -147,13 +148,22 @@ export function useOfflineKassa(userId: string, userPhone?: string): UseOfflineK
         setCurrentUserId(userId, userPhone);
         
         // 1. Avval IndexedDB dan mahsulotlarni yuklash
-        let products = await getAllProducts();
+        let products: OfflineProduct[] = [];
+        try {
+          products = await getAllProducts();
+          console.log('[useOfflineKassa] Loaded from IndexedDB:', products.length, 'products');
+        } catch (dbError: any) {
+          console.error('[useOfflineKassa] IndexedDB error:', dbError.message || dbError);
+        }
         
         // 2. Agar online bo'lsak, serverdan yangi mahsulotlarni yuklash
         // MUHIM: Har doim serverdan yuklash - o'chirilgan mahsulotlarni ham sinxronlash uchun
+        console.log('[useOfflineKassa] Online status:', navigator.onLine, 'API URL:', apiBaseUrl);
         if (navigator.onLine) {
           try {
-            const response = await fetch(`${apiBaseUrl}/api/products?userId=${userId}&userPhone=${userPhone || ''}&limit=50000`);
+            const url = `${apiBaseUrl}/api/products?userId=${userId}&userPhone=${userPhone || ''}&limit=50000`;
+            console.log('[useOfflineKassa] Fetching from:', url);
+            const response = await fetch(url);
             if (response.ok) {
               const data = await response.json();
               const serverProducts = Array.isArray(data) ? data : data.products || [];
@@ -347,6 +357,7 @@ export function useOfflineKassa(userId: string, userPhone?: string): UseOfflineK
         productId: product.id,
         name: product.name,
         sku: product.sku,
+        barcode: product.barcode, // Barcode - scanner uchun
         price: product.price,
         currency: product.currency || 'UZS', // Valyuta
         quantity: 1,
