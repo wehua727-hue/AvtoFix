@@ -1,0 +1,943 @@
+/**
+ * OFFLINE DATABASE - IndexedDB with Dexie.js
+ * 20,000+ mahsulotlar uchun optimallashtirilgan
+ * 
+ * Saqlanadigan ma'lumotlar:
+ * - Products (mahsulotlar)
+ * - Categories (kategoriyalar)
+ * - Offline Sales (offline sotuvlar)
+ * - Sync Queue (sinxronizatsiya navbati)
+ * - Search Index (qidiruv indeksi)
+ */
+
+import Dexie, { Table } from 'dexie';
+
+// ============================================
+// INTERFACES
+// ============================================
+
+export interface OfflineVariant {
+  name: string;
+  sku?: string;
+  barcode?: string;
+  price: number;
+  currency?: 'USD' | 'RUB' | 'CNY' | 'UZS'; // Valyuta
+  stock: number;
+  imageUrl?: string;
+}
+
+// Bola mahsulot interfeysi
+export interface OfflineChildProduct {
+  productId: string;  // Bola mahsulot ID
+  name: string;       // Bola mahsulot nomi
+  autoActivate: boolean; // Ota tugaganda avtomatik faollashtirilsinmi?
+}
+export interface OfflineProduct {
+
+  id: string;
+  name: string;
+  normalizedName: string; // Qidiruv uchun
+  keywords: string[];     // Tokenized keywords
+  sku?: string;
+  barcode?: string;
+  price: number;
+  currency?: 'USD' | 'RUB' | 'CNY' | 'UZS'; // Valyuta
+  stock: number;
+  categoryId?: string;
+  imageUrl?: string;
+  updatedAt: number;      // Timestamp
+  hash?: string;          // Delta sync uchun
+  userId?: string;        // Mahsulot egasi
+  variantSummaries?: OfflineVariant[]; // Mahsulot xillari
+  // Ota-bola mahsulot tizimi
+  parentProductId?: string; // Ota mahsulot ID (agar bu bola mahsulot bo'lsa)
+  childProducts?: OfflineChildProduct[]; // Bola mahsulotlar ro'yxati
+  isHidden?: boolean; // Yashirinmi? (ota mahsulot tugamaguncha ko'rinmaydi)
+}
+
+export interface OfflineCategory {
+  id: string;
+  name: string;
+  parentId?: string;
+  updatedAt: number;
+  userId?: string; // Владелец категории
+}
+
+export interface OfflineSale {
+  id: string;              // UUID
+  recipientNumber: string; // YYYYMMDD-HHMMSS-RAND
+  items: OfflineSaleItem[];
+  total: number;
+  discount: number;
+  paymentType: string;
+  saleType: 'sale' | 'refund';
+  createdAt: number;
+  synced: boolean;         // MongoDB ga yuborilganmi?
+  syncedAt?: number;
+  userId: string;
+}
+
+export interface OfflineSaleItem {
+  productId: string;
+  name: string;
+  sku?: string;
+  quantity: number;
+  price: number;
+  discount: number;
+}
+
+export interface SyncMeta {
+  id: string;
+  key: string;
+  value: string | number;
+  updatedAt: number;
+}
+
+export interface SearchIndexMeta {
+  id: string;
+  totalProducts: number;
+  lastIndexedAt: number;
+  version: number;
+}
+
+// ============================================
+// DEXIE DATABASE CLASS
+// ============================================
+
+export class OfflineKassaDB extends Dexie {
+  products!: Table<OfflineProduct>;
+  categories!: Table<OfflineCategory>;
+  offlineSales!: Table<OfflineSale>;
+  syncMeta!: Table<SyncMeta>;
+  searchIndex!: Table<SearchIndexMeta>;
+
+  constructor() {
+    super('OfflineKassaDB');
+
+    // Schema versiyasi
+    this.version(1).stores({
+      // Products - tez qidiruv uchun indekslar
+      products: 'id, sku, barcode, categoryId, normalizedName, updatedAt, userId',
+      
+      // Categories
+      categories: 'id, parentId, updatedAt, userId',
+      
+      // Offline Sales - synced bo'yicha filter
+      offlineSales: 'id, recipientNumber, synced, createdAt, userId',
+      
+      // Sync metadata
+      syncMeta: 'id, key',
+      
+      // Search index metadata
+      searchIndex: 'id'
+    });
+  }
+}
+
+// Current user ID и Phone (для фильтрации)
+let currentUserId: string | null = null;
+let currentUserPhone: string | null = null;
+
+// Админ телефон - видит товары/категории без userId + свои
+const ADMIN_PHONE = "910712828";
+
+/**
+ * Проверить, является ли текущий пользователь админом (по телефону)
+ */
+export function isAdminUser(): boolean {
+  if (!currentUserPhone) return false;
+  const normalized = currentUserPhone.replace(/[^\d]/g, "");
+  return normalized === ADMIN_PHONE || normalized.endsWith(ADMIN_PHONE);
+}
+
+/**
+ * Установить текущего пользователя
+ */
+export function setCurrentUserId(userId: string | null, userPhone?: string | null): void {
+  currentUserId = userId;
+  currentUserPhone = userPhone || null;
+}
+
+/**
+ * Получить текущего пользователя
+ */
+export function getCurrentUserId(): string | null {
+  return currentUserId;
+}
+
+// Singleton instance
+export const offlineDB = new OfflineKassaDB();
+
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+/**
+ * Matnni normalizatsiya qilish (qidiruv uchun)
+ */
+export function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[''`]/g, "'")
+    .replace(/[^\w\s'-]/g, '')
+    .trim();
+}
+
+/**
+ * Keywordlarni ajratish
+ */
+export function tokenize(text: string): string[] {
+  const normalized = normalizeText(text);
+  return normalized
+    .split(/\s+/)
+    .filter(word => word.length > 1);
+}
+
+/**
+ * Offline receipt number generatsiya qilish
+ * Format: YYYYMMDD-HHMMSS-RAND4
+ */
+export function generateOfflineReceiptNumber(): string {
+  const now = new Date();
+  const date = now.toISOString().slice(0, 10).replace(/-/g, '');
+  const time = now.toTimeString().slice(0, 8).replace(/:/g, '');
+  const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${date}-${time}-${rand}`;
+}
+
+/**
+ * UUID generatsiya
+ */
+export function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+// ============================================
+// DATABASE OPERATIONS
+// ============================================
+
+/**
+ * IndexedDB ni tozalash (debug uchun)
+ * Brauzer konsolidan chaqirish: window.clearOfflineDB()
+ */
+export async function clearOfflineDB(): Promise<void> {
+  console.log('[offlineDB] Clearing all data...');
+  await offlineDB.products.clear();
+  await offlineDB.categories.clear();
+  await offlineDB.syncMeta.clear();
+  console.log('[offlineDB] All data cleared. Please refresh the page.');
+}
+
+/**
+ * Mahsulotlarni qayta yuklash (debug uchun)
+ * Brauzer konsolidan chaqirish: window.reloadProducts()
+ */
+export async function reloadProducts(): Promise<void> {
+  console.log('[offlineDB] Reloading products from server...');
+  await offlineDB.products.clear();
+  await offlineDB.syncMeta.clear();
+  console.log('[offlineDB] Products cleared. Please refresh the page to reload from server.');
+}
+
+/**
+ * Mahsulotlarning variantlarini ko'rish (debug uchun)
+ * Brauzer konsolidan chaqirish: window.showVariants()
+ */
+export async function showVariants(): Promise<void> {
+  const products = await offlineDB.products.toArray();
+  console.log(`[offlineDB] Total products: ${products.length}`);
+  
+  let variantCount = 0;
+  for (const p of products) {
+    if (p.variantSummaries && p.variantSummaries.length > 0) {
+      console.log(`[offlineDB] Product "${p.name}" has ${p.variantSummaries.length} variants:`);
+      p.variantSummaries.forEach((v, i) => {
+        console.log(`  - [${i}] name="${v.name}", sku="${v.sku}", price=${v.price}, stock=${v.stock}`);
+        variantCount++;
+      });
+    }
+  }
+  
+  console.log(`[offlineDB] Total variants: ${variantCount}`);
+  if (variantCount === 0) {
+    console.log('[offlineDB] ⚠️ No variants found! Run window.reloadProducts() and refresh the page.');
+  }
+}
+
+// Global funksiya sifatida export qilish (debug uchun)
+if (typeof window !== 'undefined') {
+  (window as any).clearOfflineDB = clearOfflineDB;
+  (window as any).reloadProducts = reloadProducts;
+  (window as any).showVariants = showVariants;
+}
+
+/**
+ * Barcha mahsulotlarni olish (RAM ga yuklash uchun)
+ * 
+ * Админ (910712828): видит товары без userId + свои товары
+ * Остальные: видят только свои товары
+ * 
+ * MUHIM: isHidden = true bo'lgan mahsulotlar ko'rinmaydi (ota mahsulot tugamaguncha)
+ */
+export async function getAllProducts(): Promise<OfflineProduct[]> {
+  if (!currentUserId) {
+    return [];
+  }
+  
+  const allProducts = await offlineDB.products.toArray();
+  const isAdmin = isAdminUser();
+  
+  return allProducts.filter(p => {
+    // Yashirin mahsulotlarni ko'rsatmaslik (ota mahsulot tugamaguncha)
+    if (p.isHidden) return false;
+    
+    // Свои товары - всегда показываем
+    if (p.userId === currentUserId) return true;
+    // Товары без userId - только админу
+    if (!p.userId && isAdmin) return true;
+    // Остальное не показываем
+    return false;
+  });
+}
+
+/**
+ * Barcha mahsulotlarni olish (yashirinlarni ham)
+ * Admin panel uchun - barcha mahsulotlarni ko'rish
+ */
+export async function getAllProductsIncludingHidden(): Promise<OfflineProduct[]> {
+  if (!currentUserId) {
+    return [];
+  }
+  
+  const allProducts = await offlineDB.products.toArray();
+  const isAdmin = isAdminUser();
+  
+  return allProducts.filter(p => {
+    // Свои товары - всегда показываем
+    if (p.userId === currentUserId) return true;
+    // Товары без userId - только админу
+    if (!p.userId && isAdmin) return true;
+    // Остальное не показываем
+    return false;
+  });
+}
+
+/**
+ * Mahsulotlarni bulk insert/update
+ */
+export async function bulkUpsertProducts(products: OfflineProduct[]): Promise<void> {
+  await offlineDB.products.bulkPut(products);
+}
+
+/**
+ * O'chirilgan mahsulotlarni delete
+ */
+export async function deleteProducts(ids: string[]): Promise<void> {
+  await offlineDB.products.bulkDelete(ids);
+}
+
+/**
+ * Kategoriyalarni olish
+ * 
+ * Админ (910712828): видит категории без userId + свои категории
+ * Остальные: видят только свои категории
+ */
+export async function getAllCategories(): Promise<OfflineCategory[]> {
+  if (!currentUserId) {
+    return [];
+  }
+  
+  const allCategories = await offlineDB.categories.toArray();
+  const isAdmin = isAdminUser();
+  
+  return allCategories.filter(c => {
+    // Свои категории - всегда показываем
+    if (c.userId === currentUserId) return true;
+    // Категории без userId - только админу
+    if (!c.userId && isAdmin) return true;
+    // Остальное не показываем
+    return false;
+  });
+}
+
+/**
+ * Offline sotuvni saqlash
+ */
+export async function saveOfflineSale(sale: OfflineSale): Promise<void> {
+  await offlineDB.offlineSales.put(sale);
+}
+
+/**
+ * Sync qilinmagan sotuvlarni olish
+ */
+export async function getUnsyncedSales(): Promise<OfflineSale[]> {
+  // IndexedDB не поддерживает boolean в индексах для .equals()
+  // Используем фильтрацию после получения всех записей
+  const allSales = await offlineDB.offlineSales.toArray();
+  return allSales.filter(sale => sale.synced === false);
+}
+
+/**
+ * Sotuvni synced deb belgilash
+ */
+export async function markSaleAsSynced(id: string): Promise<void> {
+  await offlineDB.offlineSales.update(id, {
+    synced: true,
+    syncedAt: Date.now()
+  });
+}
+
+/**
+ * Last sync timestamp olish
+ */
+export async function getLastSyncTime(): Promise<number> {
+  const meta = await offlineDB.syncMeta.get('lastSync');
+  if (!meta) return 0;
+  
+  const timestamp = Number(meta.value);
+  const now = Date.now();
+  
+  // Agar timestamp noto'g'ri bo'lsa (kelajakda yoki manfiy), 0 qaytarish
+  if (isNaN(timestamp) || timestamp < 0 || timestamp > now) {
+    console.warn('[OfflineDB] Invalid lastSyncTime detected, resetting to 0');
+    return 0;
+  }
+  
+  return timestamp;
+}
+
+/**
+ * Last sync timestamp saqlash
+ */
+export async function setLastSyncTime(timestamp: number): Promise<void> {
+  const now = Date.now();
+  
+  // Timestamp validatsiya - faqat to'g'ri qiymatlarni saqlash
+  const validTimestamp = (timestamp > 0 && timestamp <= now) ? timestamp : now;
+  
+  await offlineDB.syncMeta.put({
+    id: 'lastSync',
+    key: 'lastSync',
+    value: validTimestamp,
+    updatedAt: now
+  });
+}
+
+/**
+ * Mahsulot stock ni yangilash (sotuv yoki qaytarish uchun)
+ * @param productId - Mahsulot ID
+ * @param quantityChange - O'zgarish miqdori (manfiy = kamaytirish, musbat = oshirish)
+ * @param variantIndex - Variant indeksi (agar variant bo'lsa)
+ */
+export async function updateProductStock(
+  productId: string,
+  quantityChange: number,
+  variantIndex?: number
+): Promise<void> {
+  try {
+    console.log(`[offlineDB] updateProductStock called: productId=${productId}, change=${quantityChange}, variantIndex=${variantIndex}`);
+    
+    const product = await offlineDB.products.get(productId);
+    if (!product) {
+      console.error(`[offlineDB] Product not found: ${productId}`);
+      throw new Error(`Product not found: ${productId}`);
+    }
+
+    // Agar variant bo'lsa
+    if (variantIndex !== undefined && product.variantSummaries) {
+      const variant = product.variantSummaries[variantIndex];
+      if (!variant) {
+        console.error(`[offlineDB] Variant not found: ${productId}[${variantIndex}]`);
+        throw new Error(`Variant not found: ${productId}[${variantIndex}]`);
+      }
+      
+      const currentStock = variant.stock || 0;
+      const newStock = Math.max(0, currentStock + quantityChange);
+      
+      console.log(`[offlineDB] Variant stock: ${currentStock} -> ${newStock} (change: ${quantityChange})`);
+      
+      // Yangi variantSummaries massivini yaratish (mutatsiya qilmaslik uchun)
+      const updatedVariantSummaries = [...product.variantSummaries];
+      updatedVariantSummaries[variantIndex] = {
+        ...variant,
+        stock: newStock
+      };
+      
+      // Mahsulotni yangilash
+      await offlineDB.products.update(productId, {
+        variantSummaries: updatedVariantSummaries,
+        updatedAt: Date.now()
+      });
+      
+      console.log(`[offlineDB] Variant stock updated successfully: ${productId}[${variantIndex}] = ${newStock}`);
+      return;
+    }
+
+    // Oddiy mahsulot
+    const currentStock = product.stock || 0;
+    const newStock = Math.max(0, currentStock + quantityChange);
+    
+    console.log(`[offlineDB] Product stock: ${currentStock} -> ${newStock} (change: ${quantityChange})`);
+    
+    await offlineDB.products.update(productId, {
+      stock: newStock,
+      updatedAt: Date.now()
+    });
+    
+    console.log(`[offlineDB] Product stock updated successfully: ${productId} = ${newStock}`);
+  } catch (error) {
+    console.error(`[offlineDB] Failed to update stock for ${productId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Database tozalash (test uchun)
+ */
+export async function clearDatabase(): Promise<void> {
+  await offlineDB.products.clear();
+  await offlineDB.categories.clear();
+  await offlineDB.offlineSales.clear();
+  await offlineDB.syncMeta.clear();
+}
+
+/**
+ * Foydalanuvchi statistikasini tozalash
+ * Faqat offlineSales jadvalini tozalaydi
+ */
+export async function clearLocalStats(userId: string): Promise<void> {
+  console.log('[offlineDB] Clearing local stats for user:', userId);
+  
+  // Foydalanuvchining barcha sotuvlarini o'chirish
+  const userSales = await offlineDB.offlineSales
+    .where('userId')
+    .equals(userId)
+    .toArray();
+  
+  const idsToDelete = userSales.map(s => s.id).filter((id): id is string => id !== undefined) as string[];
+  
+  if (idsToDelete.length > 0) {
+    await offlineDB.offlineSales.bulkDelete(idsToDelete);
+    console.log('[offlineDB] Deleted', idsToDelete.length, 'sales records');
+  }
+  
+  // localStorage dan ham tozalash
+  const today = new Date().toISOString().slice(0, 10);
+  localStorage.removeItem(`productSales:${today}`);
+  
+  console.log('[offlineDB] Local stats cleared successfully');
+}
+
+/**
+ * Foydalanuvchi o'zgarganda boshqa foydalanuvchi ma'lumotlarini tozalash
+ * ВАЖНО: Удаляет только синхронизированные данные других пользователей
+ * Вызывается ТОЛЬКО когда есть интернет и все данные синхронизированы
+ */
+export async function clearOtherUsersData(currentUserId: string): Promise<void> {
+  console.log('[OfflineDB] Clearing other users data, keeping userId:', currentUserId);
+  
+  // Проверяем несинхронизированные продажи других пользователей
+  const allSales = await offlineDB.offlineSales.toArray();
+  const otherUsersUnsyncedSales = allSales.filter(s => 
+    s.userId && 
+    s.userId !== currentUserId && 
+    s.synced === false
+  );
+  
+  if (otherUsersUnsyncedSales.length > 0) {
+    console.error(`[OfflineDB] ОШИБКА: Найдено ${otherUsersUnsyncedSales.length} несинхронизированных продаж других пользователей!`);
+    console.error('[OfflineDB] Очистка отменена для безопасности данных');
+    throw new Error('Cannot clear data: unsynced sales exist');
+  }
+  
+  // Boshqa foydalanuvchilarning mahsulotlarini o'chirish
+  const allProducts = await offlineDB.products.toArray();
+  const otherUsersProducts = allProducts.filter(p => p.userId && p.userId !== currentUserId);
+  
+  if (otherUsersProducts.length > 0) {
+    const idsToDelete = otherUsersProducts.map(p => p.id);
+    await offlineDB.products.bulkDelete(idsToDelete);
+    console.log(`[OfflineDB] Deleted ${idsToDelete.length} products from other users`);
+  }
+  
+  // Boshqa foydalanuvchilarning синхронизированных sotuvlarini o'chirish
+  const otherUsersSyncedSales = allSales.filter(s => 
+    s.userId && 
+    s.userId !== currentUserId && 
+    s.synced === true
+  );
+  
+  if (otherUsersSyncedSales.length > 0) {
+    const saleIdsToDelete = otherUsersSyncedSales.map(s => s.id);
+    await offlineDB.offlineSales.bulkDelete(saleIdsToDelete);
+    console.log(`[OfflineDB] Deleted ${saleIdsToDelete.length} synced sales from other users`);
+  }
+  
+  console.log('[OfflineDB] Cleanup completed successfully');
+}
+
+/**
+ * Sync metadata ni tozalash (noto'g'ri timestamp tuzatish uchun)
+ */
+export async function resetSyncMeta(): Promise<void> {
+  await offlineDB.syncMeta.clear();
+  console.log('[OfflineDB] Sync metadata reset');
+}
+
+/**
+ * Database statistikasi
+ */
+export async function getDatabaseStats(): Promise<{
+  productsCount: number;
+  categoriesCount: number;
+  unsyncedSalesCount: number;
+  lastSyncTime: number;
+}> {
+  const [productsCount, categoriesCount, unsyncedSales, lastSyncTime] = await Promise.all([
+    offlineDB.products.count(),
+    offlineDB.categories.count(),
+    getUnsyncedSales(),
+    getLastSyncTime()
+  ]);
+  
+  return {
+    productsCount,
+    categoriesCount,
+    unsyncedSalesCount: unsyncedSales.length,
+    lastSyncTime
+  };
+}
+
+/**
+ * Ota mahsulot tugaganda bola mahsulotlarni faollashtirish
+ * @param parentProductId - Ota mahsulot ID
+ * @returns Faollashtirilgan bola mahsulotlar soni
+ */
+export async function activateChildProducts(parentProductId: string): Promise<number> {
+  try {
+    const parentProduct = await offlineDB.products.get(parentProductId);
+    if (!parentProduct) {
+      console.log(`[offlineDB] Parent product not found: ${parentProductId}`);
+      return 0;
+    }
+
+    // Agar ota mahsulotda hali stock bor bo'lsa, hech narsa qilmaymiz
+    if ((parentProduct.stock || 0) > 0) {
+      console.log(`[offlineDB] Parent product still has stock: ${parentProduct.stock}`);
+      return 0;
+    }
+
+    // Bola mahsulotlar ro'yxatini olish
+    const childProducts = parentProduct.childProducts || [];
+    if (childProducts.length === 0) {
+      console.log(`[offlineDB] No child products for: ${parentProductId}`);
+      return 0;
+    }
+
+    let activatedCount = 0;
+
+    for (const child of childProducts) {
+      if (!child.autoActivate) continue;
+
+      const childProduct = await offlineDB.products.get(child.productId);
+      if (!childProduct) {
+        console.log(`[offlineDB] Child product not found: ${child.productId}`);
+        continue;
+      }
+
+      // Bola mahsulotni ko'rinadigan qilish
+      if (childProduct.isHidden) {
+        await offlineDB.products.update(child.productId, {
+          isHidden: false,
+          updatedAt: Date.now()
+        });
+        console.log(`[offlineDB] Child product activated: ${child.name} (${child.productId})`);
+        activatedCount++;
+      }
+    }
+
+    console.log(`[offlineDB] Activated ${activatedCount} child products for parent: ${parentProductId}`);
+    return activatedCount;
+  } catch (error) {
+    console.error(`[offlineDB] Failed to activate child products:`, error);
+    return 0;
+  }
+}
+
+/**
+ * Ota mahsulot tugaganda birinchi xilni mustaqil mahsulotga aylantirish
+ * va qolgan xillarni unga meros qilish
+ * 
+ * Misol:
+ * - Ota mahsulot: "Bolt" (stock: 0)
+ *   - Xil 1: "Shaxruz" (stock: 20)
+ *   - Xil 2: "Rol" (stock: 30)
+ * 
+ * Natija:
+ * - Ota mahsulot o'chiriladi (yoki yashiriladi)
+ * - "Shaxruz" mustaqil mahsulot bo'ladi (stock: 20)
+ *   - Xil 1: "Rol" (stock: 30)
+ */
+export async function promoteFirstVariantToProduct(parentProductId: string): Promise<{
+  promoted: boolean;
+  newProductId?: string;
+  deletedParentId?: string;
+}> {
+  try {
+    const parentProduct = await offlineDB.products.get(parentProductId);
+    if (!parentProduct) {
+      console.log(`[offlineDB] Parent product not found: ${parentProductId}`);
+      return { promoted: false };
+    }
+
+    // Xillar bormi?
+    const variants = parentProduct.variantSummaries || [];
+    if (variants.length === 0) {
+      console.log(`[offlineDB] No variants to promote for: ${parentProductId}`);
+      return { promoted: false };
+    }
+
+    // Birinchi xilni olish (bu yangi "ota" bo'ladi)
+    const firstVariant = variants[0];
+    const remainingVariants = variants.slice(1);
+
+    console.log(`[offlineDB] Promoting variant "${firstVariant.name}" to product`);
+    console.log(`[offlineDB] Remaining variants: ${remainingVariants.length}`);
+
+    // Yangi mahsulot yaratish (birinchi xildan)
+    const newProductId = `${parentProductId}-promoted-${Date.now()}`;
+    const newProduct: OfflineProduct = {
+      id: newProductId,
+      name: firstVariant.name,
+      normalizedName: normalizeText(firstVariant.name),
+      keywords: tokenize(firstVariant.name),
+      sku: firstVariant.sku || parentProduct.sku,
+      barcode: firstVariant.barcode || parentProduct.barcode,
+      price: firstVariant.price || parentProduct.price,
+      stock: firstVariant.stock || 0,
+      categoryId: parentProduct.categoryId,
+      imageUrl: firstVariant.imageUrl || parentProduct.imageUrl,
+      updatedAt: Date.now(),
+      userId: parentProduct.userId,
+      // Qolgan xillarni meros qilish
+      variantSummaries: remainingVariants,
+      // Ota mahsulotdan meros
+      parentProductId: undefined, // Bu endi mustaqil
+      childProducts: [],
+      isHidden: false,
+    };
+
+    // Yangi mahsulotni saqlash
+    await offlineDB.products.put(newProduct);
+    console.log(`[offlineDB] New product created: ${newProductId} (${firstVariant.name})`);
+
+    // Eski ota mahsulotni yashirish (o'chirish o'rniga)
+    await offlineDB.products.update(parentProductId, {
+      isHidden: true,
+      updatedAt: Date.now()
+    });
+    console.log(`[offlineDB] Parent product hidden: ${parentProductId}`);
+
+    return {
+      promoted: true,
+      newProductId,
+      deletedParentId: parentProductId
+    };
+  } catch (error) {
+    console.error(`[offlineDB] Failed to promote variant:`, error);
+    return { promoted: false };
+  }
+}
+
+/**
+ * Mahsulot stock ni yangilash va xillarni mustaqil mahsulotga aylantirish
+ * @param productId - Mahsulot ID
+ * @param quantityChange - O'zgarish miqdori
+ * @param variantIndex - Variant indeksi (agar variant bo'lsa)
+ * @returns Yangilangan stock va promoted ma'lumotlari
+ */
+export async function updateProductStockWithChildActivation(
+  productId: string,
+  quantityChange: number,
+  variantIndex?: number
+): Promise<{ 
+  newStock: number; 
+  activatedChildren: number;
+  promoted?: boolean;
+  newProductId?: string;
+}> {
+  // Avval stock ni yangilash
+  await updateProductStock(productId, quantityChange, variantIndex);
+  
+  // Yangilangan mahsulotni olish
+  const product = await offlineDB.products.get(productId);
+  if (!product) {
+    return { newStock: 0, activatedChildren: 0 };
+  }
+
+  let newStock: number;
+  if (variantIndex !== undefined && product.variantSummaries) {
+    newStock = product.variantSummaries[variantIndex]?.stock || 0;
+  } else {
+    newStock = product.stock || 0;
+  }
+
+  // Stock 0 bo'lsa ham mahsulot o'z joyida qoladi
+  // Variant promotion yoki child activation QILINMAYDI
+  // Mahsulot shunchaki "Tugagan" deb ko'rsatiladi (qizil rangda)
+  
+  return { newStock, activatedChildren: 0 };
+}
+
+
+// ============================================
+// LOCAL STATISTICS (IndexedDB dan)
+// ============================================
+
+export interface LocalDailyStats {
+  totalSales: number;
+  totalRevenue: number;
+  totalOrders: number;
+  topProducts: Array<{ name: string; sales: number; revenue: number }>;
+}
+
+export interface LocalWeeklyStats {
+  totalSales: number;
+  totalRevenue: number;
+  totalOrders: number;
+  dailyData: Array<{ day: string; sales: number; revenue: number; orders: number }>;
+}
+
+/**
+ * IndexedDB dan kunlik statistika olish
+ */
+export async function getLocalDailyStats(userId: string): Promise<LocalDailyStats> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayTimestamp = today.getTime();
+
+  // Bugungi sotuvlarni olish
+  const allSales = await offlineDB.offlineSales
+    .where('userId')
+    .equals(userId)
+    .toArray();
+
+  const todaySales = allSales.filter(
+    s => s.saleType === 'sale' && s.createdAt >= todayTimestamp
+  );
+
+  // Statistikani hisoblash
+  let totalSales = 0;
+  let totalRevenue = 0;
+  const productMap = new Map<string, { name: string; sales: number; revenue: number }>();
+
+  for (const sale of todaySales) {
+    totalRevenue += sale.total;
+    for (const item of sale.items) {
+      totalSales += item.quantity;
+      
+      const existing = productMap.get(item.name) || { name: item.name, sales: 0, revenue: 0 };
+      existing.sales += item.quantity;
+      existing.revenue += item.quantity * item.price;
+      productMap.set(item.name, existing);
+    }
+  }
+
+  // Top 5 mahsulotlar
+  const topProducts = Array.from(productMap.values())
+    .sort((a, b) => b.sales - a.sales)
+    .slice(0, 5);
+
+  return {
+    totalSales,
+    totalRevenue,
+    totalOrders: todaySales.length,
+    topProducts
+  };
+}
+
+/**
+ * IndexedDB dan haftalik statistika olish
+ */
+export async function getLocalWeeklyStats(userId: string): Promise<LocalWeeklyStats> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const weekStart = new Date(today);
+  weekStart.setDate(weekStart.getDate() - 6);
+  const weekStartTimestamp = weekStart.getTime();
+
+  // Haftalik sotuvlarni olish
+  const allSales = await offlineDB.offlineSales
+    .where('userId')
+    .equals(userId)
+    .toArray();
+
+  const weeklySales = allSales.filter(
+    s => s.saleType === 'sale' && s.createdAt >= weekStartTimestamp
+  );
+
+  // Kunlik ma'lumotlarni hisoblash
+  const weekDaysShort = ['Yak', 'Dush', 'Sesh', 'Chor', 'Pay', 'Jum', 'Shan'];
+  const dailyMap = new Map<string, { sales: number; revenue: number; orders: number }>();
+
+  // 7 kunni initsializatsiya qilish
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().slice(0, 10);
+    dailyMap.set(dateStr, { sales: 0, revenue: 0, orders: 0 });
+  }
+
+  // Sotuvlarni kunlarga bo'lish
+  for (const sale of weeklySales) {
+    const saleDate = new Date(sale.createdAt);
+    const dateStr = saleDate.toISOString().slice(0, 10);
+    
+    const dayData = dailyMap.get(dateStr);
+    if (dayData) {
+      dayData.orders += 1;
+      dayData.revenue += sale.total;
+      for (const item of sale.items) {
+        dayData.sales += item.quantity;
+      }
+    }
+  }
+
+  // dailyData massivini yaratish
+  const dailyData: Array<{ day: string; sales: number; revenue: number; orders: number }> = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().slice(0, 10);
+    const dayName = weekDaysShort[d.getDay()];
+    const data = dailyMap.get(dateStr) || { sales: 0, revenue: 0, orders: 0 };
+    
+    dailyData.push({
+      day: dayName,
+      sales: data.sales,
+      revenue: data.revenue,
+      orders: data.orders
+    });
+  }
+
+  // Jami hisoblash
+  const totals = dailyData.reduce(
+    (acc, d) => {
+      acc.totalSales += d.sales;
+      acc.totalRevenue += d.revenue;
+      acc.totalOrders += d.orders;
+      return acc;
+    },
+    { totalSales: 0, totalRevenue: 0, totalOrders: 0 }
+  );
+
+  return {
+    ...totals,
+    dailyData
+  };
+}
