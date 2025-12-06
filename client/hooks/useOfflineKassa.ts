@@ -39,6 +39,7 @@ export interface CartItem {
   sku?: string;
   barcode?: string; // Barcode - scanner uchun
   price: number;
+  costPrice?: number; // Asl narx - sof foyda hisoblash uchun
   currency?: 'USD' | 'RUB' | 'CNY' | 'UZS'; // Valyuta
   quantity: number;
   discount: number;
@@ -178,7 +179,11 @@ export function useOfflineKassa(userId: string, userPhone?: string): UseOfflineK
                 products = [];
               } else {
                 // Format and save to IndexedDB
-                const formattedProducts: OfflineProduct[] = serverProducts.map((p: any) => ({
+                console.log('[useOfflineKassa] Sample server product:', serverProducts[0]);
+                const formattedProducts: OfflineProduct[] = serverProducts.map((p: any) => {
+                  const calculatedCostPrice = p.costPrice || p.cost || p.basePrice || Math.round((p.price || 0) * 0.7);
+                  console.log(`[useOfflineKassa] Product ${p.name}: basePrice=${p.basePrice}, costPrice=${p.costPrice}, calculated=${calculatedCostPrice}`);
+                  return {
                   id: p._id || p.id,
                   name: p.name,
                   normalizedName: normalizeText(p.name),
@@ -186,6 +191,8 @@ export function useOfflineKassa(userId: string, userPhone?: string): UseOfflineK
                   sku: p.sku !== undefined && p.sku !== null ? String(p.sku) : undefined,
                   barcode: p.barcode !== undefined && p.barcode !== null ? String(p.barcode) : undefined,
                   price: p.price || 0,
+                  // Asl narx: costPrice > cost > basePrice > price * 0.7 (default 30% foyda)
+                  costPrice: calculatedCostPrice,
                   currency: p.currency || 'UZS', // Valyuta
                   stock: p.stock ?? p.quantity ?? 0,
                   categoryId: p.categoryId,
@@ -202,11 +209,14 @@ export function useOfflineKassa(userId: string, userPhone?: string): UseOfflineK
                     sku: v.sku !== undefined && v.sku !== null ? String(v.sku) : undefined,
                     barcode: v.barcode !== undefined && v.barcode !== null ? String(v.barcode) : undefined,
                     price: v.price || v.basePrice || p.price || 0,
+                    // Variant asl narx: costPrice > cost > basePrice > price * 0.7 (default 30% foyda)
+                    costPrice: v.costPrice || v.cost || v.basePrice || Math.round((v.price || v.basePrice || p.price || 0) * 0.7),
                     currency: v.currency || p.currency || 'UZS', // Xil valyutasi
                     stock: v.stock ?? v.quantity ?? 0,
                     imageUrl: v.imageUrl || v.images?.[0]
                   })) : []
-                }));
+                };
+                });
                 
                 // MUHIM: Eski mahsulotlarni o'chirish - serverda yo'q bo'lgan mahsulotlarni IndexedDB dan o'chirish
                 const serverProductIds = new Set(formattedProducts.map(p => p.id));
@@ -359,6 +369,7 @@ export function useOfflineKassa(userId: string, userPhone?: string): UseOfflineK
         sku: product.sku,
         barcode: product.barcode, // Barcode - scanner uchun
         price: product.price,
+        costPrice: product.costPrice || 0, // Asl narx - sof foyda hisoblash uchun
         currency: product.currency || 'UZS', // Valyuta
         quantity: 1,
         discount: 0,
@@ -568,6 +579,7 @@ export function useOfflineKassa(userId: string, userPhone?: string): UseOfflineK
           sku: item.sku,
           quantity: item.quantity,
           price: item.price,
+          costPrice: item.costPrice || 0, // Asl narx - sof foyda uchun
           discount: item.discount
         })),
         total,

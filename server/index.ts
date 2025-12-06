@@ -7,7 +7,7 @@ import { handleStoresGet, handleStoresCreate } from "./routes/stores";
 import { handleProductsSync, handleGetAllProducts } from "./routes/sync";
 import { handleBulkSync, handleCreateProduct, handleSyncStatus } from "./routes/product-sync.route";
 import { handleCurrencyUsd, handleCurrencyRub, handleCurrencyCny, handleCurrencyRates } from "./routes/currency";
-import { handleLogin, handleVerifyToken } from "./routes/auth";
+import { handleLogin, handleVerifyToken, handleLoginAs } from "./routes/auth";
 import { handleUsersGet, handleUserCreate, handleUserUpdate, handleUserDelete } from "./routes/users";
 import { handleCustomersGet, handleCustomerCreate, handleCustomerUpdate, handleCustomerDelete, handleBirthdayNotifications, handleTopCustomers } from "./routes/customers";
 import { handleOrdersGet, handleOrderCreate, handleFrequentCustomers, handleAutoPromoteCustomers } from "./routes/orders";
@@ -52,6 +52,7 @@ export function createServer() {
   // AUTH ENDPOINTS
   app.post("/api/auth/login", handleLogin);
   app.post("/api/auth/verify", handleVerifyToken);
+  app.post("/api/auth/login-as", handleLoginAs);
 
   // SYNC ENDPOINTS (legacy)
   app.post("/api/products/sync", handleProductsSync);

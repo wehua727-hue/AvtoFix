@@ -14,8 +14,11 @@ export interface User {
 
 interface AuthContextType {
   user: User | null;
+  originalUser: User | null; // Egasining asl profili (loginAs ishlatilganda)
   isLoading: boolean;
   login: (phone: string, password: string) => Promise<void>;
+  loginAs: (userId: string) => Promise<void>;
+  returnToOriginal: () => void; // Asl profilga qaytish
   logout: () => void;
   updateUser: (userData: User) => void;
 }
@@ -33,12 +36,24 @@ const API_BASE = (() => {
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [originalUser, setOriginalUser] = useState<User | null>(null); // Egasining asl profili
   const [isLoading, setIsLoading] = useState(true);
 
   // Проверка сохраненной сессии при загрузке
   useEffect(() => {
     const checkAuth = async () => {
       const savedUser = localStorage.getItem('user');
+      const savedOriginalUser = localStorage.getItem('originalUser');
+      
+      // Asl foydalanuvchini yuklash
+      if (savedOriginalUser) {
+        try {
+          setOriginalUser(JSON.parse(savedOriginalUser));
+        } catch (e) {
+          localStorage.removeItem('originalUser');
+        }
+      }
+      
       if (savedUser) {
         try {
           const userData = JSON.parse(savedUser);
@@ -99,6 +114,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('user');
+    localStorage.removeItem('originalUser'); // loginAs uchun
+  };
+
+  // Boshqa foydalanuvchi sifatida kirish (faqat egasi uchun)
+  const loginAs = async (userId: string) => {
+    // Hozirgi foydalanuvchini saqlash (qaytish uchun)
+    if (user && !localStorage.getItem('originalUser')) {
+      localStorage.setItem('originalUser', JSON.stringify(user));
+      setOriginalUser(user);
+    }
+
+    const res = await fetch(`${API_BASE}/api/auth/login-as`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, adminId: user?.id }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Kirishda xatolik');
+    }
+
+    setUser(data.user);
+    localStorage.setItem('user', JSON.stringify(data.user));
+  };
+
+  // Asl profilga qaytish (loginAs dan keyin)
+  const returnToOriginal = () => {
+    const savedOriginalUser = localStorage.getItem('originalUser');
+    if (savedOriginalUser) {
+      const originalUserData = JSON.parse(savedOriginalUser);
+      setUser(originalUserData);
+      localStorage.setItem('user', JSON.stringify(originalUserData));
+      localStorage.removeItem('originalUser');
+      setOriginalUser(null);
+    }
   };
 
   const updateUser = (userData: User) => {
@@ -107,7 +159,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, originalUser, isLoading, login, loginAs, returnToOriginal, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -563,6 +563,7 @@ export default function Kassa() {
           sku: variant.sku || product.sku,
           barcode: variant.barcode || product.barcode, // Variant barcode
           price: variant.price || product.price,
+          costPrice: variant.costPrice || product.costPrice || 0, // Variant asl narxi
           currency: variant.currency || product.currency || 'UZS', // Xil valyutasi
           stock: variantStock,
           imageUrl: variant.imageUrl || product.imageUrl

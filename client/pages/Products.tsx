@@ -1354,33 +1354,6 @@ export default function Products() {
         sidebarCollapsed={sidebarCollapsed}
         rightSlot={
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Jami mahsulotlar soni - ombordagi barcha mahsulotlar + xillar */}
-            {(() => {
-              let totalStock = 0;
-              
-              for (const product of products) {
-                // Mahsulotning o'z stocki
-                const productStock = product.stock || 0;
-                totalStock += productStock;
-                
-                // Xillarning stocklari
-                if (product.variantSummaries && product.variantSummaries.length > 0) {
-                  for (const variant of product.variantSummaries) {
-                    const variantStock = variant.stock || 0;
-                    totalStock += variantStock;
-                  }
-                }
-              }
-              
-              return (
-                <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-blue-600/20 to-blue-700/20 border border-blue-500/30">
-                  <span className="text-blue-400 font-bold text-sm">📦</span>
-                  <span className="text-sm sm:text-base font-bold text-blue-300">
-                    {totalStock.toLocaleString()}
-                  </span>
-                </div>
-              );
-            })()}
             {/* Umumiy daromad - dollarda */}
             {(() => {
               // Valyutani USD ga aylantirish funksiyasi
@@ -1471,6 +1444,43 @@ export default function Products() {
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+
+          {/* Jami ombordagi mahsulotlar soni va xillar soni */}
+          <div className="mb-4 flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+            <span>
+              Jami omborda: <span className="font-bold text-blue-400">
+                {(() => {
+                  let totalStock = 0;
+                  for (const product of products) {
+                    totalStock += product.stock || 0;
+                    if (product.variantSummaries) {
+                      for (const variant of product.variantSummaries) {
+                        totalStock += variant.stock || 0;
+                      }
+                    }
+                  }
+                  return totalStock.toLocaleString();
+                })()}
+              </span> dona
+            </span>
+            <span className="text-gray-600">|</span>
+            <span>
+              Xillar soni: <span className="font-bold text-green-400">
+                {(() => {
+                  let totalTypes = 0;
+                  for (const product of products) {
+                    // Har bir mahsulotdan 1 ta
+                    totalTypes += 1;
+                    // Har bir xildan ham 1 ta
+                    if (product.variantSummaries && product.variantSummaries.length > 0) {
+                      totalTypes += product.variantSummaries.length;
+                    }
+                  }
+                  return totalTypes;
+                })()}
+              </span> xil
+            </span>
+          </div>
 
           <AnimatePresence>
             {showAddForm && (

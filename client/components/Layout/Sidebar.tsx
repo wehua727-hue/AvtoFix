@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Layers, Users, Wallet, UserCheck, LogOut, MenuIcon, X, Calculator } from 'lucide-react';
+import { Layers, Users, Wallet, UserCheck, LogOut, MenuIcon, X, Calculator, UserCog, Crown, Shield, ArrowLeft } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth-context';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 interface Store {
   id: string;
@@ -36,12 +37,15 @@ export default function Sidebar({
 }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, originalUser, logout, returnToOriginal } = useAuth();
   const [collapsed, setCollapsed] = useState(true);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
   
   // Faqat egasi Foydalanuvchilarni ko'ra oladi
   const canSeeUsers = user?.role === 'egasi' || user?.phone === '910712828' || user?.phone === '+998910712828';
+  
+  // Faqat egasi Xodimlarni ko'ra oladi
+  const canSeeXodimlar = user?.role === 'egasi';
 
   const handleLogoutConfirm = () => {
     logout();
@@ -55,6 +59,7 @@ export default function Sidebar({
   const isProductsActive = pathname.startsWith('/products');
   const isStatsActive = pathname.startsWith('/stats');
   const isUsersActive = pathname.startsWith('/users');
+  const isXodimlarActive = pathname.startsWith('/xodimlar');
   const isDebtsActive = pathname.startsWith('/debts');
   const isCustomersActive = pathname.startsWith('/customers');
   const isCashRegisterActive = pathname === '/' || pathname.startsWith('/kassa');
@@ -248,6 +253,31 @@ export default function Sidebar({
             </button>
           )}
 
+          {/* Xodimlar Button - Faqat egasiga ko'rinadi */}
+          {canSeeXodimlar && (
+            <button
+              onClick={() => {
+                navigate('/xodimlar');
+                if (!collapsed) onClose();
+              }}
+              className={`flex items-center gap-3 px-3 sm:px-4 py-3 sm:py-4 rounded-lg transition-all group ${
+                collapsed ? 'justify-center px-2 sm:px-3' : ''
+              } ${
+                isXodimlarActive
+                  ? 'bg-red-600 text-white shadow-lg shadow-red-900/30'
+                  : 'bg-gray-900/30 hover:bg-gray-900/50 text-gray-300 hover:text-white border border-transparent hover:border-gray-700/50'
+              }`}
+              title="Xodimlar"
+            >
+              <UserCog className={`w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0 transition ${isXodimlarActive ? 'text-white' : 'text-gray-400 group-hover:text-white'}`} />
+              {!collapsed && (
+                <span className="font-semibold text-sm sm:text-base whitespace-nowrap">
+                  Xodimlar
+                </span>
+              )}
+            </button>
+          )}
+
           {/* Debts Button */}
           <button
             onClick={() => {
@@ -295,22 +325,100 @@ export default function Sidebar({
           </button>
         </div>
 
-        {/* Logout Button - Sidebar pastida */}
+        {/* Profil Button - Sidebar pastida */}
         <div className="p-2 sm:p-3 border-t border-gray-800/50 dark:border-gray-800/50 mt-auto bg-gray-900/80 dark:bg-gray-900/80 backdrop-blur-sm">
-          <button
-            onClick={() => setLogoutConfirm(true)}
-            className={`flex items-center gap-3 px-3 sm:px-4 py-3 sm:py-4 rounded-lg transition-all group w-full ${
-              collapsed ? 'justify-center px-2 sm:px-3' : ''
-            } bg-gray-900/30 hover:bg-gray-900/50 text-gray-300 hover:text-red-500 border border-transparent hover:border-red-500/30`}
-            title="Chiqish"
-          >
-            <LogOut className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400 group-hover:text-red-500 flex-shrink-0 transition" />
-            {!collapsed && (
-              <span className="font-semibold text-sm sm:text-base whitespace-nowrap text-gray-400 group-hover:text-red-500">
-                Chiqish
-              </span>
-            )}
-          </button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                className={`flex items-center gap-3 px-3 sm:px-4 py-3 sm:py-4 rounded-lg transition-all group w-full ${
+                  collapsed ? 'justify-center px-2 sm:px-3' : ''
+                } bg-gray-900/30 hover:bg-gray-900/50 text-gray-300 hover:text-white border border-transparent hover:border-gray-700/50`}
+                title="Profil"
+              >
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                  <span className="text-white font-bold text-sm">
+                    {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                  </span>
+                </div>
+                {!collapsed && (
+                  <div className="flex-1 text-left min-w-0">
+                    <p className="font-semibold text-sm text-white truncate">{user?.name || 'Foydalanuvchi'}</p>
+                    <p className="text-xs text-gray-400 truncate">
+                      {user?.role === 'egasi' ? 'Egasi' : user?.role === 'admin' ? 'Admin' : 'Xodim'}
+                    </p>
+                  </div>
+                )}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent 
+              side="right" 
+              align="end" 
+              sideOffset={10}
+              className="w-64 p-0 bg-gray-900 border-gray-700 z-[10000]"
+            >
+              {/* Profil ma'lumotlari */}
+              <div className="p-4 border-b border-gray-700">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                    <span className="text-white font-bold text-lg">
+                      {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-white truncate">{user?.name || 'Foydalanuvchi'}</p>
+                    <p className="text-sm text-gray-400 truncate">{user?.phone || ''}</p>
+                  </div>
+                </div>
+                {/* Rol badge */}
+                <div className="mt-3 flex items-center gap-2">
+                  {user?.role === 'egasi' ? (
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-purple-500/20 text-purple-400 text-xs font-medium">
+                      <Crown className="w-3 h-3" />
+                      Egasi
+                    </div>
+                  ) : user?.role === 'admin' ? (
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-blue-500/20 text-blue-400 text-xs font-medium">
+                      <Shield className="w-3 h-3" />
+                      Admin
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-green-500/20 text-green-400 text-xs font-medium">
+                      <UserCog className="w-3 h-3" />
+                      Xodim
+                    </div>
+                  )}
+                </div>
+              </div>
+              {/* O'zimnikiga qaytish tugmasi (agar loginAs ishlatilgan bo'lsa) */}
+              {originalUser && (
+                <div className="p-2 border-b border-gray-700">
+                  <button
+                    onClick={() => {
+                      returnToOriginal();
+                      navigate('/kassa');
+                    }}
+                    className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-blue-400 hover:bg-blue-500/10 transition-colors"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    <div className="text-left">
+                      <span className="text-sm font-medium block">O'zimnikiga qaytish</span>
+                      <span className="text-xs text-gray-500">{originalUser.name}</span>
+                    </div>
+                  </button>
+                </div>
+              )}
+              {/* Chiqish tugmasi */}
+              <div className="p-2">
+                <button
+                  onClick={() => setLogoutConfirm(true)}
+                  className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span className="text-sm font-medium">Chiqish</span>
+                </button>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
 
       </aside>

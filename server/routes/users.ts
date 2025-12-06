@@ -34,7 +34,7 @@ export async function handleUsersGet(req: Request, res: Response) {
 // POST /api/users - создать пользователя
 export async function handleUserCreate(req: Request, res: Response) {
   try {
-    const { name, phone, password, address, role, subscriptionType, subscriptionEndDate } = req.body;
+    const { name, phone, password, address, role, subscriptionType, subscriptionEndDate, ownerId } = req.body;
 
     if (!name || !phone || !password) {
       return res.status(400).json({ 
@@ -63,6 +63,7 @@ export async function handleUserCreate(req: Request, res: Response) {
       password: hashedPassword,
       address: address || "",
       role: role || "admin",
+      ownerId: ownerId || undefined, // Xodim/admin qaysi egasiga tegishli
       subscriptionType: subscriptionType || "cheksiz",
       subscriptionEndDate: subscriptionEndDate ? new Date(subscriptionEndDate) : undefined,
       isBlocked: false,

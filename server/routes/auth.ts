@@ -67,12 +67,14 @@ export async function handleLogin(req: Request, res: Response) {
     }
 
     // Вернуть данные пользователя (без пароля)
+    // Xodim/admin uchun ownerId ni ham qaytarish - egasining mahsulotlarini ko'rish uchun
     const userData = {
       id: user._id.toString(),
       name: user.name,
       phone: user.phone,
       role: user.role,
       address: user.address,
+      ownerId: user.ownerId, // Egasining ID si (xodim/admin uchun)
       telegramChatId: user.telegramChatId,
       subscriptionType: user.subscriptionType || "cheksiz",
       subscriptionEndDate: user.subscriptionEndDate,
@@ -130,5 +132,65 @@ export async function handleVerifyToken(req: Request, res: Response) {
   } catch (error) {
     console.error("[auth] Verify error:", error);
     res.status(500).json({ success: false, error: "Server error" });
+  }
+}
+
+// Boshqa foydalanuvchi sifatida kirish (faqat egasi uchun)
+export async function handleLoginAs(req: Request, res: Response) {
+  try {
+    const { userId, adminId } = req.body;
+
+    if (!userId || !adminId) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "userId va adminId kerak" 
+      });
+    }
+
+    await connectMongo();
+
+    // Admin foydalanuvchini tekshirish
+    const admin = await User.findById(adminId);
+    if (!admin || admin.role !== 'egasi') {
+      return res.status(403).json({ 
+        success: false, 
+        error: "Faqat egasi boshqa foydalanuvchi sifatida kira oladi" 
+      });
+    }
+
+    // Maqsad foydalanuvchini topish
+    const targetUser = await User.findById(userId);
+    if (!targetUser) {
+      return res.status(404).json({ 
+        success: false, 
+        error: "Foydalanuvchi topilmadi" 
+      });
+    }
+
+    console.log(`[auth] Admin ${admin.name} logging in as ${targetUser.name}`);
+
+    // Foydalanuvchi ma'lumotlarini qaytarish
+    const userData = {
+      id: targetUser._id.toString(),
+      name: targetUser.name,
+      phone: targetUser.phone,
+      role: targetUser.role,
+      address: targetUser.address,
+      telegramChatId: targetUser.telegramChatId,
+      subscriptionType: targetUser.subscriptionType || "cheksiz",
+      subscriptionEndDate: targetUser.subscriptionEndDate,
+      isBlocked: targetUser.isBlocked || false,
+    };
+
+    res.json({
+      success: true,
+      user: userData,
+    });
+  } catch (error: any) {
+    console.error("[auth] LoginAs error:", error?.message || error);
+    res.status(500).json({ 
+      success: false, 
+      error: "Server xatosi: " + (error?.message || "Unknown error")
+    });
   }
 }

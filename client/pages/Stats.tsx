@@ -39,9 +39,10 @@ const API_BASE = (() => {
 interface DailyStats {
   totalSales: number;
   totalRevenue: number;
+  totalProfit: number; // Sof foyda
   totalOrders: number;
   totalCustomers: number;
-  topProducts: Array<{ name: string; sales: number; revenue: number }>;
+  topProducts: Array<{ name: string; sales: number; revenue: number; profit: number }>;
 }
 
 interface WeeklyStats {
@@ -58,6 +59,7 @@ export default function Stats() {
   const [dailyStats, setDailyStats] = useState<DailyStats>({
     totalSales: 0,
     totalRevenue: 0,
+    totalProfit: 0,
     totalOrders: 0,
     totalCustomers: 0,
     topProducts: [],
@@ -106,6 +108,7 @@ export default function Stats() {
       setDailyStats({
         totalSales: 0,
         totalRevenue: 0,
+        totalProfit: 0,
         totalOrders: 0,
         totalCustomers: 0,
         topProducts: [],
@@ -166,9 +169,13 @@ export default function Stats() {
       setDailyStats({
         totalSales: localDaily.totalSales,
         totalRevenue: localDaily.totalRevenue,
+        totalProfit: localDaily.totalProfit || 0,
         totalOrders: localDaily.totalOrders,
         totalCustomers: 0, // IndexedDB da mijozlar yo'q
-        topProducts: localDaily.topProducts,
+        topProducts: localDaily.topProducts.map((p: any) => ({
+          ...p,
+          profit: p.profit || 0
+        })),
       });
       
       setWeeklyStats({
@@ -196,12 +203,39 @@ export default function Stats() {
       const serverDaily = data.daily || {};
       const serverWeekly = data.weekly || {};
       
+      // Local topProducts ni ishlatamiz chunki unda costPrice to'g'ri hisoblanadi
+      // Server topProducts dan faqat sales va revenue ni olamiz, profit ni local dan
+      const mergedTopProducts = localDaily.topProducts.map((localProduct: any) => {
+        const serverProduct = serverDaily.topProducts?.find((sp: any) => sp.name === localProduct.name);
+        return {
+          name: localProduct.name,
+          sales: Math.max(localProduct.sales, serverProduct?.sales || 0),
+          revenue: Math.max(localProduct.revenue, serverProduct?.revenue || 0),
+          profit: localProduct.profit || 0 // Har doim local profit ni ishlatamiz
+        };
+      });
+      
+      // Server da bor lekin local da yo'q mahsulotlarni qo'shamiz
+      if (serverDaily.topProducts) {
+        for (const serverProduct of serverDaily.topProducts) {
+          if (!mergedTopProducts.find((p: any) => p.name === serverProduct.name)) {
+            mergedTopProducts.push({
+              ...serverProduct,
+              profit: serverProduct.profit || 0
+            });
+          }
+        }
+      }
+      
+      const serverTopProducts = mergedTopProducts.sort((a: any, b: any) => b.sales - a.sales).slice(0, 5);
+      
       setDailyStats({
         totalSales: Math.max(serverDaily.totalSales || 0, localDaily.totalSales),
         totalRevenue: Math.max(serverDaily.totalRevenue || 0, localDaily.totalRevenue),
+        totalProfit: Math.max(serverDaily.totalProfit || 0, localDaily.totalProfit || 0),
         totalOrders: Math.max(serverDaily.totalOrders || 0, localDaily.totalOrders),
         totalCustomers: serverDaily.totalCustomers || 0,
-        topProducts: serverDaily.topProducts?.length > 0 ? serverDaily.topProducts : localDaily.topProducts,
+        topProducts: serverTopProducts,
       });
 
       const serverDailyData = serverWeekly.dailyData || [];
@@ -234,7 +268,7 @@ export default function Stats() {
   const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444'];
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('uz-UZ').format(amount) + ' so\'m';
+    return '$ ' + new Intl.NumberFormat('en-US').format(amount);
   };
 
   return (
@@ -403,10 +437,7 @@ export default function Stats() {
                                 <p className="text-gray-600 dark:text-gray-400 text-sm" style={textMutedStyle}>{product.sales} dona sotildi</p>
                               </div>
                             </div>
-                            <div className="text-right">
-                              <p className="text-gray-900 dark:text-white font-bold" style={textPrimaryStyle}>{formatCurrency(product.revenue)}</p>
-                              <p className="text-gray-700 dark:text-gray-400 text-sm" style={textMutedStyle}>Daromad</p>
-                            </div>
+
                           </div>
                         ))}
                       </div>

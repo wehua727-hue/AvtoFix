@@ -25,6 +25,7 @@ import Products from "./pages/Products";
 import Stats from "./pages/Stats";
 import Print from "./pages/Print";
 import Users from "./pages/Users";
+import Xodimlar from "./pages/Xodimlar";
 import Debts from "./pages/Debts";
 import Customers from "./pages/Customers";
 import OfflineProducts from "./pages/OfflineProducts";
@@ -139,6 +140,14 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <Users />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/xodimlar"
+              element={
+                <ProtectedRoute>
+                  <Xodimlar />
                 </ProtectedRoute>
               }
             />

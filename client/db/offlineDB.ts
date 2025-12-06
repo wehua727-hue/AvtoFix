@@ -21,6 +21,7 @@ export interface OfflineVariant {
   sku?: string;
   barcode?: string;
   price: number;
+  costPrice?: number;     // Asl narx (tan narxi) - sof foyda hisoblash uchun
   currency?: 'USD' | 'RUB' | 'CNY' | 'UZS'; // Valyuta
   stock: number;
   imageUrl?: string;
@@ -41,6 +42,7 @@ export interface OfflineProduct {
   sku?: string;
   barcode?: string;
   price: number;
+  costPrice?: number;     // Asl narx (tan narxi) - sof foyda hisoblash uchun
   currency?: 'USD' | 'RUB' | 'CNY' | 'UZS'; // Valyuta
   stock: number;
   categoryId?: string;
@@ -83,6 +85,7 @@ export interface OfflineSaleItem {
   sku?: string;
   quantity: number;
   price: number;
+  costPrice?: number; // Asl narx - sof foyda hisoblash uchun
   discount: number;
 }
 
@@ -930,8 +933,9 @@ export async function updateProductStockWithChildActivation(
 export interface LocalDailyStats {
   totalSales: number;
   totalRevenue: number;
+  totalProfit: number; // Sof foyda
   totalOrders: number;
-  topProducts: Array<{ name: string; sales: number; revenue: number }>;
+  topProducts: Array<{ name: string; sales: number; revenue: number; profit: number }>;
 }
 
 export interface LocalWeeklyStats {
@@ -959,19 +963,60 @@ export async function getLocalDailyStats(userId: string): Promise<LocalDailyStat
     s => s.saleType === 'sale' && s.createdAt >= todayTimestamp
   );
 
+  // Barcha mahsulotlarni olish (costPrice ni topish uchun)
+  const allProducts = await offlineDB.products.toArray();
+  const productCostMap = new Map<string, number>();
+  
+  // Mahsulotlar va variantlarning costPrice ni map qilish
+  // Barcha mahsulotlarni olamiz - xodim egasining mahsulotlarini ko'radi
+  for (const product of allProducts) {
+    productCostMap.set(product.id, product.costPrice || 0);
+    productCostMap.set(product.name, product.costPrice || 0);
+    // Variantlar uchun ham
+    if (product.variantSummaries) {
+      for (let i = 0; i < product.variantSummaries.length; i++) {
+        const variant = product.variantSummaries[i];
+        const variantId = `${product.id}-v${i}`;
+        const variantName = `${product.name} - ${variant.name}`;
+        productCostMap.set(variantId, variant.costPrice || product.costPrice || 0);
+        productCostMap.set(variantName, variant.costPrice || product.costPrice || 0);
+      }
+    }
+  }
+  
+  console.log('[Stats] ProductCostMap size:', productCostMap.size, 'for userId:', userId);
+  console.log('[Stats] TodaySales count:', todaySales.length);
+
   // Statistikani hisoblash
   let totalSales = 0;
   let totalRevenue = 0;
-  const productMap = new Map<string, { name: string; sales: number; revenue: number }>();
+  let totalProfit = 0;
+  const productMap = new Map<string, { name: string; sales: number; revenue: number; profit: number }>();
 
   for (const sale of todaySales) {
     totalRevenue += sale.total;
     for (const item of sale.items) {
       totalSales += item.quantity;
       
-      const existing = productMap.get(item.name) || { name: item.name, sales: 0, revenue: 0 };
+      // Sof foyda hisoblash: (sotish narxi - asl narx) * soni
+      // Agar item.costPrice yo'q bo'lsa, mahsulotning hozirgi costPrice ni ishlatamiz
+      let costPrice = item.costPrice || 0;
+      if (costPrice === 0) {
+        // Avval productId bo'yicha, keyin name bo'yicha qidirish
+        costPrice = productCostMap.get(item.productId) || productCostMap.get(item.name) || 0;
+      }
+      // Agar hali ham 0 bo'lsa, narxning 70% ini asl narx deb hisoblaymiz (default 30% foyda)
+      if (costPrice === 0 && item.price > 0) {
+        costPrice = Math.round(item.price * 0.7);
+      }
+      
+      const itemProfit = (item.price - costPrice) * item.quantity;
+      totalProfit += itemProfit;
+      
+      const existing = productMap.get(item.name) || { name: item.name, sales: 0, revenue: 0, profit: 0 };
       existing.sales += item.quantity;
       existing.revenue += item.quantity * item.price;
+      existing.profit += itemProfit;
       productMap.set(item.name, existing);
     }
   }
@@ -984,6 +1029,7 @@ export async function getLocalDailyStats(userId: string): Promise<LocalDailyStat
   return {
     totalSales,
     totalRevenue,
+    totalProfit,
     totalOrders: todaySales.length,
     topProducts
   };

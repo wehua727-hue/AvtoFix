@@ -15,7 +15,7 @@ import Navbar from '@/components/Layout/Navbar';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { 
   Plus, Pencil, Trash2, Loader2, 
-  Crown, Shield, Check
+  Crown, Shield, Check, UserCog
 } from 'lucide-react';
 
 interface User {
@@ -40,6 +40,7 @@ const API_BASE = (() => {
 const ROLES = [
   { value: 'egasi', label: 'Egasi', icon: Crown, color: 'purple' },
   { value: 'admin', label: 'Admin', icon: Shield, color: 'blue' },
+  { value: 'xodim', label: 'Xodim', icon: UserCog, color: 'green' },
 ];
 
 // Telefon raqamni formatlash: +998 (XX) XXX-XX-XX
@@ -161,6 +162,8 @@ export default function UsersPage() {
         address: formAddress.trim(), 
         role: formRole,
         subscriptionType: formSubscriptionType,
+        // Xodim/admin yaratilganda, hozirgi egasining ID sini saqlash
+        ownerId: currentUser?.role === 'egasi' ? currentUser.id : undefined,
       };
       
       if (formSubscriptionType === 'oddiy' && formSubscriptionEndDate) {
@@ -279,6 +282,7 @@ export default function UsersPage() {
   const colors: Record<string, { bg: string; text: string; border: string; hover: string }> = {
     purple: { bg: 'bg-purple-500/20', text: 'text-purple-400', border: 'border-purple-500/30', hover: 'hover:bg-purple-500/30' },
     blue: { bg: 'bg-blue-500/20', text: 'text-blue-400', border: 'border-blue-500/30', hover: 'hover:bg-blue-500/30' },
+    green: { bg: 'bg-green-500/20', text: 'text-green-400', border: 'border-green-500/30', hover: 'hover:bg-green-500/30' },
     amber: { bg: 'bg-amber-500/20', text: 'text-amber-400', border: 'border-amber-500/30', hover: 'hover:bg-amber-500/30' },
     gray: { bg: 'bg-gray-500/20', text: 'text-gray-400', border: 'border-gray-500/30', hover: 'hover:bg-gray-500/30' },
   };
