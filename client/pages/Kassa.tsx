@@ -992,12 +992,9 @@ export default function Kassa() {
                     <div className="text-slate-500 text-[10px] sm:text-xs mt-0.5 sm:mt-1 font-medium">{checkItems.length} ta • {checkItems.reduce((sum, item) => sum + item.quantity, 0)} dona</div>
                   )}
                 </div>
-                <div className={`text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black tracking-tight whitespace-nowrap ${isRefundMode ? "text-orange-400" : "text-red-400"}`}>
-                  {dominantCurrency === 'USD' && <span className="text-green-400 mr-1">$</span>}
-                  {dominantCurrency === 'RUB' && <span className="text-purple-400 mr-1">₽</span>}
-                  {dominantCurrency === 'CNY' && <span className="text-yellow-400 mr-1">¥</span>}
-                  {formatNum(total)} 
-                  {(!dominantCurrency || dominantCurrency === 'UZS') && <span className="text-sm sm:text-base lg:text-xl font-bold opacity-70 ml-1">so'm</span>}
+                <div className={`text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black tracking-tight whitespace-nowrap ${isRefundMode ? "text-orange-400" : "text-green-400"}`}>
+                  <span className="text-green-400 mr-1">$</span>
+                  {formatNum(total)}
                 </div>
               </div>
             </div>
@@ -1124,12 +1121,9 @@ export default function Kassa() {
                   <div className="border-t border-gray-700 bg-gray-800 px-2 sm:px-3 lg:px-4 py-2 sm:py-3 lg:py-4 flex-shrink-0">
                     <div className="flex justify-between items-center gap-2">
                       <span className="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-wider flex-shrink-0">Jami:</span>
-                      <span className="text-lg sm:text-xl lg:text-2xl font-black text-red-400 truncate">
-                        {dominantCurrency === 'USD' && <span className="text-green-400 mr-1">$</span>}
-                        {dominantCurrency === 'RUB' && <span className="text-purple-400 mr-1">₽</span>}
-                        {dominantCurrency === 'CNY' && <span className="text-yellow-400 mr-1">¥</span>}
+                      <span className="text-lg sm:text-xl lg:text-2xl font-black text-green-400 truncate">
+                        <span className="text-green-400 mr-1">$</span>
                         {formatNum(total)}
-                        {(!dominantCurrency || dominantCurrency === 'UZS') && <span className="ml-1">so'm</span>}
                       </span>
                     </div>
                   </div>
@@ -1443,8 +1437,8 @@ export default function Kassa() {
                           )}
                         </div>
                       </div>
-                      <div className={`text-base sm:text-xl font-black flex-shrink-0 ${isOutOfStock ? "text-slate-500" : isVariantResult ? "text-purple-300" : "text-red-400"}`}>
-                        {formatNum(displayPrice)} <span className="text-xs sm:text-sm opacity-70">so'm</span>
+                      <div className={`text-base sm:text-xl font-black flex-shrink-0 ${isOutOfStock ? "text-slate-500" : isVariantResult ? "text-purple-300" : "text-green-400"}`}>
+                        <span className="text-green-400 text-xs sm:text-sm opacity-70 mr-1">$</span>{formatNum(displayPrice)}
                       </div>
                     </div>
                   );
@@ -1514,8 +1508,8 @@ export default function Kassa() {
                                 <PaymentIcon className={`w-4 h-4 ${isRefund ? "text-red-400" : "text-slate-400"}`} />
                                 {!sale.synced && <span title="Sinxronlanmagan"><CloudOff className="w-3 h-3 text-amber-500" /></span>}
                               </div>
-                              <span className={`text-xl font-black ${isRefund ? "text-red-500" : "text-emerald-500"}`}>
-                                {isRefund ? "-" : ""}{formatNum(sale.total)} so'm
+                              <span className={`text-xl font-black ${isRefund ? "text-red-500" : "text-green-500"}`}>
+                                <span className="text-green-400 mr-1">$</span>{isRefund ? "-" : ""}{formatNum(sale.total)}
                               </span>
                             </div>
                           </div>
@@ -1617,8 +1611,8 @@ export default function Kassa() {
                 <div className="bg-slate-900/60 px-5 py-5 border-t border-slate-700/50">
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">Jami:</span>
-                    <span className={`text-2xl font-black ${selectedSale.type === "refund" ? "text-red-500" : "text-emerald-500"}`}>
-                      {selectedSale.type === "refund" ? "-" : ""}{formatNum(selectedSale.total)} so'm
+                    <span className={`text-2xl font-black ${selectedSale.type === "refund" ? "text-red-500" : "text-green-500"}`}>
+                      <span className="text-green-400 mr-1">$</span>{selectedSale.type === "refund" ? "-" : ""}{formatNum(selectedSale.total)}
                     </span>
                   </div>
                 </div>
@@ -1676,12 +1670,9 @@ export default function Kassa() {
           <div className="space-y-5">
             <div className={`text-center p-6 rounded-2xl border ${isRefundMode ? "bg-orange-900/20 border-orange-500/40" : "bg-slate-800/50 border-slate-700/50"}`}>
               <div className={`text-sm font-medium ${isRefundMode ? "text-orange-400" : "text-slate-400"}`}>{isRefundMode ? "Qaytarish summasi" : "Jami summa"}</div>
-              <div className={`text-4xl font-black mt-2 ${isRefundMode ? "text-orange-500" : "text-emerald-500"}`} style={{ textShadow: isRefundMode ? "0 0 30px rgba(251,146,60,0.5)" : "0 0 30px rgba(16,185,129,0.5)" }}>
-                {dominantCurrency === 'USD' && <span className="text-green-400 mr-1">$</span>}
-                {dominantCurrency === 'RUB' && <span className="text-purple-400 mr-1">₽</span>}
-                {dominantCurrency === 'CNY' && <span className="text-yellow-400 mr-1">¥</span>}
+              <div className={`text-4xl font-black mt-2 ${isRefundMode ? "text-orange-500" : "text-green-500"}`} style={{ textShadow: isRefundMode ? "0 0 30px rgba(251,146,60,0.5)" : "0 0 30px rgba(16,185,129,0.5)" }}>
+                <span className="text-green-400 mr-1">$</span>
                 {formatNum(total)}
-                {(!dominantCurrency || dominantCurrency === 'UZS') && <span className="ml-1">so'm</span>}
               </div>
               {!isOnline && <div className="text-xs text-amber-400 mt-3 font-medium">⚡ Offline rejimda saqlanadi</div>}
             </div>
@@ -1908,7 +1899,7 @@ export default function Kassa() {
                 <div className="text-base font-bold text-slate-200 mb-2">{labelDialogItem.name}</div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-purple-400 font-medium">Kod: {labelDialogItem.sku || '-'}</span>
-                  <span className="text-amber-400 font-bold">{formatNum(labelDialogItem.price)} so'm</span>
+                  <span className="text-green-400 font-bold">$<span className="ml-1">{formatNum(labelDialogItem.price)}</span></span>
                 </div>
               </div>
 
