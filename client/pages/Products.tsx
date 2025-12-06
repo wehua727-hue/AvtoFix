@@ -373,9 +373,9 @@ export default function Products() {
   const [name, setName] = useState('');
   const [sku, setSku] = useState('');
   const [price, setPrice] = useState('');
-  const [priceCurrency, setPriceCurrency] = useState<Currency>('UZS');
+  const [priceCurrency, setPriceCurrency] = useState<Currency>('USD');
   const [basePrice, setBasePrice] = useState('');
-  const [priceMultiplier, setPriceMultiplier] = useState('');
+  const [priceMultiplier, setPriceMultiplier] = useState('20');
   const [stock, setStock] = useState('');
   const [isPriceManuallyEdited, setIsPriceManuallyEdited] = useState(false);
   const [categoryId, setCategoryId] = useState('');
@@ -1122,9 +1122,9 @@ export default function Products() {
         setName('');
         setSku('');
         setPrice('');
-        setPriceCurrency('UZS');
+        setPriceCurrency('USD');
         setBasePrice('');
-        setPriceMultiplier('');
+        setPriceMultiplier('20');
         setStock('');
         setCategoryId('');
         setSelectedParent(null);
@@ -1405,9 +1405,9 @@ export default function Products() {
                     setEditingId(null);
                     setName('');
                     setPrice('');
-                    setPriceCurrency('UZS');
+                    setPriceCurrency('USD');
                     setBasePrice('');
-                    setPriceMultiplier('');
+                    setPriceMultiplier('20');
                     setStock('');
                     setCategoryId('');
                     setSelectedParent(null);
@@ -1582,9 +1582,9 @@ export default function Products() {
                       setName('');
                       setSku('');
                       setPrice('');
-                      setPriceCurrency('UZS');
+                      setPriceCurrency('USD');
                       setBasePrice('');
-                      setPriceMultiplier('');
+                      setPriceMultiplier('20');
                       setStock('');
                       setCategoryId('');
                       setSelectedParent(null);
@@ -2024,7 +2024,7 @@ export default function Products() {
                                           basePrice: baseFromVariant != null && Number.isFinite(baseFromVariant)
                                             ? String(baseFromVariant)
                                             : (priceFromText != null && Number.isFinite(priceFromText) ? String(priceFromText) : ''),
-                                          priceMultiplier: v?.priceMultiplier != null ? String(v.priceMultiplier) : '',
+                                          priceMultiplier: v?.priceMultiplier != null ? String(v.priceMultiplier) : '20',
                                           price: priceFromVariant != null && Number.isFinite(priceFromVariant)
                                             ? String(priceFromVariant)
                                             : (priceFromText != null && Number.isFinite(priceFromText) ? String(priceFromText) : ''),
@@ -2508,7 +2508,7 @@ export default function Products() {
                         setSku('');
                         setPrice('');
                         setBasePrice('');
-                        setPriceMultiplier('');
+                        setPriceMultiplier('20');
                         setStock('');
                         setCategoryId('');
                         setSelectedParent(null);
@@ -2781,7 +2781,7 @@ export default function Products() {
                                     : (p.priceMultiplier != null ? String(p.priceMultiplier) : '');
 
                                 setPrice(existingPrice);
-                                setPriceCurrency(productData.currency || p.currency || 'UZS');
+                                setPriceCurrency(productData.currency || p.currency || 'USD');
                                 setBasePrice(existingBasePrice);
                                 setPriceMultiplier(existingPriceMultiplier);
 
@@ -2993,7 +2993,7 @@ export default function Products() {
                                     : (p.priceMultiplier != null ? String(p.priceMultiplier) : '');
 
                                 setPrice(existingPrice);
-                                setPriceCurrency(productData.currency || p.currency || 'UZS'); // Preserve original currency
+                                setPriceCurrency(productData.currency || p.currency || 'USD'); // Preserve original currency
                                 setBasePrice(existingBasePrice);
                                 setPriceMultiplier(existingPriceMultiplier);
 

@@ -61,9 +61,9 @@ export default function VariantModal({
   const [name, setName] = useState('');
   const [sku, setSku] = useState('');
   const [basePrice, setBasePrice] = useState('');
-  const [priceMultiplier, setPriceMultiplier] = useState('');
+  const [priceMultiplier, setPriceMultiplier] = useState('20');
   const [price, setPrice] = useState('');
-  const [priceCurrency, setPriceCurrency] = useState<Currency>('UZS');
+  const [priceCurrency, setPriceCurrency] = useState<Currency>('USD');
   const [stock, setStock] = useState('');
   const [status, setStatus] = useState<ProductStatus>('available');
   const [images, setImages] = useState<File[]>([]);
@@ -108,9 +108,9 @@ export default function VariantModal({
       setName(initialData.name ?? '');
       setSku(initialData.sku ?? '');
       setBasePrice(initialData.basePrice ?? '');
-      setPriceMultiplier(initialData.priceMultiplier ?? '');
+      setPriceMultiplier(initialData.priceMultiplier ?? '20');
       setPrice(initialData.price ?? '');
-      setPriceCurrency(initialData.priceCurrency ?? (initialData as any).currency ?? productCurrency ?? 'UZS');
+      setPriceCurrency(initialData.priceCurrency ?? (initialData as any).currency ?? productCurrency ?? 'USD');
       setStock(initialData.stock ?? '');
       setStatus(initialData.status ?? 'available');
       setCategoryId(initialData.categoryId ?? ''); // Faqat xilning o'z kategoriyasi
@@ -122,9 +122,9 @@ export default function VariantModal({
       setName('');
       setSku(nextSku ?? ''); // Avtomatik keyingi SKU
       setBasePrice('');
-      setPriceMultiplier('');
+      setPriceMultiplier('20');
       setPrice('');
-      setPriceCurrency(productCurrency || 'UZS'); // Mahsulotning currency sini ishlatish
+      setPriceCurrency(productCurrency || 'USD'); // Mahsulotning currency sini ishlatish
       setStock('');
       setStatus('available');
       setCategoryId(''); // Yangi xil uchun kategoriya bo'sh - alohida tanlanadi
