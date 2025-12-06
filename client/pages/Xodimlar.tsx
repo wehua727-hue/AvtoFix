@@ -121,7 +121,7 @@ export default function Xodimlar() {
       />
       <Navbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} sidebarCollapsed={sidebarCollapsed} />
       
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900/80">
+      <div className="min-h-screen bg-gray-900/80 dark:bg-gray-900/80">
         <main className={`pt-14 lg:pt-16 transition-all duration-300 ${sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-80'}`}>
           <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
             {/* Header */}
@@ -130,11 +130,11 @@ export default function Xodimlar() {
               animate={{ opacity: 1, y: 0 }}
               className="mb-8"
             >
-              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+              <h1 className="text-2xl lg:text-3xl font-bold text-white dark:text-white flex items-center gap-3">
                 <UserCog className="w-8 h-8 text-green-500" />
                 Xodimlar
               </h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-2">
+              <p className="text-gray-400 dark:text-gray-400 mt-2">
                 {xodimlar.length} ta xodim
               </p>
             </motion.div>
@@ -147,7 +147,7 @@ export default function Xodimlar() {
             ) : xodimlar.length === 0 ? (
               <div className="text-center py-20">
                 <UserCog className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600 dark:text-gray-400">Hozircha xodimlar yo'q</p>
+                <p className="text-gray-400 dark:text-gray-400">Hozircha xodimlar yo'q</p>
                 <p className="text-gray-500 dark:text-gray-500 text-sm mt-2">
                   Foydalanuvchilar sahifasidan yangi xodim qo'shing
                 </p>
@@ -163,7 +163,7 @@ export default function Xodimlar() {
                     transition={{ delay: index * 0.05 }}
                   >
                     <Card 
-                      className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-lg hover:border-green-500/50 transition-all cursor-pointer group"
+                      className="bg-gray-800 dark:bg-gray-800 border-gray-700 dark:border-gray-700 hover:shadow-lg hover:border-green-500/50 transition-all cursor-pointer group"
                       onClick={() => handleLoginAs(xodim)}
                     >
                       <CardContent className="p-4">
@@ -175,7 +175,7 @@ export default function Xodimlar() {
                             </span>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-gray-900 dark:text-white truncate">
+                            <h3 className="font-semibold text-white dark:text-white truncate">
                               {xodim.name}
                             </h3>
                             <span className="text-xs text-green-500 font-medium">Xodim</span>
@@ -188,7 +188,7 @@ export default function Xodimlar() {
                         </div>
 
                         {/* Telefon */}
-                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-2">
+                        <div className="flex items-center gap-2 text-sm text-gray-400 dark:text-gray-400 mb-2">
                           <Phone className="w-4 h-4" />
                           <span>{formatPhone(xodim.phone)}</span>
                         </div>
