@@ -25,6 +25,8 @@ interface User {
   phone: string;
   address: string;
   role: string;
+  createdBy?: string;
+  createdByRole?: "egasi" | "admin";
   subscriptionType?: "oddiy" | "cheksiz";
   subscriptionEndDate?: string;
   isBlocked?: boolean;
@@ -71,7 +73,7 @@ export default function UsersPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   
   const hasAccess = currentUser && (currentUser.role === 'egasi' || currentUser.role === 'admin');
-  const canAddUsers = currentUser?.role === 'egasi';
+  const canAddUsers = currentUser?.role === 'egasi' || currentUser?.role === 'admin'; // Egasi va admin qo'sha oladi
   
   useEffect(() => {
     if (currentUser && !hasAccess) {
@@ -96,14 +98,15 @@ export default function UsersPage() {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/users`);
+      // Filtrlash parametrlarini qo'shish
+      const params = new URLSearchParams();
+      if (currentUser?.id) params.append('userId', currentUser.id);
+      if (currentUser?.role) params.append('userRole', currentUser.role);
+      
+      const res = await fetch(`${API_BASE}/api/users?${params.toString()}`);
       const data = await res.json();
       if (data.success) {
-        if (currentUser?.role === 'admin') {
-          setUsers(data.users.filter((u: User) => u.id === currentUser.id));
-        } else {
-          setUsers(data.users);
-        }
+        setUsers(data.users);
       }
     } catch (error) {
       toast({ title: 'Xatolik', description: 'Yuklashda xatolik', variant: 'destructive' });
@@ -134,6 +137,8 @@ export default function UsersPage() {
         name: formName.trim(), phone: getPhoneDigits(formPhone), password: formPassword, 
         address: formAddress.trim(), role: formRole, subscriptionType: formSubscriptionType,
         ownerId: currentUser?.role === 'egasi' ? currentUser.id : undefined,
+        createdBy: currentUser?.id, // Kim yaratgan
+        createdByRole: currentUser?.role, // Yaratuvchining roli
       };
       if (formSubscriptionType === 'oddiy' && formSubscriptionEndDate) body.subscriptionEndDate = formSubscriptionEndDate;
       
@@ -213,7 +218,8 @@ export default function UsersPage() {
     const Icon = roleConfig.icon;
     const c = colors[roleConfig.color];
     const isMe = user.id === currentUser?.id;
-    const canChangeRole = currentUser?.role === 'egasi' && !isMe;
+    // Egasi va admin o'zi qo'shganlarning rolini o'zgartira oladi
+    const canChangeRole = (currentUser?.role === 'egasi' || currentUser?.role === 'admin') && !isMe;
 
     if (!canChangeRole) {
       return (
@@ -222,6 +228,9 @@ export default function UsersPage() {
         </span>
       );
     }
+
+    // Admin faqat admin va xodim rollarini tanlashi mumkin
+    const availableRoles = currentUser?.role === 'egasi' ? ROLES : ROLES.filter(r => r.value !== 'egasi');
 
     return (
       <Popover>
@@ -234,7 +243,7 @@ export default function UsersPage() {
         </PopoverTrigger>
         <PopoverContent className="w-48 p-1 bg-popover border-border" align="start">
           <p className="px-2 py-1.5 text-xs text-muted-foreground">Rolni o'zgartirish</p>
-          {ROLES.map(role => {
+          {availableRoles.map(role => {
             const RIcon = role.icon; const sel = role.value === user.role; const rc = colors[role.color];
             return (
               <motion.button key={role.value} whileHover={{ x: 4 }} whileTap={{ scale: 0.98 }}
@@ -337,14 +346,16 @@ export default function UsersPage() {
                             </td>
                             <td className="p-3">
                               <div className="flex justify-end gap-2">
-                                {(currentUser?.role === 'egasi' || user.id === currentUser?.id) && (
+                                {/* Egasi tahrirlashi mumkin, admin faqat o'zi qo'shganlarni (o'zini emas) */}
+                                {(currentUser?.role === 'egasi' || (currentUser?.role === 'admin' && user.id !== currentUser?.id)) && (
                                   <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
                                     <Button variant="ghost" size="icon" onClick={() => openEditDialog(user)} className={`h-8 w-8 ${isLight ? 'text-gray-500 hover:text-gray-800 hover:bg-gray-100' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}>
                                       <Pencil className="h-4 w-4" />
                                     </Button>
                                   </motion.div>
                                 )}
-                                {currentUser?.role === 'egasi' && user.id !== currentUser?.id && (
+                                {/* Egasi va admin o'chirishi mumkin (o'zini emas) */}
+                                {(currentUser?.role === 'egasi' || currentUser?.role === 'admin') && user.id !== currentUser?.id && (
                                   <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
                                     <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(user)} className={`h-8 w-8 ${isLight ? 'text-gray-500 hover:text-red-600 hover:bg-red-50' : 'text-gray-400 hover:text-red-400 hover:bg-red-500/10'}`}>
                                       <Trash2 className="h-4 w-4" />
@@ -374,24 +385,34 @@ export default function UsersPage() {
                 <div><Label className="text-gray-400">Manzil</Label><Input value={formAddress} onChange={e => setFormAddress(e.target.value)} className="mt-1 bg-white/5 border-white/10" /></div>
                 <div><Label className="text-gray-400">Rol</Label>
                   <Select value={formRole} onValueChange={setFormRole}><SelectTrigger className="mt-1 bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
-                    <SelectContent>{ROLES.map(r => <SelectItem key={r.value} value={r.value}><span className="flex items-center gap-2"><r.icon className="w-4 h-4" />{r.label}</span></SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <div className="border-t border-white/10 pt-4">
-                  <Label className="text-gray-400">Obuna turi *</Label>
-                  <Select value={formSubscriptionType} onValueChange={(v: 'oddiy' | 'cheksiz') => { setFormSubscriptionType(v); if (v === 'cheksiz') setFormSubscriptionEndDate(''); }}>
-                    <SelectTrigger className="mt-1 bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="cheksiz">Cheksiz - Hech qachon bloklanmaydi</SelectItem>
-                      <SelectItem value="oddiy">Oddiy - Muddatli obuna</SelectItem>
+                      {/* Admin faqat admin va xodim qo'sha oladi, egasi hammasini */}
+                      {ROLES.filter(r => currentUser?.role === 'egasi' || r.value !== 'egasi').map(r => (
+                        <SelectItem key={r.value} value={r.value}><span className="flex items-center gap-2"><r.icon className="w-4 h-4" />{r.label}</span></SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
-                {formSubscriptionType === 'oddiy' && (
-                  <div><Label className="text-gray-400">Obuna tugash sanasi *</Label>
-                    <Input type="date" value={formSubscriptionEndDate} onChange={e => setFormSubscriptionEndDate(e.target.value)} className="mt-1 bg-white/5 border-white/10" min={new Date().toISOString().split('T')[0]} />
-                    <p className="text-xs text-gray-500 mt-1">Ushbu sanada akkaunt bloklanadi</p>
-                  </div>
+                {/* Obuna turi - faqat egasi ko'radi */}
+                {currentUser?.role === 'egasi' && (
+                  <>
+                    <div className="border-t border-white/10 pt-4">
+                      <Label className="text-gray-400">Obuna turi *</Label>
+                      <Select value={formSubscriptionType} onValueChange={(v: 'oddiy' | 'cheksiz') => { setFormSubscriptionType(v); if (v === 'cheksiz') setFormSubscriptionEndDate(''); }}>
+                        <SelectTrigger className="mt-1 bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="cheksiz">Cheksiz - Hech qachon bloklanmaydi</SelectItem>
+                          <SelectItem value="oddiy">Oddiy - Muddatli obuna</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {formSubscriptionType === 'oddiy' && (
+                      <div><Label className="text-gray-400">Obuna tugash sanasi *</Label>
+                        <Input type="date" value={formSubscriptionEndDate} onChange={e => setFormSubscriptionEndDate(e.target.value)} className="mt-1 bg-white/5 border-white/10" min={new Date().toISOString().split('T')[0]} />
+                        <p className="text-xs text-gray-500 mt-1">Ushbu sanada akkaunt bloklanadi</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
               <Button onClick={handleAdd} disabled={saving} className="w-full mt-4 bg-purple-600 hover:bg-purple-700">{saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Qo'shish</Button>

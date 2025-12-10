@@ -371,7 +371,7 @@ export function useOfflineKassa(userId: string, userPhone?: string): UseOfflineK
         price: product.price,
         costPrice: product.costPrice || 0, // Asl narx - sof foyda hisoblash uchun
         currency: product.currency || 'UZS', // Valyuta
-        quantity: 1,
+        quantity: 0, // Default 0 - foydalanuvchi o'zi kiritadi
         discount: 0,
         stock: product.stock || 0 // Ombordagi soni
       };
@@ -388,13 +388,13 @@ export function useOfflineKassa(userId: string, userPhone?: string): UseOfflineK
 
   const updateQuantity = useCallback((itemId: string, quantity: number, allowDelete = false) => {
     setItems(prev => {
-      // Если количество 0 и разрешено удаление - удаляем товар
-      if (quantity === 0 && allowDelete) {
+      // Если количество меньше 0 и разрешено удаление - удаляем товар
+      if (quantity < 0 && allowDelete) {
         return prev.filter(item => item.id !== itemId);
       }
       
-      // Иначе минимальное количество - 1
-      const safeQuantity = Math.max(1, quantity);
+      // Минимальное количество - 0 (foydalanuvchi o'zi kiritadi)
+      const safeQuantity = Math.max(0, quantity);
       
       return prev.map(item =>
         item.id === itemId ? { ...item, quantity: safeQuantity } : item

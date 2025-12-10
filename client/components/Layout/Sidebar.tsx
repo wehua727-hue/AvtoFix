@@ -41,11 +41,11 @@ export default function Sidebar({
   const [collapsed, setCollapsed] = useState(true);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
   
-  // Faqat egasi Foydalanuvchilarni ko'ra oladi
-  const canSeeUsers = user?.role === 'egasi' || user?.phone === '910712828' || user?.phone === '+998910712828';
+  // Egasi va admin Foydalanuvchilarni ko'ra oladi
+  const canSeeUsers = user?.role === 'egasi' || user?.role === 'admin' || user?.phone === '910712828' || user?.phone === '+998910712828';
   
-  // Faqat egasi Xodimlarni ko'ra oladi
-  const canSeeXodimlar = user?.role === 'egasi';
+  // Egasi va admin Xodimlarni ko'ra oladi
+  const canSeeXodimlar = user?.role === 'egasi' || user?.role === 'admin';
 
   const handleLogoutConfirm = () => {
     logout();

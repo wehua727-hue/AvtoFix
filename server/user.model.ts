@@ -8,6 +8,8 @@ export interface IUser extends Document {
   password: string;
   role: "egasi" | "admin" | "xodim";
   ownerId?: string; // Xodim/admin qaysi egasiga tegishli (egasi uchun bo'sh)
+  createdBy?: string; // Kim yaratgan (egasi yoki admin ID)
+  createdByRole?: "egasi" | "admin"; // Yaratuvchining roli
   canEditProducts?: boolean; // Xodim mahsulotlarni tahrirlash/o'chirish huquqi
   telegramChatId?: string;
   subscriptionType?: "oddiy" | "cheksiz";
@@ -25,6 +27,8 @@ const UserSchema = new Schema<IUser>(
     password: { type: String, required: true },
     role: { type: String, enum: ["egasi", "admin", "xodim"], default: "admin" },
     ownerId: { type: String }, // Xodim/admin qaysi egasiga tegishli
+    createdBy: { type: String }, // Kim yaratgan (egasi yoki admin ID)
+    createdByRole: { type: String, enum: ["egasi", "admin"] }, // Yaratuvchining roli
     canEditProducts: { type: Boolean, default: false }, // Xodim mahsulotlarni tahrirlash/o'chirish huquqi
     telegramChatId: { type: String },
     subscriptionType: { type: String, enum: ["oddiy", "cheksiz"], default: "cheksiz" },

@@ -48,6 +48,23 @@ button:active, a:active, [role="button"]:active {
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
+/* Loading bar animation */
+@keyframes loading-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-loading-bar {
+  animation: loading-bar 1.5s ease-in-out infinite;
+}
+
 /* Fade-in animations */
 @keyframes fadeIn {
   from {
@@ -1171,6 +1188,37 @@ code {
   html {
     font-size: 11px;
   }
+}
+
+/* Custom scrollbar utilities for Tailwind */
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thumb-slate-600 {
+  scrollbar-color: rgb(71 85 105) transparent;
+}
+
+.scrollbar-thumb-slate-600::-webkit-scrollbar-thumb {
+  background-color: rgb(71 85 105);
+  border-radius: 3px;
+}
+
+.scrollbar-track-transparent::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.hover\:scrollbar-thumb-slate-500:hover::-webkit-scrollbar-thumb {
+  background-color: rgb(100 116 139);
 }
 
 /* Small monoblock screens (10-12 inch) */

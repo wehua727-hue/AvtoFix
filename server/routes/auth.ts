@@ -138,7 +138,7 @@ export async function handleVerifyToken(req: Request, res: Response) {
   }
 }
 
-// Boshqa foydalanuvchi sifatida kirish (faqat egasi uchun)
+// Boshqa foydalanuvchi sifatida kirish (egasi va admin uchun)
 export async function handleLoginAs(req: Request, res: Response) {
   try {
     const { userId, adminId } = req.body;
@@ -152,12 +152,12 @@ export async function handleLoginAs(req: Request, res: Response) {
 
     await connectMongo();
 
-    // Admin foydalanuvchini tekshirish
+    // Admin/Egasi foydalanuvchini tekshirish
     const admin = await User.findById(adminId);
-    if (!admin || admin.role !== 'egasi') {
+    if (!admin || (admin.role !== 'egasi' && admin.role !== 'admin')) {
       return res.status(403).json({ 
         success: false, 
-        error: "Faqat egasi boshqa foydalanuvchi sifatida kira oladi" 
+        error: "Faqat egasi yoki admin boshqa foydalanuvchi sifatida kira oladi" 
       });
     }
 
@@ -170,7 +170,17 @@ export async function handleLoginAs(req: Request, res: Response) {
       });
     }
 
-    console.log(`[auth] Admin ${admin.name} logging in as ${targetUser.name}`);
+    // Admin uchun qo'shimcha tekshiruv - faqat o'zi qo'shgan xodimlarga kira oladi
+    if (admin.role === 'admin') {
+      if (targetUser.createdBy !== adminId) {
+        return res.status(403).json({ 
+          success: false, 
+          error: "Siz faqat o'zingiz qo'shgan xodimlarga kira olasiz" 
+        });
+      }
+    }
+
+    console.log(`[auth] ${admin.role === 'egasi' ? 'Egasi' : 'Admin'} ${admin.name} logging in as ${targetUser.name}`);
 
     // Foydalanuvchi ma'lumotlarini qaytarish
     const userData = {

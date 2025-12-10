@@ -207,7 +207,7 @@ function QuantityInput({ value, onChange, externalValue }: { value: number; onCh
       
       // Qiymatni yangilash
       const val = parseInt(numbersOnly, 10);
-      if (!isNaN(val) && val >= 1) {
+      if (!isNaN(val) && val >= 0) {
         onChange(val);
       }
     }
@@ -243,8 +243,8 @@ function QuantityInput({ value, onChange, externalValue }: { value: number; onCh
     
     // Qiymatni parse qilish va onChange ni chaqirish
     const val = parseInt(numbersOnly, 10);
-    if (!isNaN(val) && val >= 1) {
-      // To'g'ridan-to'g'ri kiritilgan qiymatni yangilash
+    if (!isNaN(val) && val >= 0) {
+      // To'g'ridan-to'g'ri kiritilgan qiymatni yangilash (0 ham qabul qilinadi)
       onChange(val);
     }
   };
@@ -285,7 +285,7 @@ function QuantityInput({ value, onChange, externalValue }: { value: number; onCh
         setIsFocused(false);
         // Focus yo'qolganda, agar bo'sh yoki noto'g'ri bo'lsa oldingi qiymatga qaytarish
         const parsed = parseInt(localValue, 10);
-        if (localValue === '' || isNaN(parsed) || parsed < 1) {
+        if (localValue === '' || isNaN(parsed) || parsed < 0) {
           setLocalValue(String(value));
         } else {
           // To'g'ri qiymat bo'lsa, uni saqlash
@@ -839,8 +839,8 @@ export default function Kassa() {
         } else {
           // Raqamni parse qilish
           const num = parseInt(newValue, 10);
-          if (!isNaN(num) && num >= 1) {
-            // Faqat 1 yoki undan katta raqamlar
+          if (!isNaN(num) && num >= 0) {
+            // 0 yoki undan katta raqamlar qabul qilinadi
             updateQuantity(selectedItemIndex, num, false);
           }
         }
@@ -1127,15 +1127,7 @@ export default function Kassa() {
           </div>
         )}
 
-        {isLoading && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-slate-800/90 rounded-3xl p-8 flex flex-col items-center gap-4 border border-slate-700/50 shadow-2xl">
-              <Loader2 className="w-12 h-12 animate-spin text-red-500" />
-              <div className="text-slate-200 font-medium">Mahsulotlar yuklanmoqda...</div>
-              <div className="text-slate-500 text-sm">{productsCount} ta mahsulot</div>
-            </div>
-          </div>
-        )}
+        {/* Loader olib tashlandi - asosiy WebGLLoader ishlatiladi */}
 
         {error && (
           <div className="bg-red-500/20 border border-red-500/50 text-red-400 px-4 py-3 text-sm font-medium">
@@ -1215,12 +1207,17 @@ export default function Kassa() {
                                   return;
                                 }
                                 setSelectedItemIndex(index); 
-                                setNumpadValue(""); 
+                                // Hozirgi quantity ni numpadValue ga o'rnatish (yo'qolmasligi uchun)
+                                setNumpadValue(String(item.quantity)); 
                                 setNumpadMode("quantity");
                               }}
                             >
                               <div className="text-[10px] sm:text-xs text-purple-400 font-bold self-center truncate">{item.sku || "-"}</div>
-                              <div className="text-xs sm:text-sm text-slate-200 self-center truncate font-medium">{item.name}</div>
+                              <div className="text-xs sm:text-sm text-slate-200 self-center font-medium min-w-0 overflow-hidden">
+                                <div className="overflow-x-auto whitespace-nowrap scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent hover:scrollbar-thumb-slate-500 pb-0.5 pr-2" title={item.name}>
+                                  {item.name}
+                                </div>
+                              </div>
                               <div className={`text-[10px] sm:text-xs font-bold self-center text-center ${stockColor}`}>{currentStock}</div>
                               <div className="flex items-center justify-center">
                                 <QuantityInput

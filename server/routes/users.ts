@@ -4,11 +4,44 @@ import { User } from "../user.model";
 import { connectMongo } from "../mongo";
 
 // GET /api/users - получить всех пользователей
+// Query params: userId, userRole - filtrlash uchun
 export async function handleUsersGet(req: Request, res: Response) {
   try {
     await connectMongo();
     
-    const users = await User.find({}).select("-password").sort({ createdAt: -1 });
+    const { userId, userRole } = req.query;
+    
+    let filter: any = {};
+    
+    // Filtrlash logikasi:
+    // - Egasi: faqat o'zi qo'shganlar + boshqa egalar (admin qo'shganlarni ko'rmaydi)
+    // - Admin: faqat o'zi qo'shganlar (egasi va boshqa adminlar qo'shganlarni ko'rmaydi)
+    if (userId && userRole) {
+      if (userRole === 'egasi') {
+        // Egasi ko'radi: o'zi qo'shganlar + boshqa egalar + createdBy bo'sh (eski userlar)
+        // Admin qo'shganlarni ko'rmaydi
+        filter = {
+          $or: [
+            { createdBy: userId }, // O'zi qo'shganlar
+            { role: 'egasi' }, // Barcha egalar
+            { createdBy: { $exists: false } }, // Eski userlar (createdBy yo'q)
+            { createdByRole: 'egasi' }, // Egasi tomonidan yaratilganlar
+          ],
+          // Admin yaratganlarni chiqarib tashlash
+          createdByRole: { $ne: 'admin' }
+        };
+      } else if (userRole === 'admin') {
+        // Admin ko'radi: faqat o'zi qo'shganlar + o'zini
+        filter = {
+          $or: [
+            { createdBy: userId }, // O'zi qo'shganlar
+            { _id: userId }, // O'zini
+          ]
+        };
+      }
+    }
+    
+    const users = await User.find(filter).select("-password").sort({ createdAt: -1 });
     
     res.json({
       success: true,
@@ -18,6 +51,8 @@ export async function handleUsersGet(req: Request, res: Response) {
         phone: u.phone,
         address: u.address || "",
         role: u.role,
+        createdBy: u.createdBy,
+        createdByRole: u.createdByRole,
         canEditProducts: u.canEditProducts || false,
         subscriptionType: u.subscriptionType || "cheksiz",
         subscriptionEndDate: u.subscriptionEndDate,
@@ -35,7 +70,7 @@ export async function handleUsersGet(req: Request, res: Response) {
 // POST /api/users - создать пользователя
 export async function handleUserCreate(req: Request, res: Response) {
   try {
-    const { name, phone, password, address, role, subscriptionType, subscriptionEndDate, ownerId } = req.body;
+    const { name, phone, password, address, role, subscriptionType, subscriptionEndDate, ownerId, createdBy, createdByRole } = req.body;
 
     if (!name || !phone || !password) {
       return res.status(400).json({ 
@@ -65,6 +100,8 @@ export async function handleUserCreate(req: Request, res: Response) {
       address: address || "",
       role: role || "admin",
       ownerId: ownerId || undefined, // Xodim/admin qaysi egasiga tegishli
+      createdBy: createdBy || undefined, // Kim yaratgan
+      createdByRole: createdByRole || undefined, // Yaratuvchining roli
       subscriptionType: subscriptionType || "cheksiz",
       subscriptionEndDate: subscriptionEndDate ? new Date(subscriptionEndDate) : undefined,
       isBlocked: false,
@@ -80,6 +117,8 @@ export async function handleUserCreate(req: Request, res: Response) {
         phone: user.phone,
         address: user.address,
         role: user.role,
+        createdBy: user.createdBy,
+        createdByRole: user.createdByRole,
         subscriptionType: user.subscriptionType,
         subscriptionEndDate: user.subscriptionEndDate,
         isBlocked: user.isBlocked,

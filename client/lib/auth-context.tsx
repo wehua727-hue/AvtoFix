@@ -43,6 +43,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Проверка сохраненной сессии при загрузке
   useEffect(() => {
     const checkAuth = async () => {
+      // Minimal loading time for smooth UX (2 sekund)
+      const minLoadTime = new Promise((resolve) => setTimeout(resolve, 2000));
+      
       const savedUser = localStorage.getItem('user');
       const savedOriginalUser = localStorage.getItem('originalUser');
       
@@ -82,6 +85,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setUser(userData);
         }
       }
+      
+      // Minimal loading vaqtini kutish
+      await minLoadTime;
       setIsLoading(false);
     };
 

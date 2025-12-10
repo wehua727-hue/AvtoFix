@@ -15,6 +15,7 @@ interface Xodim {
   phone: string;
   address: string;
   role: string;
+  createdBy?: string;
   canEditProducts?: boolean;
   createdAt: string;
 }
@@ -38,8 +39,8 @@ export default function Xodimlar() {
   const [loggingInAs, setLoggingInAs] = useState<string | null>(null);
   const [togglingPermission, setTogglingPermission] = useState<string | null>(null);
 
-  // Faqat egasi ko'ra oladi
-  const hasAccess = currentUser?.role === 'egasi';
+  // Egasi va admin ko'ra oladi
+  const hasAccess = currentUser?.role === 'egasi' || currentUser?.role === 'admin';
 
   useEffect(() => {
     if (!hasAccess) {
@@ -47,11 +48,16 @@ export default function Xodimlar() {
       return;
     }
     fetchXodimlar();
-  }, [hasAccess, navigate]);
+  }, [hasAccess, navigate, currentUser]);
 
   const fetchXodimlar = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/users`);
+      // Filtrlash parametrlarini qo'shish
+      const params = new URLSearchParams();
+      if (currentUser?.id) params.append('userId', currentUser.id);
+      if (currentUser?.role) params.append('userRole', currentUser.role);
+      
+      const res = await fetch(`${API_BASE}/api/users?${params.toString()}`);
       const data = await res.json();
       if (data.success) {
         // Faqat xodim rolidagilarni filtrlash
@@ -97,8 +103,24 @@ export default function Xodimlar() {
     }
   };
 
+  // Admin faqat o'zi qo'shgan xodimga kira oladi
+  const canLoginAs = (xodim: Xodim): boolean => {
+    if (currentUser?.role === 'egasi') return true; // Egasi hammaga kira oladi
+    if (currentUser?.role === 'admin') {
+      // Admin faqat o'zi qo'shgan xodimga kira oladi
+      return xodim.createdBy === currentUser.id;
+    }
+    return false;
+  };
+
   // Xodim sifatida kirish
   const handleLoginAs = async (xodim: Xodim) => {
+    // Admin uchun tekshiruv
+    if (!canLoginAs(xodim)) {
+      toast({ title: 'Ruxsat yo\'q', description: 'Siz faqat o\'zingiz qo\'shgan xodimlarga kira olasiz', variant: 'destructive' });
+      return;
+    }
+    
     setLoggingInAs(xodim.id);
     try {
       // loginAs funksiyasi orqali xodim accountiga kirish
@@ -229,8 +251,12 @@ export default function Xodimlar() {
                     whileTap={{ scale: 0.98 }}
                   >
                     <Card 
-                      className="bg-gray-800/60 backdrop-blur-sm border-gray-700/50 hover:shadow-xl hover:shadow-green-500/10 hover:border-green-500/50 transition-all duration-300 cursor-pointer group overflow-hidden"
-                      onClick={() => handleLoginAs(xodim)}
+                      className={`backdrop-blur-sm transition-all duration-300 overflow-hidden ${
+                        canLoginAs(xodim) 
+                          ? 'bg-gray-800/60 border-gray-700/50 hover:shadow-xl hover:shadow-green-500/10 hover:border-green-500/50 cursor-pointer group' 
+                          : 'bg-gray-800/30 border-gray-700/30 opacity-60 cursor-not-allowed'
+                      }`}
+                      onClick={() => canLoginAs(xodim) && handleLoginAs(xodim)}
                     >
                       {/* Gradient overlay on hover */}
                       <div className="absolute inset-0 bg-gradient-to-br from-green-500/0 to-emerald-500/0 group-hover:from-green-500/5 group-hover:to-emerald-500/5 transition-all duration-300" />
