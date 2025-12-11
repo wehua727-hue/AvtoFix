@@ -643,20 +643,8 @@ export default function Kassa() {
         const variant = product.variantSummaries[variantIndex];
         const variantStock = variant.stock ?? 0;
         console.log("[Kassa] Variant stock:", variantStock);
-        if (variantStock <= 0) {
-          console.log("[Kassa] ❌ Variant stock is 0, cannot add to cart");
-          toast.error(`"${variant.name}" omborda yo'q!`);
-          return;
-        }
+        // Stock 0 bo'lsa ham kassaga qo'shish mumkin
         const variantId = `${product.id}-v${variantIndex}`;
-        // Ищем по productId, а не по id (id - это UUID элемента корзины)
-        const existingItem = checkItems.find((item) => item.productId === variantId);
-        const quantityInCart = existingItem?.quantity ?? 0;
-        if (quantityInCart >= variantStock) {
-          console.log("[Kassa] ❌ Variant already at max quantity in cart");
-          toast.error(`"${variant.name}" maksimal miqdorda!`);
-          return;
-        }
         const variantProduct: OfflineProduct = {
           ...product,
           id: variantId,
@@ -674,18 +662,7 @@ export default function Kassa() {
       } else {
         const currentStock = product.stock ?? 0;
         console.log("[Kassa] Product stock:", currentStock);
-        if (currentStock <= 0) {
-          console.log("[Kassa] ❌ Product stock is 0, cannot add to cart");
-          toast.error(`"${product.name}" omborda yo'q!`);
-          return;
-        }
-        const existingItem = checkItems.find((item) => item.productId === product.id);
-        const quantityInCart = existingItem?.quantity ?? 0;
-        if (quantityInCart >= currentStock) {
-          console.log("[Kassa] ❌ Product already at max quantity in cart");
-          toast.error(`"${product.name}" maksimal miqdorda!`);
-          return;
-        }
+        // Stock 0 bo'lsa ham kassaga qo'shish mumkin
         console.log("[Kassa] ✅ Adding product to cart:", product.name);
         addToCart(product);
       }

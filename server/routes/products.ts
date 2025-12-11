@@ -237,6 +237,12 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
     if (userId) {
       newProduct.userId = userId;
     }
+    
+    // Привязка к магазину (storeId передаётся с клиента)
+    const { storeId } = req.body;
+    if (storeId) {
+      newProduct.storeId = storeId;
+    }
 
     console.log("[api/products POST] Creating product with variantSummaries:", newProduct.variantSummaries?.length || 0);
 

@@ -33,6 +33,7 @@ export interface IChildProduct {
 export interface IProduct extends Document {
   offlineId?: string; // For offline-first sync idempotency
   userId?: string; // Привязка к пользователю
+  storeId?: string; // Привязка к магазину (только для egasi и его xodim)
   name: string;
   sizes: string[];
   images: IProductImage[];
@@ -102,6 +103,7 @@ const ProductSchema = new Schema<IProduct>(
   {
     offlineId: { type: String, unique: true, sparse: true, index: true }, // For offline sync
     userId: { type: String, index: true }, // Привязка к пользователю
+    storeId: { type: String, index: true }, // Привязка к магазину (только для egasi и его xodim)
     name: { type: String, required: true, trim: true },
     sizes: { type: [String], default: [], index: true },
     images: { type: [ProductImageSchema], default: [] },

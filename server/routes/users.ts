@@ -1,7 +1,15 @@
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { User } from "../user.model";
+import { ProductModel } from "../product.model";
+import { CustomerModel } from "../customer.model";
+import { Debt } from "../debt.model";
+import { DebtHistory } from "../debt-history.model";
+import { CashRegisterCheck } from "../cash-register.model";
 import { connectMongo } from "../mongo";
+
+const CATEGORIES_COLLECTION = process.env.OFFLINE_CATEGORIES_COLLECTION || "categories";
+const STORES_COLLECTION = "stores";
 
 // GET /api/users - получить всех пользователей
 // Query params: userId, userRole - filtrlash uchun
@@ -109,6 +117,35 @@ export async function handleUserCreate(req: Request, res: Response) {
 
     await user.save();
 
+    // Создаём магазин для нового пользователя
+    // Магазин создаётся только для:
+    // - egasi (владелец)
+    // - xodim созданный egasi (createdByRole === 'egasi')
+    // НЕ создаётся для:
+    // - admin
+    // - xodim созданный admin (createdByRole === 'admin')
+    const conn = await connectMongo();
+    let storeId: string | null = null;
+    const userRole = role || "admin";
+    const shouldCreateStore = userRole === "egasi" || (userRole === "xodim" && createdByRole === "egasi");
+    
+    if (conn && conn.db && shouldCreateStore) {
+      const storeDoc = {
+        name: name, // Имя магазина = имя пользователя
+        location: "",
+        imageUrl: "", // Пустое поле для изображения
+        color: "#4CAF50", // Цвет по умолчанию
+        createdBy: user._id,
+        manager: user._id,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      const storeResult = await conn.db.collection(STORES_COLLECTION).insertOne(storeDoc);
+      storeId = storeResult.insertedId.toString();
+      console.log(`[users] Created store ${storeId} for user ${user._id} (role: ${userRole}, createdByRole: ${createdByRole})`);
+    }
+
     res.status(201).json({
       success: true,
       user: {
@@ -123,6 +160,7 @@ export async function handleUserCreate(req: Request, res: Response) {
         subscriptionEndDate: user.subscriptionEndDate,
         isBlocked: user.isBlocked,
         createdAt: user.createdAt,
+        storeId: storeId,
       },
     });
   } catch (error: any) {
@@ -183,6 +221,99 @@ export async function handleUserUpdate(req: Request, res: Response) {
   }
 }
 
+// Вспомогательная функция для удаления данных одного пользователя
+async function deleteUserData(userId: string) {
+  const conn = await connectMongo();
+  const mongoose = await import("mongoose");
+  
+  // Конвертируем userId в ObjectId для моделей где это нужно
+  const userObjectId = new mongoose.Types.ObjectId(userId);
+  
+  let deletedProducts = { deletedCount: 0 };
+  let deletedCustomers = { deletedCount: 0 };
+  let deletedDebts = { deletedCount: 0 };
+  let deletedChecks = { deletedCount: 0 };
+  let deletedCategories = 0;
+  let deletedStores = 0;
+
+  try {
+    // 1. Удаляем все товары пользователя (userId как строка)
+    deletedProducts = await ProductModel.deleteMany({ userId });
+    console.log(`[deleteUserData] Deleted ${deletedProducts.deletedCount} products for user ${userId}`);
+  } catch (err) {
+    console.error(`[deleteUserData] Error deleting products:`, err);
+  }
+
+  try {
+    // 2. Удаляем всех клиентов пользователя (userId как ObjectId)
+    deletedCustomers = await CustomerModel.deleteMany({ userId: userObjectId });
+    console.log(`[deleteUserData] Deleted ${deletedCustomers.deletedCount} customers for user ${userId}`);
+  } catch (err) {
+    console.error(`[deleteUserData] Error deleting customers:`, err);
+  }
+
+  try {
+    // 3. Получаем все долги пользователя для удаления истории (userId как ObjectId)
+    const userDebts = await Debt.find({ userId: userObjectId }).select('_id');
+    const debtIds = userDebts.map(d => d._id);
+    
+    // 4. Удаляем историю долгов
+    if (debtIds.length > 0) {
+      await DebtHistory.deleteMany({ debtId: { $in: debtIds } });
+    }
+    
+    // 5. Удаляем все долги пользователя (userId как ObjectId)
+    deletedDebts = await Debt.deleteMany({ userId: userObjectId });
+    console.log(`[deleteUserData] Deleted ${deletedDebts.deletedCount} debts for user ${userId}`);
+  } catch (err) {
+    console.error(`[deleteUserData] Error deleting debts:`, err);
+  }
+
+  try {
+    // 6. Удаляем все чеки кассы пользователя (userId как строка)
+    deletedChecks = await CashRegisterCheck.deleteMany({ userId });
+    console.log(`[deleteUserData] Deleted ${deletedChecks.deletedCount} checks for user ${userId}`);
+  } catch (err) {
+    console.error(`[deleteUserData] Error deleting checks:`, err);
+  }
+  
+  // 7. Удаляем все категории пользователя
+  try {
+    if (conn && conn.db) {
+      const result = await conn.db.collection(CATEGORIES_COLLECTION).deleteMany({ userId });
+      deletedCategories = result.deletedCount;
+      console.log(`[deleteUserData] Deleted ${deletedCategories} categories for user ${userId}`);
+    }
+  } catch (err) {
+    console.error(`[deleteUserData] Error deleting categories:`, err);
+  }
+  
+  // 8. Удаляем магазины пользователя
+  try {
+    if (conn && conn.db) {
+      const result = await conn.db.collection(STORES_COLLECTION).deleteMany({ 
+        $or: [
+          { createdBy: userObjectId },
+          { manager: userObjectId }
+        ]
+      });
+      deletedStores = result.deletedCount;
+      console.log(`[deleteUserData] Deleted ${deletedStores} stores for user ${userId}`);
+    }
+  } catch (err) {
+    console.error(`[deleteUserData] Error deleting stores:`, err);
+  }
+
+  return {
+    products: deletedProducts.deletedCount,
+    customers: deletedCustomers.deletedCount,
+    debts: deletedDebts.deletedCount,
+    checks: deletedChecks.deletedCount,
+    categories: deletedCategories,
+    stores: deletedStores
+  };
+}
+
 // DELETE /api/users/:id - удалить пользователя
 export async function handleUserDelete(req: Request, res: Response) {
   try {
@@ -190,12 +321,72 @@ export async function handleUserDelete(req: Request, res: Response) {
 
     await connectMongo();
 
-    const user = await User.findByIdAndDelete(id);
+    const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ success: false, error: "Foydalanuvchi topilmadi" });
     }
 
-    res.json({ success: true, message: "Foydalanuvchi o'chirildi" });
+    let totalDeleted = {
+      products: 0,
+      customers: 0,
+      debts: 0,
+      checks: 0,
+      categories: 0,
+      stores: 0,
+      users: 0
+    };
+
+    // Если удаляется владелец (egasi), удаляем также всех его помощников (admin/xodim)
+    if (user.role === 'egasi') {
+      // Находим всех помощников этого владельца
+      const helpers = await User.find({ 
+        $or: [
+          { ownerId: id },
+          { createdBy: id }
+        ]
+      });
+
+      // Удаляем данные каждого помощника
+      for (const helper of helpers) {
+        const helperData = await deleteUserData(helper._id.toString());
+        totalDeleted.products += helperData.products;
+        totalDeleted.customers += helperData.customers;
+        totalDeleted.debts += helperData.debts;
+        totalDeleted.checks += helperData.checks;
+        totalDeleted.categories += helperData.categories;
+        totalDeleted.stores += helperData.stores;
+      }
+
+      // Удаляем самих помощников
+      const deletedHelpers = await User.deleteMany({ 
+        $or: [
+          { ownerId: id },
+          { createdBy: id }
+        ]
+      });
+      totalDeleted.users += deletedHelpers.deletedCount;
+    }
+
+    // Удаляем данные самого пользователя
+    const userData = await deleteUserData(id);
+    totalDeleted.products += userData.products;
+    totalDeleted.customers += userData.customers;
+    totalDeleted.debts += userData.debts;
+    totalDeleted.checks += userData.checks;
+    totalDeleted.categories += userData.categories;
+    totalDeleted.stores += userData.stores;
+    
+    // Удаляем самого пользователя
+    await User.findByIdAndDelete(id);
+    totalDeleted.users += 1;
+
+    console.log(`[users] Deleted user ${id} (${user.role}) with: ${totalDeleted.products} products, ${totalDeleted.customers} customers, ${totalDeleted.debts} debts, ${totalDeleted.checks} checks, ${totalDeleted.categories} categories, ${totalDeleted.stores} stores, ${totalDeleted.users} users total`);
+
+    res.json({ 
+      success: true, 
+      message: "Foydalanuvchi va barcha ma'lumotlari o'chirildi",
+      deleted: totalDeleted
+    });
   } catch (error: any) {
     console.error("[users] Delete error:", error?.message || error);
     res.status(500).json({ success: false, error: "Server error" });
