@@ -57,6 +57,7 @@ import {
   openCashDrawer,
   printLabel,
   printProductLabel,
+  printBulkLabelsViaBrowser,
   getDefaultPrinterId,
   setDefaultPrinterId,
   getDefaultLabelPrinterId,
@@ -417,6 +418,10 @@ export default function Kassa() {
   const [customLabelWidth, setCustomLabelWidth] = useState<number>(DEFAULT_LABEL_WIDTH); // Default: 60mm
   const [customLabelHeight, setCustomLabelHeight] = useState<number>(DEFAULT_LABEL_HEIGHT); // Default: 40mm
   const [useCustomSize, setUseCustomSize] = useState<boolean>(false); // Qo'lda o'lcham ishlatish
+  
+  // Bulk label (ommaviy senik chop etish) dialogi
+  const [bulkLabelOpen, setBulkLabelOpen] = useState(false);
+  const [bulkLabelQuantities, setBulkLabelQuantities] = useState<Record<string, number>>({});
 
   // Dominant valyutani aniqlash - agar barcha mahsulotlar bir xil valyutada bo'lsa
   const dominantCurrency = useMemo(() => {
@@ -1004,7 +1009,7 @@ export default function Kassa() {
         try {
           const receiptData: ReceiptData = {
             type: "refund",
-            items: checkItems.map((item) => ({ name: item.name + " (YAROQSIZ)", quantity: item.quantity, price: item.price, discount: item.discount })),
+            items: checkItems.map((item) => ({ name: item.name + " (YAROQSIZ)", sku: item.sku, quantity: item.quantity, price: item.price, discount: item.discount })),
             total, 
             discount: 0, 
             paymentType, 
@@ -1047,7 +1052,7 @@ export default function Kassa() {
         try {
           const receiptData: ReceiptData = {
             type: isRefundMode ? "refund" : "sale",
-            items: sale.items.map((item) => ({ name: item.name, quantity: item.quantity, price: item.price, discount: item.discount })),
+            items: sale.items.map((item) => ({ name: item.name, sku: item.sku, quantity: item.quantity, price: item.price, discount: item.discount })),
             total: sale.total, 
             discount: sale.discount, 
             paymentType, 
@@ -1189,8 +1194,6 @@ export default function Kassa() {
                       <div className="min-w-[500px]">
                         {checkItems.map((item, index) => {
                           const itemTotal = item.quantity * item.price;
-                          const discountAmount = (itemTotal * item.discount) / 100;
-                          const finalTotal = itemTotal - discountAmount;
                           const isSelected = selectedItemIndex === index;
                           // Hozirgi ombordagi sonini hisoblash (stock - quantity)
                           const currentStock = (item.stock || 0) - item.quantity;
@@ -1234,7 +1237,9 @@ export default function Kassa() {
                                 />
                               </div>
                               <div className="text-right text-[10px] sm:text-xs lg:text-sm text-slate-400 self-center font-medium truncate">{formatNum(item.price)}</div>
-                              <div className="text-right text-[10px] sm:text-xs lg:text-sm font-bold text-slate-200 self-center overflow-x-auto whitespace-nowrap scrollbar-thin scrollbar-thumb-slate-600" title={formatNum(finalTotal)}>{formatNum(finalTotal)}</div>
+                              <div className="text-right text-[10px] sm:text-xs lg:text-sm font-bold text-slate-200 self-center overflow-x-auto whitespace-nowrap scrollbar-thin scrollbar-thumb-slate-600" title={formatNum(itemTotal)}>
+                                {formatNum(itemTotal)}
+                              </div>
                               <div className="flex justify-center self-center gap-1">
                                 <button 
                                   onMouseDown={(e) => {
@@ -1289,6 +1294,26 @@ export default function Kassa() {
                         {formatNum(total)}
                       </span>
                     </div>
+                    {/* Hammasidan senik tugmasi */}
+                    {checkItems.length > 0 && (
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          onClick={() => {
+                            // Har bir mahsulot uchun default soni = 1
+                            const quantities: Record<string, number> = {};
+                            checkItems.forEach(item => {
+                              quantities[item.id] = 1;
+                            });
+                            setBulkLabelQuantities(quantities);
+                            setBulkLabelOpen(true);
+                          }}
+                          className="flex-1 py-2 px-3 rounded-lg bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/30 text-yellow-400 text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2"
+                        >
+                          <Tag className="w-4 h-4" />
+                          Hammasidan senik
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1893,8 +1918,9 @@ export default function Kassa() {
                   try {
                     const receiptData: ReceiptData = {
                       type: selectedSale.type || "sale",
-                      items: selectedSale.items.map((item) => ({ 
+                      items: selectedSale.items.map((item: any) => ({ 
                         name: item.name, 
+                        sku: item.sku,
                         quantity: item.quantity, 
                         price: item.price, 
                         discount: item.discount 
@@ -2404,6 +2430,147 @@ export default function Kassa() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Label Modal - Hammasidan senik chop etish */}
+      <Dialog open={bulkLabelOpen} onOpenChange={setBulkLabelOpen}>
+        <DialogContent className="max-w-lg bg-slate-900/95 border-slate-700/50 backdrop-blur-xl rounded-3xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-slate-200 text-xl font-bold flex items-center gap-3">
+              <Tag className="w-5 h-5 text-yellow-400" />
+              Hammasidan senik chop etish
+            </DialogTitle>
+          </DialogHeader>
+          
+          {/* Qog'oz o'lchami */}
+          <div className="py-3 border-b border-slate-700/50">
+            <label className="text-xs text-slate-400 mb-2 block">Qog'oz o'lchami (mm)</label>
+            <div className="flex gap-2 flex-wrap">
+              {Object.entries(LABEL_SIZE_CONFIGS).map(([key, config]) => (
+                <button
+                  key={key}
+                  onClick={() => setLabelSize(key as LabelSize)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    labelSize === key
+                      ? 'bg-yellow-500 text-black'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  {config.width}×{config.height}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto space-y-2 py-4">
+            {/* Mahsulotlar ro'yxati - har biri uchun soni */}
+            {checkItems.map((item) => {
+              const qty = bulkLabelQuantities[item.id] ?? 1;
+              return (
+                <div key={item.id} className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-bold text-slate-200 truncate">{item.name}</div>
+                      <div className="text-xs text-slate-400">Kod: {item.sku || '-'}</div>
+                    </div>
+                    <div className="text-lg font-bold text-green-400 ml-2">${formatNum(item.price)}</div>
+                  </div>
+                  {/* Nechta senik */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400">Nechta:</span>
+                    <button
+                      onClick={() => setBulkLabelQuantities(prev => ({...prev, [item.id]: Math.max(0, qty - 1)}))}
+                      className="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold transition-all text-sm"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      min="0"
+                      value={qty}
+                      onChange={(e) => {
+                        const val = Math.max(0, parseInt(e.target.value) || 0);
+                        setBulkLabelQuantities(prev => ({...prev, [item.id]: val}));
+                      }}
+                      className="w-14 h-7 px-2 text-center text-sm font-bold bg-slate-700 border border-slate-600 rounded-lg text-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500/50"
+                    />
+                    <button
+                      onClick={() => setBulkLabelQuantities(prev => ({...prev, [item.id]: qty + 1}))}
+                      className="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold transition-all text-sm"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          
+          <div className="flex gap-3 mt-3">
+            <Button
+              onClick={() => setBulkLabelOpen(false)}
+              variant="outline"
+              className="flex-1 border-slate-600 text-slate-400 hover:bg-slate-800"
+            >
+              Bekor qilish
+            </Button>
+            <Button
+              onClick={() => {
+                // Jami senik sonini hisoblash
+                const totalLabels = checkItems.reduce((sum, item) => {
+                  return sum + (bulkLabelQuantities[item.id] ?? 1);
+                }, 0);
+                
+                if (totalLabels === 0) {
+                  toast.error("Kamida 1 ta senik tanlang");
+                  return;
+                }
+                
+                setBulkLabelOpen(false);
+                
+                const paperWidth = LABEL_SIZE_CONFIGS[labelSize].width;
+                const paperHeight = LABEL_SIZE_CONFIGS[labelSize].height;
+                
+                // Barcha mahsulotlar uchun label ma'lumotlarini tayyorlash (soniga qarab ko'paytirish)
+                const labels: LabelData[] = [];
+                checkItems.forEach(item => {
+                  const qty = bulkLabelQuantities[item.id] ?? 1;
+                  const fullId = item.productId;
+                  const shortId = fullId.slice(-8).toUpperCase();
+                  
+                  // Har bir mahsulot uchun qty ta label qo'shish
+                  for (let i = 0; i < qty; i++) {
+                    labels.push({
+                      name: item.name,
+                      price: item.price,
+                      sku: item.sku,
+                      barcode: shortId,
+                      barcodeType: "CODE128" as const,
+                      stock: item.stock || 0,
+                      labelSize,
+                      paperWidth,
+                      paperHeight,
+                    });
+                  }
+                });
+                
+                // Bitta print dialog da barcha labellarni chop etish
+                const success = printBulkLabelsViaBrowser(labels);
+                
+                if (success) {
+                  toast.success(`${totalLabels} ta senik chop etildi`);
+                } else {
+                  toast.error("Senik chop etishda xatolik");
+                }
+              }}
+              disabled={isPrinting}
+              className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-black font-bold"
+            >
+              <Tag className="w-4 h-4 mr-2" />
+              {checkItems.reduce((sum, item) => sum + (bulkLabelQuantities[item.id] ?? 1), 0)} ta senik chop etish
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

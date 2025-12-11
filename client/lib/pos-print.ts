@@ -47,6 +47,7 @@ export interface PrinterInfo {
 // Receipt item interface
 export interface ReceiptItem {
   name: string;
+  sku?: string;
   quantity: number;
   price: number;
   discount?: number;
@@ -478,11 +479,12 @@ export function printViaBrowser(receipt: ReceiptData): boolean {
       const discountAmount = item.discount ? (itemTotal * item.discount) / 100 : 0;
       const finalTotal = itemTotal - discountAmount;
       const num = index + 1;
+      const skuDisplay = item.sku ? `[${item.sku}] ` : '';
       return `
         <div class="item">
           <div class="item-header">
             <span class="item-num">${num}.</span>
-            <span class="item-name">${item.name}</span>
+            <span class="item-name">${skuDisplay}${item.name}</span>
           </div>
           <div class="item-details">
             <span class="item-qty">${item.quantity} x ${item.price.toLocaleString()}</span>
@@ -1387,6 +1389,175 @@ export async function printProductLabel(
 
   const result = await printLabels(printerId, [label]);
   return result.success;
+}
+
+/**
+ * Print multiple labels in one print dialog (bulk print)
+ * Barcha labellarni bitta sahifada chop etadi - har biri alohida sahifada (page-break)
+ */
+export function printBulkLabelsViaBrowser(labels: LabelData[]): boolean {
+  if (labels.length === 0) return false;
+  
+  // Birinchi labeldan o'lchamlarni olish
+  const firstLabel = labels[0];
+  const paperWidth = firstLabel.paperWidth || (firstLabel.labelSize ? LABEL_SIZE_CONFIGS[firstLabel.labelSize].width : 60);
+  const paperHeight = firstLabel.paperHeight || (firstLabel.labelSize ? LABEL_SIZE_CONFIGS[firstLabel.labelSize].height : 40);
+  
+  // Font o'lchamlari
+  const nameFontSize = paperWidth >= 60 ? '12px' : paperWidth >= 50 ? '10px' : '9px';
+  const priceFontSize = paperWidth >= 60 ? '16px' : paperWidth >= 50 ? '14px' : '12px';
+  
+  // Har bir label uchun HTML yaratish
+  const labelsHtml = labels.map((label, index) => {
+    const barcodeValue = label.barcode || label.sku || '';
+    const barcodeId = `barcode-${index}`;
+    
+    return `
+      <div class="label-page" ${index < labels.length - 1 ? 'style="page-break-after: always;"' : ''}>
+        <div class="label">
+          <div class="name">${label.name}</div>
+          <div class="price">${label.price}</div>
+          ${barcodeValue ? `
+            <div class="barcode-container">
+              <svg id="${barcodeId}"></svg>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  // Barcode script yaratish
+  const barcodeScripts = labels.map((label, index) => {
+    const barcodeValue = label.barcode || label.sku || '';
+    if (!barcodeValue) return '';
+    
+    return `
+      try {
+        JsBarcode("#barcode-${index}", "${barcodeValue}", {
+          format: "CODE128",
+          width: 3,
+          height: 70,
+          displayValue: true,
+          fontSize: 16,
+          margin: 5,
+          textMargin: 5,
+          font: "Arial",
+          fontOptions: "bold",
+          text: "${barcodeValue}"
+        });
+      } catch(e) {
+        console.error('Barcode error for ${index}:', e);
+      }
+    `;
+  }).join('\n');
+  
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Seniklar - ${labels.length} ta</title>
+      <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+      <style>
+        @page {
+          size: ${paperWidth}mm ${paperHeight}mm;
+          margin: 0;
+        }
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        html, body {
+          margin: 0;
+          padding: 0;
+        }
+        body {
+          font-family: Arial, sans-serif;
+        }
+        .label-page {
+          width: ${paperWidth}mm;
+          height: ${paperHeight}mm;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+        }
+        .label {
+          width: ${paperWidth}mm;
+          height: ${paperHeight}mm;
+          padding: 1.5mm 2mm;
+          text-align: center;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-around;
+          align-items: center;
+        }
+        .name {
+          font-weight: bold;
+          font-size: ${nameFontSize};
+          line-height: 1.2;
+          max-width: 100%;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        .price {
+          font-size: ${priceFontSize};
+          font-weight: bold;
+          color: #000;
+          margin: 1mm 0;
+        }
+        .barcode-container {
+          width: 100%;
+          display: flex;
+          justify-content: center;
+          flex: 1;
+          align-items: center;
+        }
+        .barcode-container svg {
+          max-width: 95%;
+          height: auto;
+        }
+        @media print {
+          .label-page {
+            width: ${paperWidth}mm;
+            height: ${paperHeight}mm;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      ${labelsHtml}
+      <script>
+        ${barcodeScripts}
+      </script>
+    </body>
+    </html>
+  `;
+  
+  // Yangi oyna ochish
+  const printWindow = window.open('', '_blank', `width=${paperWidth * 4},height=${paperHeight * 4}`);
+  if (printWindow) {
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    
+    // JsBarcode yuklangandan keyin chop etish
+    setTimeout(() => {
+      printWindow.print();
+      setTimeout(() => {
+        printWindow.close();
+      }, 500);
+    }, 500);
+    
+    return true;
+  }
+  
+  console.error('[POSPrint] Failed to open print window for bulk labels');
+  return false;
 }
 
 /**
