@@ -236,12 +236,43 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
     // Привязка к пользователю
     if (userId) {
       newProduct.userId = userId;
+      
+      // Автоматически найти магазин пользователя и привязать товар
+      try {
+        let userObjectId;
+        try {
+          userObjectId = new ObjectId(userId);
+        } catch {
+          userObjectId = userId;
+        }
+        
+        // Ищем магазин где пользователь - создатель или менеджер
+        const store = await db.collection("stores").findOne({
+          $or: [
+            { createdBy: userObjectId },
+            { createdBy: userId },
+            { manager: userObjectId },
+            { manager: userId }
+          ]
+        });
+        
+        if (store) {
+          newProduct.store = store._id; // ObjectId магазина
+          console.log(`[api/products POST] Auto-assigned store ${store._id} (${store.name}) to product`);
+        }
+      } catch (storeErr) {
+        console.error("[api/products POST] Error finding store:", storeErr);
+      }
     }
     
-    // Привязка к магазину (storeId передаётся с клиента)
+    // Если storeId передан явно с клиента - использовать его
     const { storeId } = req.body;
     if (storeId) {
-      newProduct.storeId = storeId;
+      try {
+        newProduct.store = new ObjectId(storeId);
+      } catch {
+        newProduct.store = storeId;
+      }
     }
 
     console.log("[api/products POST] Creating product with variantSummaries:", newProduct.variantSummaries?.length || 0);
