@@ -102,19 +102,20 @@ export default function Debts() {
     // SMS matni
     const message = `Sizning ${shopName} do'konidan olgan qarz muddatingiz ertaga tugaydi. Iltimos qarzingizni o'z vaqtida to'lab qo'ying!`;
     
-    // Barcha telefon raqamlarini vergul bilan ajratib birlashtirish
-    const phoneNumbers = debtsWithPhone.map(d => {
-      const cleanPhone = d.phone!.replace(/\D/g, '');
-      return cleanPhone.startsWith('998') ? `+${cleanPhone}` : `+998${cleanPhone}`;
-    }).join(',');
-    
-    // SMS ilovasini ochish (telefonda)
-    const smsUrl = `sms:${phoneNumbers}?body=${encodeURIComponent(message)}`;
-    window.open(smsUrl, '_blank');
+    // Har bir qarzdor uchun alohida SMS oynasini ochish (iPhone uchun)
+    // 500ms oraliqda ochiladi, shunda telefon har birini to'g'ri ochadi
+    debtsWithPhone.forEach((debt, index) => {
+      setTimeout(() => {
+        const cleanPhone = debt.phone!.replace(/\D/g, '');
+        const fullPhone = cleanPhone.startsWith('998') ? `+${cleanPhone}` : `+998${cleanPhone}`;
+        const smsUrl = `sms:${fullPhone}?body=${encodeURIComponent(message)}`;
+        window.open(smsUrl, '_blank');
+      }, index * 500);
+    });
     
     toast({ 
       title: 'SMS', 
-      description: `${debtsWithPhone.length} ta qarzdorga SMS yuborish oynasi ochildi` 
+      description: `${debtsWithPhone.length} ta qarzdorga SMS yuborish oynasi ochilmoqda...` 
     });
   };
 
