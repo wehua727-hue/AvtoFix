@@ -115,14 +115,14 @@ export default function Debts() {
     const shopName = user?.name || 'do\'kon';
     const message = `Sizning ${shopName} do'konidan olgan qarz muddatingiz ertaga tugaydi. Iltimos qarzingizni o'z vaqtida to'lab qo'ying!`;
     
-    // Barcha raqamlarni vergul bilan ajratish (iOS uchun)
+    // Barcha raqamlarni vergul bilan ajratish
     const phoneNumbers = debtsWithPhone.map(d => {
       const cleanPhone = d.phone!.replace(/\D/g, '');
-      return cleanPhone.startsWith('998') ? `+${cleanPhone}` : `+998${cleanPhone}`;
+      return cleanPhone.startsWith('998') ? cleanPhone : `998${cleanPhone}`;
     }).join(',');
     
-    // iOS uchun sms: URL - /open-url formatida
-    window.location.href = `sms:/open?addresses=${phoneNumbers}&body=${encodeURIComponent(message)}`;
+    // iOS va Android uchun universal format
+    window.location.href = `sms:${phoneNumbers}?&body=${encodeURIComponent(message)}`;
     setSmsModalOpen(false);
     toast({ title: 'SMS', description: `${debtsWithPhone.length} ta qarzdorga SMS yuborish oynasi ochildi` });
   };
