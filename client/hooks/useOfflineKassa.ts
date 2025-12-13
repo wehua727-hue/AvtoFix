@@ -353,10 +353,20 @@ export function useOfflineKassa(userId: string, userPhone?: string): UseOfflineK
       const existingIndex = prev.findIndex(item => item.productId === product.id);
       
       if (existingIndex >= 0) {
-        // Increment quantity
+        // Increment quantity - stock tekshirish
+        const existingItem = prev[existingIndex];
+        const newQuantity = existingItem.quantity + 1;
+        
+        // Agar miqdor stock dan oshsa, xato ko'rsatish (lekin qo'shishga ruxsat)
+        if (newQuantity > existingItem.stock) {
+          window.dispatchEvent(new CustomEvent('stock-exceeded', { 
+            detail: { name: existingItem.name, stock: existingItem.stock, requested: newQuantity } 
+          }));
+        }
+        
         console.log('[useOfflineKassa] Incrementing existing item quantity');
         const updated = [...prev];
-        updated[existingIndex].quantity += 1;
+        updated[existingIndex].quantity = newQuantity;
         console.log('[useOfflineKassa] New items:', updated);
         return updated;
       }
@@ -396,9 +406,20 @@ export function useOfflineKassa(userId: string, userPhone?: string): UseOfflineK
       // Минимальное количество - 0 (foydalanuvchi o'zi kiritadi)
       const safeQuantity = Math.max(0, quantity);
       
-      return prev.map(item =>
-        item.id === itemId ? { ...item, quantity: safeQuantity } : item
-      );
+      return prev.map(item => {
+        if (item.id === itemId) {
+          // Stock tekshirish - agar miqdor stock dan oshsa, xabar ko'rsatish
+          // Lekin miqdorni o'zgartirmaslik - foydalanuvchi o'zi tuzatsin
+          if (safeQuantity > item.stock) {
+            // Toast xabarini ko'rsatish uchun window event ishlatamiz
+            window.dispatchEvent(new CustomEvent('stock-exceeded', { 
+              detail: { name: item.name, stock: item.stock, requested: safeQuantity } 
+            }));
+          }
+          return { ...item, quantity: safeQuantity };
+        }
+        return item;
+      });
     });
   }, []);
 

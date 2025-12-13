@@ -440,6 +440,32 @@ export default function Kassa() {
     return 'UZS';
   }, [checkItems]);
 
+  // Stock exceeded event listener - omborda yetarli mahsulot yo'q
+  useEffect(() => {
+    const handleStockExceeded = (e: CustomEvent<{ name: string; stock: number; requested: number }>) => {
+      const { name, stock } = e.detail;
+      toast.error(`Omborda yetarli emas! "${name}" - faqat ${stock} ta mavjud`);
+    };
+    
+    window.addEventListener('stock-exceeded', handleStockExceeded as EventListener);
+    return () => window.removeEventListener('stock-exceeded', handleStockExceeded as EventListener);
+  }, []);
+
+  // Stock tekshirish - agar biror mahsulot miqdori ombordagidan ko'p bo'lsa
+  const hasStockError = useMemo(() => {
+    // Qaytarish rejimida stock tekshirish kerak emas
+    if (isRefundMode) return false;
+    
+    // Agar miqdor > stock bo'lsa, xato (stock 0 bo'lsa ham)
+    return checkItems.some(item => item.quantity > item.stock);
+  }, [checkItems, isRefundMode]);
+
+  // Stock xatosi bo'lgan mahsulotlar ro'yxati
+  const stockErrorItems = useMemo(() => {
+    if (isRefundMode) return [];
+    return checkItems.filter(item => item.quantity > item.stock);
+  }, [checkItems, isRefundMode]);
+
   // Load printers on mount
   useEffect(() => {
     const loadPrinters = async () => {
@@ -1550,16 +1576,26 @@ export default function Kassa() {
 
               {/* Payment Button */}
               <button
-                onClick={() => setPaymentOpen(true)}
-                disabled={checkItems.length === 0}
+                onClick={() => {
+                  if (hasStockError) {
+                    const errorNames = stockErrorItems.map(i => `"${i.name}" (${i.quantity}/${i.stock})`).join(', ');
+                    toast.error(`Omborda yetarli emas: ${errorNames}`);
+                    return;
+                  }
+                  setPaymentOpen(true);
+                }}
+                disabled={checkItems.length === 0 || hasStockError}
                 className={`flex items-center justify-center gap-2 p-2.5 sm:px-5 sm:py-2.5 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg ${
-                  isRefundMode 
-                    ? "bg-orange-500 hover:bg-orange-600 text-white shadow-orange-500/20" 
-                    : "bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20"
+                  hasStockError
+                    ? "bg-red-500 text-white shadow-red-500/20"
+                    : isRefundMode 
+                      ? "bg-orange-500 hover:bg-orange-600 text-white shadow-orange-500/20" 
+                      : "bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20"
                 }`}
+                title={hasStockError ? `Omborda yetarli emas: ${stockErrorItems.map(i => i.name).join(', ')}` : ''}
               >
                 <CreditCard className="w-5 h-5" />
-                <span className="hidden sm:inline">{isRefundMode ? "Qaytarish" : "To'lov"}</span>
+                <span className="hidden sm:inline">{hasStockError ? "Yetarli emas" : isRefundMode ? "Qaytarish" : "To'lov"}</span>
               </button>
 
               {/* Spacer */}
