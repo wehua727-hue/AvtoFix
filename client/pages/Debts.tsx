@@ -53,6 +53,7 @@ export default function Debts() {
   const [confirmation, setConfirmation] = useState<ConfirmationState | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [smsModalOpen, setSmsModalOpen] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -86,37 +87,24 @@ export default function Debts() {
 
   const closeConfirmation = () => setConfirmation(null);
 
-  // Ertaga to'lov muddati bo'lgan barcha qarzdorlarga SMS yuborish
-  const handleSendBulkSms = () => {
-    // Faqat telefon raqami bor bo'lgan ertaga qarzlarni olish
+  // SMS modal ochish
+  const handleOpenSmsModal = () => {
     const debtsWithPhone = filteredDebts.filter(d => d.phone);
-    
     if (debtsWithPhone.length === 0) {
       toast({ title: 'Xatolik', description: 'Telefon raqami bor qarzdorlar topilmadi', variant: 'destructive' });
       return;
     }
-    
-    // Do'kon egasi nomi
+    setSmsModalOpen(true);
+  };
+
+  // Bitta qarzdorga SMS yuborish
+  const handleSendSingleSms = (phone: string, creditor: string) => {
     const shopName = user?.name || 'do\'kon';
-    
-    // SMS matni
     const message = `Sizning ${shopName} do'konidan olgan qarz muddatingiz ertaga tugaydi. Iltimos qarzingizni o'z vaqtida to'lab qo'ying!`;
-    
-    // Har bir qarzdor uchun alohida SMS oynasini ochish (iPhone uchun)
-    // 500ms oraliqda ochiladi, shunda telefon har birini to'g'ri ochadi
-    debtsWithPhone.forEach((debt, index) => {
-      setTimeout(() => {
-        const cleanPhone = debt.phone!.replace(/\D/g, '');
-        const fullPhone = cleanPhone.startsWith('998') ? `+${cleanPhone}` : `+998${cleanPhone}`;
-        const smsUrl = `sms:${fullPhone}?body=${encodeURIComponent(message)}`;
-        window.open(smsUrl, '_blank');
-      }, index * 500);
-    });
-    
-    toast({ 
-      title: 'SMS', 
-      description: `${debtsWithPhone.length} ta qarzdorga SMS yuborish oynasi ochilmoqda...` 
-    });
+    const cleanPhone = phone.replace(/\D/g, '');
+    const fullPhone = cleanPhone.startsWith('998') ? `+${cleanPhone}` : `+998${cleanPhone}`;
+    window.location.href = `sms:${fullPhone}?body=${encodeURIComponent(message)}`;
+    toast({ title: 'SMS', description: `${creditor} ga SMS yuborish oynasi ochildi` });
   };
 
   // Tasdiqlash
@@ -401,7 +389,7 @@ export default function Debts() {
                   <Button 
                     size="sm" 
                     className="bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 text-white h-8 px-3 text-xs font-medium shadow-lg shadow-cyan-900/30"
-                    onClick={handleSendBulkSms}
+                    onClick={handleOpenSmsModal}
                   >
                     <MessageSquare className="w-3.5 h-3.5 mr-1.5" />
                     SMS yuborish
@@ -594,6 +582,48 @@ export default function Debts() {
                   {actionLoading && <RefreshCw className="w-4 h-4 animate-spin mr-2" />}
                   {confirmation?.type === 'paid' && "Ha, to'landi"}{confirmation?.type === 'unpaid' && "Ha, qora ro'yxatga"}{confirmation?.type === 'delete' && "Ha, o'chirish"}
                 </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* SMS Modal - Har bir qarzdorga alohida SMS yuborish */}
+          <AlertDialog open={smsModalOpen} onOpenChange={setSmsModalOpen}>
+            <AlertDialogContent className="bg-gray-900 dark:bg-gray-900 border-gray-800/50 dark:border-gray-800/50 max-w-md max-h-[80vh] overflow-hidden">
+              <AlertDialogHeader>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-3 rounded-full bg-cyan-500/20">
+                    <MessageSquare className="w-6 h-6 text-cyan-400" />
+                  </div>
+                  <AlertDialogTitle className="text-gray-200 dark:text-gray-200 text-lg">
+                    SMS yuborish
+                  </AlertDialogTitle>
+                </div>
+                <AlertDialogDescription className="text-gray-400 dark:text-gray-400 text-sm">
+                  Har bir qarzdorga alohida SMS yuborish uchun tugmani bosing
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="max-h-[50vh] overflow-y-auto space-y-2 my-4 pr-2">
+                {filteredDebts.filter(d => d.phone).map((debt) => (
+                  <div key={debt._id} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-200 truncate">{debt.creditor}</p>
+                      <p className="text-xs text-gray-400">{debt.phone}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 text-white h-8 px-3 text-xs ml-2"
+                      onClick={() => handleSendSingleSms(debt.phone!, debt.creditor)}
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 mr-1" />
+                      SMS
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="bg-gray-800/50 border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white">
+                  Yopish
+                </AlertDialogCancel>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
