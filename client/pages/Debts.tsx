@@ -107,6 +107,26 @@ export default function Debts() {
     toast({ title: 'SMS', description: `${creditor} ga SMS yuborish oynasi ochildi` });
   };
 
+  // Barcha qarzdorlarga bittada SMS yuborish (iPhone uchun)
+  const handleSendAllSms = () => {
+    const debtsWithPhone = filteredDebts.filter(d => d.phone);
+    if (debtsWithPhone.length === 0) return;
+    
+    const shopName = user?.name || 'do\'kon';
+    const message = `Sizning ${shopName} do'konidan olgan qarz muddatingiz ertaga tugaydi. Iltimos qarzingizni o'z vaqtida to'lab qo'ying!`;
+    
+    // Barcha raqamlarni vergul bilan ajratish (iOS uchun)
+    const phoneNumbers = debtsWithPhone.map(d => {
+      const cleanPhone = d.phone!.replace(/\D/g, '');
+      return cleanPhone.startsWith('998') ? `+${cleanPhone}` : `+998${cleanPhone}`;
+    }).join(',');
+    
+    // iOS uchun sms: URL - /open-url formatida
+    window.location.href = `sms:/open?addresses=${phoneNumbers}&body=${encodeURIComponent(message)}`;
+    setSmsModalOpen(false);
+    toast({ title: 'SMS', description: `${debtsWithPhone.length} ta qarzdorga SMS yuborish oynasi ochildi` });
+  };
+
   // Tasdiqlash
   const handleConfirmAction = async () => {
     if (!confirmation) return;
@@ -620,7 +640,14 @@ export default function Debts() {
                   </div>
                 ))}
               </div>
-              <AlertDialogFooter>
+              <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                <Button
+                  className="w-full sm:w-auto bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white"
+                  onClick={handleSendAllSms}
+                >
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Hammasiga yuborish ({filteredDebts.filter(d => d.phone).length})
+                </Button>
                 <AlertDialogCancel className="bg-gray-800/50 border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white">
                   Yopish
                 </AlertDialogCancel>
