@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, RefreshCw, CheckCircle, XCircle, Edit, Trash2, Wallet, Phone, Calendar, FileText, Ban, AlertTriangle, Search, X, Sparkles } from 'lucide-react';
+import { Plus, RefreshCw, CheckCircle, XCircle, Edit, Trash2, Wallet, Phone, Calendar, FileText, Ban, AlertTriangle, Search, X, Sparkles, Clock, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,8 +20,9 @@ import type { IDebt } from '@shared/debt-types';
 import DebtFormDialog from '@/components/Debts/DebtFormDialog';
 import Sidebar from '@/components/Layout/Sidebar';
 import Navbar from '@/components/Layout/Navbar';
+import { useAuth } from '@/lib/auth-context';
 
-type FilterType = 'all' | 'pending' | 'overdue' | 'paid' | 'today' | 'unpaid';
+type FilterType = 'all' | 'pending' | 'overdue' | 'paid' | 'today' | 'tomorrow' | 'unpaid';
 type ConfirmationType = 'paid' | 'unpaid' | 'delete' | null;
 
 interface ConfirmationState {
@@ -53,6 +54,7 @@ export default function Debts() {
   const [actionLoading, setActionLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const loadDebts = async () => {
     setLoading(true);
@@ -83,6 +85,38 @@ export default function Debts() {
   };
 
   const closeConfirmation = () => setConfirmation(null);
+
+  // Ertaga to'lov muddati bo'lgan barcha qarzdorlarga SMS yuborish
+  const handleSendBulkSms = () => {
+    // Faqat telefon raqami bor bo'lgan ertaga qarzlarni olish
+    const debtsWithPhone = filteredDebts.filter(d => d.phone);
+    
+    if (debtsWithPhone.length === 0) {
+      toast({ title: 'Xatolik', description: 'Telefon raqami bor qarzdorlar topilmadi', variant: 'destructive' });
+      return;
+    }
+    
+    // Do'kon egasi nomi
+    const shopName = user?.name || 'do\'kon';
+    
+    // SMS matni
+    const message = `Sizning ${shopName} do'konidan olgan qarz muddatingiz ertaga tugaydi. Iltimos qarzingizni o'z vaqtida to'lab qo'ying!`;
+    
+    // Barcha telefon raqamlarini vergul bilan ajratib birlashtirish
+    const phoneNumbers = debtsWithPhone.map(d => {
+      const cleanPhone = d.phone!.replace(/\D/g, '');
+      return cleanPhone.startsWith('998') ? `+${cleanPhone}` : `+998${cleanPhone}`;
+    }).join(',');
+    
+    // SMS ilovasini ochish (telefonda)
+    const smsUrl = `sms:${phoneNumbers}?body=${encodeURIComponent(message)}`;
+    window.open(smsUrl, '_blank');
+    
+    toast({ 
+      title: 'SMS', 
+      description: `${debtsWithPhone.length} ta qarzdorga SMS yuborish oynasi ochildi` 
+    });
+  };
 
   // Tasdiqlash
   const handleConfirmAction = async () => {
@@ -134,10 +168,20 @@ export default function Debts() {
       return dueDate.getTime() === today.getTime();
     });
     
+    // Ertaga to'lov muddati keladiganlar
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dueTomorrow = debts.filter((d) => {
+      if (d.status === 'paid' || d.status === 'unpaid' || !d.dueDate) return false;
+      const dueDate = new Date(d.dueDate);
+      dueDate.setHours(0, 0, 0, 0);
+      return dueDate.getTime() === tomorrow.getTime();
+    });
+    
     const totalAmount = [...pending, ...overdue].reduce((sum, d) => sum + d.amount, 0);
     // Qora ro'yxat soni - blacklist API dan yoki unpaid qarzlardan
     const blacklistCount = blacklist.length > 0 ? blacklist.length : unpaid.length;
-    return { total: debts.length, pending: pending.length, paid: paid.length, overdue: overdue.length, unpaid: unpaid.length, blacklistCount, dueToday: dueToday.length, totalAmount };
+    return { total: debts.length, pending: pending.length, paid: paid.length, overdue: overdue.length, unpaid: unpaid.length, blacklistCount, dueToday: dueToday.length, dueTomorrow: dueTomorrow.length, totalAmount };
   };
 
   const stats = calculateStats();
@@ -192,6 +236,15 @@ export default function Debts() {
         const today = new Date(); today.setHours(0, 0, 0, 0);
         const dueDate = new Date(d.dueDate); dueDate.setHours(0, 0, 0, 0);
         return dueDate.getTime() === today.getTime();
+      });
+    }
+    if (activeFilter === 'tomorrow') {
+      return result.filter(d => {
+        if (d.status === 'paid' || d.status === 'unpaid' || !d.dueDate) return false;
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+        const dueDate = new Date(d.dueDate); dueDate.setHours(0, 0, 0, 0);
+        return dueDate.getTime() === tomorrow.getTime();
       });
     }
     return result;
@@ -269,12 +322,13 @@ export default function Debts() {
             initial={{ opacity: 0, y: 10 }} 
             animate={{ opacity: 1, y: 0 }} 
             transition={{ delay: 0.2 }}
-            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3 mb-6"
+            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-2 sm:gap-3 mb-6"
           >
             {[
               { key: 'all', label: 'Jami', count: stats.total, gradient: 'from-blue-600 to-blue-700', icon: Wallet },
               { key: 'pending', label: 'Kutilmoqda', count: stats.pending, gradient: 'from-orange-500 to-amber-600', icon: RefreshCw },
               { key: 'today', label: 'Bugun', count: stats.dueToday, gradient: 'from-yellow-500 to-yellow-600', icon: Calendar },
+              { key: 'tomorrow', label: 'Ertaga', count: stats.dueTomorrow, gradient: 'from-cyan-500 to-teal-600', icon: Clock },
               { key: 'overdue', label: "Muddati o'tgan", count: stats.overdue, gradient: 'from-red-600 to-rose-600', icon: AlertTriangle },
               { key: 'paid', label: "To'langan", count: stats.paid, gradient: 'from-green-600 to-emerald-600', icon: CheckCircle },
               { key: 'unpaid', label: "Qora ro'yxat", count: stats.blacklistCount, gradient: 'from-gray-600 to-gray-700', icon: Ban },
@@ -338,8 +392,21 @@ export default function Debts() {
               className="mb-4 flex items-center gap-2"
             >
               <Badge variant="outline" className="bg-gray-800/60 backdrop-blur-sm border-gray-700 text-gray-300 px-3 py-1.5 text-xs sm:text-sm">
-                {activeFilter === 'pending' && 'Kutilmoqda'}{activeFilter === 'overdue' && "Muddati o'tgan"}{activeFilter === 'today' && 'Bugun'}{activeFilter === 'paid' && "To'langan"}{activeFilter === 'unpaid' && "Qora ro'yxat"}: {filteredDebts.length} ta
+                {activeFilter === 'pending' && 'Kutilmoqda'}{activeFilter === 'overdue' && "Muddati o'tgan"}{activeFilter === 'today' && 'Bugun'}{activeFilter === 'tomorrow' && 'Ertaga'}{activeFilter === 'paid' && "To'langan"}{activeFilter === 'unpaid' && "Qora ro'yxat"}: {filteredDebts.length} ta
               </Badge>
+              {/* Ertaga filtri uchun umumiy SMS tugmasi */}
+              {activeFilter === 'tomorrow' && filteredDebts.length > 0 && (
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Button 
+                    size="sm" 
+                    className="bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 text-white h-8 px-3 text-xs font-medium shadow-lg shadow-cyan-900/30"
+                    onClick={handleSendBulkSms}
+                  >
+                    <MessageSquare className="w-3.5 h-3.5 mr-1.5" />
+                    SMS yuborish
+                  </Button>
+                </motion.div>
+              )}
               <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
                 <Button size="sm" variant="ghost" className="text-gray-400 hover:text-white hover:bg-gray-700/50 h-8 w-8 p-0 rounded-full" onClick={() => setActiveFilter('all')}>
                   <XCircle className="w-4 h-4" />
@@ -463,6 +530,7 @@ export default function Debts() {
                                 <Button size="sm" className="flex-1 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 h-10 text-xs font-semibold shadow-lg shadow-gray-900/30" onClick={() => openConfirmation('unpaid', debt._id, debt.creditor)}>
                                   <XCircle className="w-4 h-4 mr-1.5" />To'lanmadi
                                 </Button>
+
                                 <Button size="sm" variant="outline" className="bg-slate-700/60 border-slate-500/50 hover:bg-slate-600 h-10 w-10 p-0" onClick={() => setEditingDebt(debt)}>
                                   <Edit className="w-4 h-4" />
                                 </Button>
