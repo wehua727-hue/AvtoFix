@@ -97,14 +97,32 @@ export default function Debts() {
     setSmsModalOpen(true);
   };
 
-  // Bitta qarzdorga SMS yuborish
-  const handleSendSingleSms = (phone: string, creditor: string) => {
+  // SMS URL yaratish (bitta qarzdor uchun)
+  const getSmsUrl = (phone: string) => {
     const shopName = user?.name || 'do\'kon';
     const message = `Sizning ${shopName} do'konidan olgan qarz muddatingiz ertaga tugaydi. Iltimos qarzingizni o'z vaqtida to'lab qo'ying!`;
     const cleanPhone = phone.replace(/\D/g, '');
-    const fullPhone = cleanPhone.startsWith('998') ? `+${cleanPhone}` : `+998${cleanPhone}`;
-    window.location.href = `sms:${fullPhone}?body=${encodeURIComponent(message)}`;
-    toast({ title: 'SMS', description: `${creditor} ga SMS yuborish oynasi ochildi` });
+    const fullPhone = cleanPhone.startsWith('998') ? cleanPhone : `998${cleanPhone}`;
+    return `sms:+${fullPhone}?&body=${encodeURIComponent(message)}`;
+  };
+
+  // Android uchun - barcha qarzdorlarga bittada SMS
+  const handleSendAllSmsAndroid = () => {
+    const debtsWithPhone = filteredDebts.filter(d => d.phone);
+    if (debtsWithPhone.length === 0) return;
+    
+    const shopName = user?.name || 'do\'kon';
+    const message = `Sizning ${shopName} do'konidan olgan qarz muddatingiz ertaga tugaydi. Iltimos qarzingizni o'z vaqtida to'lab qo'ying!`;
+    
+    // Android uchun nuqta-vergul bilan ajratish
+    const phoneNumbers = debtsWithPhone.map(d => {
+      const cleanPhone = d.phone!.replace(/\D/g, '');
+      return cleanPhone.startsWith('998') ? `+${cleanPhone}` : `+998${cleanPhone}`;
+    }).join(';');
+    
+    window.location.href = `sms:${phoneNumbers}?body=${encodeURIComponent(message)}`;
+    setSmsModalOpen(false);
+    toast({ title: 'SMS', description: `${debtsWithPhone.length} ta qarzdorga SMS yuborish oynasi ochildi` });
   };
 
 
@@ -604,25 +622,38 @@ export default function Debts() {
                   Har bir qarzdorga alohida SMS yuborish uchun tugmani bosing
                 </AlertDialogDescription>
               </AlertDialogHeader>
-              <div className="max-h-[50vh] overflow-y-auto space-y-2 my-4 pr-2">
+              {/* Android uchun - hammasiga bittada yuborish */}
+              <div className="mb-3 p-3 bg-green-900/20 rounded-lg border border-green-700/30">
+                <p className="text-xs text-green-400 mb-2">Android uchun - hammasiga bittada:</p>
+                <Button
+                  className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white"
+                  onClick={handleSendAllSmsAndroid}
+                >
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Hammasiga yuborish ({filteredDebts.filter(d => d.phone).length})
+                </Button>
+              </div>
+              
+              {/* iPhone uchun - alohida yuborish */}
+              <p className="text-xs text-gray-500 mb-2">iPhone uchun - alohida yuborish:</p>
+              <div className="max-h-[40vh] overflow-y-auto space-y-2 pr-2">
                 {filteredDebts.filter(d => d.phone).map((debt) => (
                   <div key={debt._id} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-200 truncate">{debt.creditor}</p>
                       <p className="text-xs text-gray-400">{debt.phone}</p>
                     </div>
-                    <Button
-                      size="sm"
-                      className="bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 text-white h-8 px-3 text-xs ml-2"
-                      onClick={() => handleSendSingleSms(debt.phone!, debt.creditor)}
+                    <a
+                      href={getSmsUrl(debt.phone!)}
+                      className="inline-flex items-center justify-center bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 text-white h-8 px-3 text-xs ml-2 rounded-md font-medium"
                     >
                       <MessageSquare className="w-3.5 h-3.5 mr-1" />
                       SMS
-                    </Button>
+                    </a>
                   </div>
                 ))}
               </div>
-              <AlertDialogFooter>
+              <AlertDialogFooter className="mt-4">
                 <AlertDialogCancel className="bg-gray-800/50 border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white">
                   Yopish
                 </AlertDialogCancel>
