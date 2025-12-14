@@ -55,7 +55,7 @@ export interface ReceiptItem {
 
 // Receipt data interface
 export interface ReceiptData {
-  type: 'sale' | 'refund';
+  type: 'sale' | 'refund' | 'defectiveRefund';
   items: ReceiptItem[];
   total: number;
   discount?: number;
@@ -238,7 +238,7 @@ function buildReceiptData(receipt: ReceiptData): Uint8Array {
 
   // Receipt type
   addBytes(ESCPOS.BOLD_ON);
-  const typeText = receipt.type === 'refund' ? 'QAYTARISH' : 'CHEK';
+  const typeText = receipt.type === 'defectiveRefund' ? 'YAROQSIZ QAYTARISH' : receipt.type === 'refund' ? 'QAYTARISH' : 'CHEK';
   addLine(typeText);
   addBytes(ESCPOS.BOLD_OFF);
 
@@ -471,7 +471,8 @@ export async function printReceipt(
  * Yaxshilangan dizayn - matn sig'may qolsa keyingi qatorga tushadi
  */
 export function printViaBrowser(receipt: ReceiptData): boolean {
-  const isRefund = receipt.type === 'refund';
+  const isRefund = receipt.type === 'refund' || receipt.type === 'defectiveRefund';
+  const isDefectiveRefund = receipt.type === 'defectiveRefund';
   
   const itemsHtml = receipt.items
     .map((item, index) => {
@@ -502,7 +503,7 @@ export function printViaBrowser(receipt: ReceiptData): boolean {
     <!DOCTYPE html>
     <html>
     <head>
-      <title>${isRefund ? 'QAYTARISH' : 'CHEK'}</title>
+      <title>${isDefectiveRefund ? 'YAROQSIZ QAYTARISH' : isRefund ? 'QAYTARISH' : 'CHEK'}</title>
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -625,7 +626,7 @@ export function printViaBrowser(receipt: ReceiptData): boolean {
         </div>
       ` : ''}
       <div class="separator"></div>
-      <div class="type ${isRefund ? 'refund' : ''}">${isRefund ? 'QAYTARISH' : 'SOTUV CHEKI'}</div>
+      <div class="type ${isRefund ? 'refund' : ''}">${isDefectiveRefund ? 'YAROQSIZ QAYTARISH' : isRefund ? 'QAYTARISH' : 'SOTUV CHEKI'}</div>
       <div class="meta">
         ${date.toLocaleString('ru-RU')}<br>
         ${receipt.receiptNumber ? `#${receipt.receiptNumber}` : ''}
@@ -637,7 +638,7 @@ export function printViaBrowser(receipt: ReceiptData): boolean {
       </div>
       <div class="separator"></div>
       <div class="total ${isRefund ? 'refund' : ''}">
-        <span>${isRefund ? 'QAYTARISH:' : 'JAMI:'}</span>
+        <span>${isDefectiveRefund ? 'YAROQSIZ:' : isRefund ? 'QAYTARISH:' : 'JAMI:'}</span>
         <span>${isRefund ? '-' : ''}$${receipt.total.toLocaleString()}</span>
       </div>
       <div class="payment">To'lov: ${receipt.paymentType}</div>

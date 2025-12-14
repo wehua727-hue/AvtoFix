@@ -45,6 +45,8 @@ export interface OfflineProduct {
   costPrice?: number;     // Asl narx (tan narxi) - sof foyda hisoblash uchun
   currency?: 'USD' | 'RUB' | 'CNY' | 'UZS'; // Valyuta
   stock: number;
+  initialStock?: number;  // Xodim qo'shgandagi boshlang'ich stock (qaytarish cheklovi uchun)
+  createdByRole?: 'egasi' | 'admin' | 'xodim'; // Kim qo'shgan
   categoryId?: string;
   imageUrl?: string;
   updatedAt: number;      // Timestamp
@@ -1181,4 +1183,40 @@ export async function clearDefectiveProducts(userId: string): Promise<void> {
     await offlineDB.defectiveProducts.bulkDelete(ids);
     console.log('[offlineDB] Cleared', ids.length, 'defective products');
   }
+}
+
+/**
+ * Mahsulot uchun yaroqsiz qaytarilgan sonni olish
+ * @param productId - Mahsulot ID
+ * @param userId - Foydalanuvchi ID
+ * @returns Yaroqsiz qaytarilgan umumiy son
+ */
+export async function getDefectiveCountByProduct(productId: string, userId: string): Promise<number> {
+  const items = await offlineDB.defectiveProducts
+    .where('productId')
+    .equals(productId)
+    .filter(item => item.userId === userId)
+    .toArray();
+  
+  return items.reduce((sum, item) => sum + item.quantity, 0);
+}
+
+/**
+ * Barcha mahsulotlar uchun yaroqsiz qaytarilgan sonlarni olish
+ * @param userId - Foydalanuvchi ID
+ * @returns Map<productId, defectiveCount>
+ */
+export async function getAllDefectiveCounts(userId: string): Promise<Map<string, number>> {
+  const items = await offlineDB.defectiveProducts
+    .where('userId')
+    .equals(userId)
+    .toArray();
+  
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    const current = counts.get(item.productId) || 0;
+    counts.set(item.productId, current + item.quantity);
+  }
+  
+  return counts;
 }

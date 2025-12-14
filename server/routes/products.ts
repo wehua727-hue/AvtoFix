@@ -179,6 +179,7 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
       imagePaths,
       offlineId,
       userId,
+      userRole, // Foydalanuvchi roli (egasi, admin, xodim)
       sizes,
       variantSummaries,
     } = req.body;
@@ -215,6 +216,9 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
       sku: sku || undefined,
       categoryId: categoryId || undefined,
       stock: stock || 0,
+      // Xodim uchun: boshlang'ich stock va yaratuvchi roli
+      initialStock: userRole === 'xodim' ? (stock || 0) : undefined,
+      createdByRole: userRole || undefined,
       status: normalizeProductStatus(status),
       description: description || "",
       imageUrl: imageUrl || "",

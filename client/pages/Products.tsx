@@ -930,6 +930,7 @@ export default function Products() {
           status: productStatus,
           currency: priceCurrency, // Qaysi valyutada saqlangani
           userId: user?.id, // Привязка к пользователю
+          userRole: user?.role, // Foydalanuvchi roli (xodim uchun initialStock saqlash)
         };
         
         console.log('[Products] Payload to send:', { 

@@ -43,7 +43,7 @@ import { toast } from "sonner";
 
 // Offline imports
 import { useOfflineKassa, CartItem } from "@/hooks/useOfflineKassa";
-import { OfflineProduct, offlineDB, generateUUID, saveDefectiveProduct, DefectiveProduct } from "@/db/offlineDB";
+import { OfflineProduct, offlineDB, generateUUID, saveDefectiveProduct, DefectiveProduct, getAllDefectiveCounts } from "@/db/offlineDB";
 
 // Barcode scanner hook
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
@@ -423,6 +423,19 @@ export default function Kassa() {
   const [bulkLabelOpen, setBulkLabelOpen] = useState(false);
   const [bulkLabelQuantities, setBulkLabelQuantities] = useState<Record<string, number>>({});
 
+  // Yaroqsiz qaytarilgan mahsulotlar soni (xodim qaytarish cheklovi uchun)
+  const [defectiveCounts, setDefectiveCounts] = useState<Map<string, number>>(new Map());
+
+  // Yaroqsiz qaytarilgan sonlarni yuklash
+  useEffect(() => {
+    if (userId && user?.role === 'xodim') {
+      getAllDefectiveCounts(userId).then(counts => {
+        setDefectiveCounts(counts);
+        console.log('[Kassa] Yaroqsiz qaytarilgan sonlar yuklandi:', Object.fromEntries(counts));
+      });
+    }
+  }, [userId, user?.role]);
+
   // Dominant valyutani aniqlash - agar barcha mahsulotlar bir xil valyutada bo'lsa
   const dominantCurrency = useMemo(() => {
     if (checkItems.length === 0) return 'UZS';
@@ -440,31 +453,98 @@ export default function Kassa() {
     return 'UZS';
   }, [checkItems]);
 
-  // Stock exceeded event listener - omborda yetarli mahsulot yo'q
+  // Stock exceeded event listener - omborda yetarli mahsulot yo'q (faqat sotish rejimida)
   useEffect(() => {
     const handleStockExceeded = (e: CustomEvent<{ name: string; stock: number; requested: number }>) => {
+      // Qaytarish rejimida bu xabarni ko'rsatmaslik
+      if (isRefundMode) return;
+      
       const { name, stock } = e.detail;
       toast.error(`Omborda yetarli emas! "${name}" - faqat ${stock} ta mavjud`);
     };
     
     window.addEventListener('stock-exceeded', handleStockExceeded as EventListener);
     return () => window.removeEventListener('stock-exceeded', handleStockExceeded as EventListener);
-  }, []);
+  }, [isRefundMode]);
 
   // Stock tekshirish - agar biror mahsulot miqdori ombordagidan ko'p bo'lsa
   const hasStockError = useMemo(() => {
-    // Qaytarish rejimida stock tekshirish kerak emas
-    if (isRefundMode) return false;
+    // Sotish rejimida: miqdor > stock bo'lsa xato
+    if (!isRefundMode) {
+      return checkItems.some(item => item.quantity > item.stock);
+    }
     
-    // Agar miqdor > stock bo'lsa, xato (stock 0 bo'lsa ham)
-    return checkItems.some(item => item.quantity > item.stock);
-  }, [checkItems, isRefundMode]);
+    // Qaytarish rejimida: FAQAT xodim uchun initialStock tekshirish
+    // Xodim qo'shgan mahsulotni initialStock dan ortiq qaytara olmaydi
+    // MUHIM: Yaroqsiz qaytarilgan sonni ham hisobga olish kerak!
+    if (user?.role === 'xodim') {
+      return checkItems.some(item => {
+        // Agar mahsulot xodim tomonidan qo'shilgan bo'lsa va initialStock mavjud bo'lsa
+        if (item.createdByRole === 'xodim' && item.initialStock !== undefined) {
+          // Yaroqsiz qaytarilgan sonni olish
+          const defectiveCount = defectiveCounts.get(item.productId) || 0;
+          // Hozirgi stock + qaytarish miqdori + yaroqsiz qaytarilgan > initialStock bo'lsa xato
+          const totalReturned = item.stock + item.quantity + defectiveCount;
+          return totalReturned > item.initialStock;
+        }
+        return false;
+      });
+    }
+    
+    return false;
+  }, [checkItems, isRefundMode, user?.role, defectiveCounts]);
 
   // Stock xatosi bo'lgan mahsulotlar ro'yxati
   const stockErrorItems = useMemo(() => {
-    if (isRefundMode) return [];
-    return checkItems.filter(item => item.quantity > item.stock);
-  }, [checkItems, isRefundMode]);
+    // Sotish rejimida
+    if (!isRefundMode) {
+      return checkItems.filter(item => item.quantity > item.stock);
+    }
+    
+    // Qaytarish rejimida: FAQAT xodim uchun
+    if (user?.role === 'xodim') {
+      return checkItems.filter(item => {
+        if (item.createdByRole === 'xodim' && item.initialStock !== undefined) {
+          // Yaroqsiz qaytarilgan sonni olish
+          const defectiveCount = defectiveCounts.get(item.productId) || 0;
+          // Hozirgi stock + qaytarish miqdori + yaroqsiz qaytarilgan > initialStock bo'lsa xato
+          const totalReturned = item.stock + item.quantity + defectiveCount;
+          return totalReturned > item.initialStock;
+        }
+        return false;
+      });
+    }
+    
+    return [];
+  }, [checkItems, isRefundMode, user?.role, defectiveCounts]);
+
+  // Xodim uchun qaytarish cheklovi notification
+  useEffect(() => {
+    // Debug: xodim qaytarish cheklovi
+    if (isRefundMode && user?.role === 'xodim' && checkItems.length > 0) {
+      console.log('[Kassa] Xodim qaytarish tekshiruvi:', checkItems.map(item => {
+        const defectiveCount = defectiveCounts.get(item.productId) || 0;
+        return {
+          name: item.name,
+          stock: item.stock,
+          quantity: item.quantity,
+          initialStock: item.initialStock,
+          createdByRole: item.createdByRole,
+          defectiveCount,
+          totalReturned: item.stock + item.quantity + defectiveCount,
+          hasError: item.createdByRole === 'xodim' && item.initialStock !== undefined && (item.stock + item.quantity + defectiveCount) > item.initialStock
+        };
+      }));
+    }
+    
+    if (isRefundMode && user?.role === 'xodim' && hasStockError && stockErrorItems.length > 0) {
+      const errorItem = stockErrorItems[0];
+      const defectiveCount = defectiveCounts.get(errorItem.productId) || 0;
+      // Maksimal qaytarish = initialStock - hozirgi stock - yaroqsiz qaytarilgan
+      const maxReturn = (errorItem.initialStock || 0) - errorItem.stock - defectiveCount;
+      toast.error(`"${errorItem.name}" - boshlang'ich ${errorItem.initialStock} ta edi, ${defectiveCount > 0 ? `${defectiveCount} ta yaroqsiz qaytarilgan, ` : ''}${maxReturn > 0 ? maxReturn : 0} tadan ortiq qaytara olmaysiz!`);
+    }
+  }, [hasStockError, stockErrorItems, isRefundMode, user?.role, checkItems, defectiveCounts]);
 
   // Load printers on mount
   useEffect(() => {
@@ -634,9 +714,9 @@ export default function Kassa() {
   const updateQuantity = useCallback(
     (index: number, quantity: number, allowDelete = false) => {
       const item = checkItems[index];
-      if (item) updateCartQuantity(item.id, quantity, allowDelete);
+      if (item) updateCartQuantity(item.id, quantity, allowDelete, isRefundMode);
     },
-    [checkItems, updateCartQuantity]
+    [checkItems, updateCartQuantity, isRefundMode]
   );
 
   // Remove item wrapper
@@ -684,13 +764,13 @@ export default function Kassa() {
           imageUrl: variant.imageUrl || product.imageUrl
         };
         console.log("[Kassa] ✅ Adding variant to cart:", variantProduct.name);
-        addToCart(variantProduct);
+        addToCart(variantProduct, isRefundMode);
       } else {
         const currentStock = product.stock ?? 0;
         console.log("[Kassa] Product stock:", currentStock);
         // Stock 0 bo'lsa ham kassaga qo'shish mumkin
         console.log("[Kassa] ✅ Adding product to cart:", product.name);
-        addToCart(product);
+        addToCart(product, isRefundMode);
       }
       setSearchOpen(false);
       setSearchQuery("");
@@ -952,12 +1032,12 @@ export default function Kassa() {
     (check: PendingCheck) => {
       check.items.forEach((item) => {
         const product = getProduct(item.productId);
-        if (product) for (let i = 0; i < item.quantity; i++) addToCart(product);
+        if (product) for (let i = 0; i < item.quantity; i++) addToCart(product, isRefundMode);
       });
       setPendingChecks((prev) => prev.filter((c) => c.id !== check.id));
       setPendingChecksOpen(false);
     },
-    [addToCart, getProduct]
+    [addToCart, getProduct, isRefundMode]
   );
 
   // Delete pending check
@@ -1011,8 +1091,8 @@ export default function Kassa() {
         setIsPrinting(true);
         try {
           const receiptData: ReceiptData = {
-            type: "refund",
-            items: checkItems.map((item) => ({ name: item.name + " (YAROQSIZ)", sku: item.sku, quantity: item.quantity, price: item.price, discount: item.discount })),
+            type: "defectiveRefund",
+            items: checkItems.map((item) => ({ name: item.name, sku: item.sku, quantity: item.quantity, price: item.price, discount: item.discount })),
             total, 
             discount: 0, 
             paymentType, 
@@ -1028,6 +1108,16 @@ export default function Kassa() {
           console.error("Print error:", e); 
         } finally { 
           setIsPrinting(false); 
+        }
+        
+        // Yaroqsiz qaytarilgan sonlarni yangilash (xodim qaytarish cheklovi uchun)
+        if (user?.role === 'xodim') {
+          const newCounts = new Map(defectiveCounts);
+          for (const item of checkItems) {
+            const current = newCounts.get(item.productId) || 0;
+            newCounts.set(item.productId, current + item.quantity);
+          }
+          setDefectiveCounts(newCounts);
         }
         
         toast.success("Yaroqsiz mahsulotlar qayd etildi");
@@ -1079,7 +1169,7 @@ export default function Kassa() {
         }
       }
     },
-    [completeSale, isRefundMode, isDefective, checkItems, total, userId, clearCart, selectedPrinter, user, storeInfo]
+    [completeSale, isRefundMode, isDefective, checkItems, total, userId, clearCart, selectedPrinter, user, storeInfo, defectiveCounts]
   );
 
 
@@ -1578,8 +1668,17 @@ export default function Kassa() {
               <button
                 onClick={() => {
                   if (hasStockError) {
-                    const errorNames = stockErrorItems.map(i => `"${i.name}" (${i.quantity}/${i.stock})`).join(', ');
-                    toast.error(`Omborda yetarli emas: ${errorNames}`);
+                    if (isRefundMode && user?.role === 'xodim') {
+                      // Xodim uchun qaytarish cheklovi xabari
+                      const errorNames = stockErrorItems.map(i => {
+                        const maxReturn = (i.initialStock || 0) - i.stock;
+                        return `"${i.name}" (max ${maxReturn} ta qaytarish mumkin)`;
+                      }).join(', ');
+                      toast.error(`Boshlang'ich stockdan ortiq qaytara olmaysiz: ${errorNames}`);
+                    } else {
+                      const errorNames = stockErrorItems.map(i => `"${i.name}" (${i.quantity}/${i.stock})`).join(', ');
+                      toast.error(`Omborda yetarli emas: ${errorNames}`);
+                    }
                     return;
                   }
                   setPaymentOpen(true);
@@ -1592,7 +1691,7 @@ export default function Kassa() {
                       ? "bg-orange-500 hover:bg-orange-600 text-white shadow-orange-500/20" 
                       : "bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20"
                 }`}
-                title={hasStockError ? `Omborda yetarli emas: ${stockErrorItems.map(i => i.name).join(', ')}` : ''}
+                title={hasStockError ? (isRefundMode ? 'Boshlang\'ich stockdan ortiq qaytara olmaysiz' : `Omborda yetarli emas: ${stockErrorItems.map(i => i.name).join(', ')}`) : ''}
               >
                 <CreditCard className="w-5 h-5" />
                 <span className="hidden sm:inline">{hasStockError ? "Yetarli emas" : isRefundMode ? "Qaytarish" : "To'lov"}</span>

@@ -44,6 +44,8 @@ export interface CartItem {
   quantity: number;
   discount: number;
   stock: number; // Ombordagi soni
+  initialStock?: number; // Xodim qo'shgandagi boshlang'ich stock (qaytarish cheklovi uchun)
+  createdByRole?: 'egasi' | 'admin' | 'xodim'; // Kim qo'shgan
 }
 
 export interface KassaState {
@@ -71,9 +73,9 @@ export interface KassaState {
 
 export interface UseOfflineKassaReturn extends KassaState {
   // Cart actions
-  addToCart: (product: OfflineProduct) => void;
+  addToCart: (product: OfflineProduct, isRefundMode?: boolean) => void;
   removeFromCart: (itemId: string) => void;
-  updateQuantity: (itemId: string, quantity: number, allowDelete?: boolean) => void;
+  updateQuantity: (itemId: string, quantity: number, allowDelete?: boolean, isRefundMode?: boolean) => void;
   updateDiscount: (itemId: string, discount: number) => void;
   clearCart: () => void;
   
@@ -182,7 +184,7 @@ export function useOfflineKassa(userId: string, userPhone?: string): UseOfflineK
                 console.log('[useOfflineKassa] Sample server product:', serverProducts[0]);
                 const formattedProducts: OfflineProduct[] = serverProducts.map((p: any) => {
                   const calculatedCostPrice = p.costPrice || p.cost || p.basePrice || Math.round((p.price || 0) * 0.7);
-                  console.log(`[useOfflineKassa] Product ${p.name}: basePrice=${p.basePrice}, costPrice=${p.costPrice}, calculated=${calculatedCostPrice}`);
+                  console.log(`[useOfflineKassa] Product ${p.name}: basePrice=${p.basePrice}, costPrice=${p.costPrice}, calculated=${calculatedCostPrice}, initialStock=${p.initialStock}, createdByRole=${p.createdByRole}`);
                   return {
                   id: p._id || p.id,
                   name: p.name,
@@ -195,6 +197,9 @@ export function useOfflineKassa(userId: string, userPhone?: string): UseOfflineK
                   costPrice: calculatedCostPrice,
                   currency: p.currency || 'UZS', // Valyuta
                   stock: p.stock ?? p.quantity ?? 0,
+                  // Xodim uchun qaytarish cheklovi
+                  initialStock: p.initialStock,
+                  createdByRole: p.createdByRole,
                   categoryId: p.categoryId,
                   imageUrl: p.imageUrl,
                   userId: p.userId,
@@ -345,20 +350,20 @@ export function useOfflineKassa(userId: string, userPhone?: string): UseOfflineK
   // CART ACTIONS
   // ============================================
 
-  const addToCart = useCallback((product: OfflineProduct) => {
-    console.log('[useOfflineKassa] addToCart called:', product.name, 'id:', product.id);
+  const addToCart = useCallback((product: OfflineProduct, isRefundMode: boolean = false) => {
+    console.log('[useOfflineKassa] addToCart called:', product.name, 'id:', product.id, 'isRefundMode:', isRefundMode);
     
     setItems(prev => {
       console.log('[useOfflineKassa] Current items count:', prev.length);
       const existingIndex = prev.findIndex(item => item.productId === product.id);
       
       if (existingIndex >= 0) {
-        // Increment quantity - stock tekshirish
+        // Increment quantity - stock tekshirish (faqat sotish rejimida)
         const existingItem = prev[existingIndex];
         const newQuantity = existingItem.quantity + 1;
         
-        // Agar miqdor stock dan oshsa, xato ko'rsatish (lekin qo'shishga ruxsat)
-        if (newQuantity > existingItem.stock) {
+        // Agar miqdor stock dan oshsa, xato ko'rsatish (faqat sotish rejimida)
+        if (!isRefundMode && newQuantity > existingItem.stock) {
           window.dispatchEvent(new CustomEvent('stock-exceeded', { 
             detail: { name: existingItem.name, stock: existingItem.stock, requested: newQuantity } 
           }));
@@ -383,9 +388,11 @@ export function useOfflineKassa(userId: string, userPhone?: string): UseOfflineK
         currency: product.currency || 'UZS', // Valyuta
         quantity: 0, // Default 0 - foydalanuvchi o'zi kiritadi
         discount: 0,
-        stock: product.stock || 0 // Ombordagi soni
+        stock: product.stock || 0, // Ombordagi soni
+        initialStock: product.initialStock, // Xodim qo'shgandagi boshlang'ich stock
+        createdByRole: product.createdByRole // Kim qo'shgan
       };
-      console.log('[useOfflineKassa] Adding new item:', newItem);
+      console.log('[useOfflineKassa] Adding new item:', newItem, 'initialStock:', product.initialStock, 'createdByRole:', product.createdByRole);
       const newItems = [...prev, newItem];
       console.log('[useOfflineKassa] New items count:', newItems.length);
       return newItems;
@@ -396,7 +403,7 @@ export function useOfflineKassa(userId: string, userPhone?: string): UseOfflineK
     setItems(prev => prev.filter(item => item.id !== itemId));
   }, []);
 
-  const updateQuantity = useCallback((itemId: string, quantity: number, allowDelete = false) => {
+  const updateQuantity = useCallback((itemId: string, quantity: number, allowDelete = false, isRefundMode: boolean = false) => {
     setItems(prev => {
       // Если количество меньше 0 и разрешено удаление - удаляем товар
       if (quantity < 0 && allowDelete) {
@@ -408,9 +415,9 @@ export function useOfflineKassa(userId: string, userPhone?: string): UseOfflineK
       
       return prev.map(item => {
         if (item.id === itemId) {
-          // Stock tekshirish - agar miqdor stock dan oshsa, xabar ko'rsatish
+          // Stock tekshirish - agar miqdor stock dan oshsa, xabar ko'rsatish (faqat sotish rejimida)
           // Lekin miqdorni o'zgartirmaslik - foydalanuvchi o'zi tuzatsin
-          if (safeQuantity > item.stock) {
+          if (!isRefundMode && safeQuantity > item.stock) {
             // Toast xabarini ko'rsatish uchun window event ishlatamiz
             window.dispatchEvent(new CustomEvent('stock-exceeded', { 
               detail: { name: item.name, stock: item.stock, requested: safeQuantity } 
