@@ -513,7 +513,7 @@ export function ExcelImportModal({
                         </div>
                       </div>
                     </div>
-                    <div className="flex-1 overflow-auto">
+                    <div className="flex-1 overflow-auto overflow-x-auto">
                       <table className="w-full text-xs border-collapse">
                         <thead className="sticky top-0 bg-muted/95 backdrop-blur-sm">
                           <tr>
@@ -522,7 +522,7 @@ export function ExcelImportModal({
                               O'chirish
                             </th>
                             {previewData.headers?.map((header, idx) => (
-                              <th key={idx} className="px-2 py-1.5 text-left border-r border-border font-semibold text-foreground bg-muted/95 min-w-[100px] whitespace-nowrap">
+                              <th key={idx} className="px-2 py-1.5 text-left border-r border-border font-semibold text-foreground bg-muted/95 min-w-[200px] whitespace-nowrap">
                                 {header || `Ustun ${idx + 1}`}
                               </th>
                             ))}
@@ -548,7 +548,7 @@ export function ExcelImportModal({
                                       type="text"
                                       defaultValue={cell || ''}
                                       autoFocus
-                                      className="w-full bg-transparent border-none outline-none text-foreground"
+                                      className="w-full min-w-[200px] bg-transparent border-none outline-none text-foreground"
                                       onBlur={(e) => {
                                         handleCellEdit(rowIdx, cellIdx, e.target.value);
                                         stopEditing();
@@ -565,7 +565,7 @@ export function ExcelImportModal({
                                     />
                                   ) : (
                                     <div 
-                                      className="whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px] cursor-pointer hover:bg-blue-500/10 rounded px-1 py-0.5" 
+                                      className="whitespace-nowrap overflow-hidden text-ellipsis min-w-[200px] cursor-pointer hover:bg-blue-500/10 rounded px-1 py-0.5" 
                                       title={cell?.toString() || '-'}
                                       onDoubleClick={() => startEditing(rowIdx, cellIdx)}
                                     >
