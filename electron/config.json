@@ -1,0 +1,5 @@
+{
+  "MONGODB_URI": "mongodb+srv://avtofix2025_db_user:FTnjYsHxkYxgu7qH@cluster0.b2fwuli.mongodb.net/",
+  "DB_NAME": "avtofix",
+  "PORT": 5174
+}
