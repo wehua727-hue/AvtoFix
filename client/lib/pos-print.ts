@@ -655,11 +655,6 @@ export function printViaBrowser(receipt: ReceiptData): boolean {
       </style>
     </head>
     <body>
-      <div style="text-align: center; margin-bottom: 6px;">
-        <div style="font-size: 18px; font-weight: bold; letter-spacing: 2px; font-family: 'Courier New', monospace;">
-          ◆ AVTOFIX ◆
-        </div>
-      </div>
       ${receipt.storeName ? `<div class="header">${receipt.storeName}</div>` : ''}
       ${receipt.storeAddress || receipt.storePhone ? `
         <div class="store-info">
