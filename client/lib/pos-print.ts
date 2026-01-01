@@ -634,6 +634,8 @@ export function printViaBrowser(receipt: ReceiptData): boolean {
           font-size: 10px;
           color: #000;
           border: 1px solid #000;
+          font-family: 'Courier New', monospace;
+          font-weight: bold;
         }
         @media print {
           body { 
@@ -653,6 +655,11 @@ export function printViaBrowser(receipt: ReceiptData): boolean {
       </style>
     </head>
     <body>
+      <div style="text-align: center; margin-bottom: 6px;">
+        <div style="font-size: 18px; font-weight: bold; letter-spacing: 2px; font-family: 'Courier New', monospace;">
+          ◆ AVTOFIX ◆
+        </div>
+      </div>
       ${receipt.storeName ? `<div class="header">${receipt.storeName}</div>` : ''}
       ${receipt.storeAddress || receipt.storePhone ? `
         <div class="store-info">
@@ -662,9 +669,15 @@ export function printViaBrowser(receipt: ReceiptData): boolean {
       ` : ''}
       <div class="separator"></div>
       ${!isAdminRole ? `
-      <div style="display: flex; justify-content: center; gap: 8px; margin: 4px 0;">
-        <div id="qrcode-instagram" style="display: inline-block; width: 45px; height: 45px; background: white; border: 1px solid #000;"></div>
-        <div id="qrcode-avtofix" style="display: inline-block; width: 45px; height: 45px; background: white; border: 1px solid #000;"></div>
+      <div style="display: flex; justify-content: center; gap: 16px; margin: 4px 0; align-items: flex-start;">
+        <div style="text-align: center;">
+          <div id="qrcode-instagram" style="display: inline-block; width: 55px; height: 55px; background: white; border: 1px solid #000;"></div>
+          <div style="font-size: 10px; font-weight: bold; margin-top: 2px;">avtofix.uzz</div>
+        </div>
+        <div style="text-align: center;">
+          <div id="qrcode-avtofix" style="display: inline-block; width: 55px; height: 55px; background: white; border: 1px solid #000;"></div>
+          <div style="font-size: 10px; font-weight: bold; margin-top: 2px;">@AvtoFix_HOWO</div>
+        </div>
       </div>
       <div class="separator"></div>
       ` : ''}
@@ -710,8 +723,8 @@ export function printViaBrowser(receipt: ReceiptData): boolean {
     // QR Code yaratish - faqat admin emas uchun
     if (!isAdminRole) {
       const qrCodes = [
-        { id: 'qrcode-instagram', text: 'https://instagram.com/avtofix.uzz', size: 45 },
-        { id: 'qrcode-avtofix', text: 'https://t.me/AvtoFix_HOWO', size: 45 },
+        { id: 'qrcode-instagram', text: 'https://instagram.com/avtofix.uzz', size: 55 },
+        { id: 'qrcode-avtofix', text: 'https://t.me/AvtoFix_HOWO', size: 55 },
         { id: 'qrcode-main', text: 'https://avtofix.uz', size: 65 },
       ];
       

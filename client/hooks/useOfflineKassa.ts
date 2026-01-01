@@ -636,6 +636,15 @@ export function useOfflineKassa(userId: string, userPhone?: string, defectiveCou
       // FAST: Use cached products for SKU search
       const products = await getProductsForSkuSearch();
       
+      // 0. ProductId bilan qidirish (senik chop etishda barcode qiymati shunaqa ID)
+      for (const product of products) {
+        const productIdShort = product.id.slice(-8).toUpperCase();
+        if (productIdShort === normalizedCode.toUpperCase()) {
+          console.log(`[DEBUG] FAST SKU SEARCH: ✅ Found by productId: ${product.name}`);
+          return { product, variantIndex: undefined };
+        }
+      }
+      
       // 1. Variant SKU ni tekshirish
       for (const product of products) {
         console.log(`[DEBUG] Checking product: ${product.name}, SKU: ${product.sku}, variants: ${product.variantSummaries?.length || 0}`);
