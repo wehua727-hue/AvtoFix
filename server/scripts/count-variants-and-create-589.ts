@@ -1,0 +1,206 @@
+import { MongoClient } from 'mongodb';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/oflayn-dokon';
+const DB_NAME = process.env.DB_NAME || 'avtofix';
+
+// Foydalanuvchi ma'lumotlari
+const USER_PHONE = '910712828';
+
+interface User {
+  _id: string;
+  name: string;
+  phone: string;
+  password: string;
+  role: string;
+}
+
+interface Product {
+  _id: string;
+  name: string;
+  userId?: string;
+  sku?: string;
+  code?: string;
+  catalogNumber?: string;
+  variantSummaries?: Array<{
+    name: string;
+    sku?: string;
+    code?: string;
+    catalogNumber?: string;
+  }>;
+}
+
+async function countVariantsAndCreate589() {
+  const client = new MongoClient(MONGODB_URI);
+  
+  try {
+    await client.connect();
+    console.log('MongoDB ga ulandi');
+    console.log('Baza nomi:', DB_NAME);
+    
+    const db = client.db(DB_NAME);
+    
+    // Foydalanuvchini topish
+    console.log(`\n=== ${USER_PHONE} TELEFON RAQAMLI FOYDALANUVCHINI QIDIRISH ===`);
+    
+    const phoneVariants = [
+      USER_PHONE,
+      `+998${USER_PHONE}`,
+      `998${USER_PHONE}`,
+      `+${USER_PHONE}`,
+    ];
+    
+    let user = null;
+    for (const phoneVariant of phoneVariants) {
+      user = await db.collection<User>('users').findOne({ phone: phoneVariant });
+      if (user) {
+        console.log(`✅ Foydalanuvchi topildi: ${phoneVariant} formatida`);
+        break;
+      }
+    }
+    
+    if (!user) {
+      console.log('❌ Foydalanuvchi topilmadi!');
+      return;
+    }
+    
+    console.log(`✅ Foydalanuvchi: ${user.name} (ID: ${user._id})`);
+    
+    // Foydalanuvchining mahsulotlarini olish
+    const products = await db.collection<Product>('products').find({ userId: user._id.toString() }).toArray();
+    
+    console.log(`\n=== XILLAR SONI HISOBLASH ===`);
+    console.log(`Jami mahsulotlar: ${products.length}`);
+    
+    let totalVariants = 0;
+    let totalTypes = 0;
+    
+    for (const product of products) {
+      // Har bir mahsulotdan 1 ta
+      totalTypes += 1;
+      
+      // Har bir xildan ham 1 ta
+      if (product.variantSummaries && product.variantSummaries.length > 0) {
+        totalTypes += product.variantSummaries.length;
+        totalVariants += product.variantSummaries.length;
+      }
+    }
+    
+    console.log(`Jami mahsulotlar: ${products.length}`);
+    console.log(`Jami xillar: ${totalVariants}`);
+    console.log(`Jami turlar (mahsulot + xillar): ${totalTypes}`);
+    
+    if (totalTypes === 589) {
+      console.log(`✅ Ha! Frontend to'g'ri ko'rsatayapti - ${totalTypes} ta xil bor!`);
+    } else {
+      console.log(`❌ Frontend ${totalTypes} ta xil ko'rsatishi kerak, lekin 589 deb ko'rsatayapti.`);
+    }
+    
+    // SKU 589 ni tekshirish
+    console.log(`\n=== SKU 589 TEKSHIRISH ===`);
+    const sku589Product = await db.collection('products').findOne({
+      userId: user._id.toString(),
+      $or: [
+        { sku: '589' },
+        { code: '589' },
+        { catalogNumber: '589' },
+        { 'variantSummaries.sku': '589' },
+        { 'variantSummaries.code': '589' },
+        { 'variantSummaries.catalogNumber': '589' }
+      ]
+    });
+    
+    if (sku589Product) {
+      console.log(`✅ SKU "589" allaqachon mavjud: ${sku589Product.name}`);
+    } else {
+      console.log(`❌ SKU "589" topilmadi. Yangi mahsulot yaratilmoqda...`);
+      
+      // SKU 589 bilan yangi mahsulot yaratish
+      const newProduct = {
+        userId: user._id.toString(),
+        name: 'Mahsulot 589 - Test',
+        sku: '589',
+        code: '589',
+        catalogNumber: '589',
+        sizes: [],
+        images: [],
+        price: 100000,
+        basePrice: 100000,
+        priceMultiplier: 1,
+        currency: 'UZS',
+        categoryId: '',
+        stock: 10,
+        initialStock: 10,
+        status: 'available',
+        description: 'Bu SKU 589 qidirish uchun yaratilgan mahsulot',
+        imageUrl: '',
+        variantSummaries: [],
+        childProducts: [],
+        isHidden: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      const result = await db.collection('products').insertOne(newProduct);
+      
+      if (result.insertedId) {
+        console.log(`✅ Yangi mahsulot yaratildi!`);
+        console.log(`   ID: ${result.insertedId}`);
+        console.log(`   Nomi: ${newProduct.name}`);
+        console.log(`   SKU: ${newProduct.sku}`);
+        console.log(`   Code: ${newProduct.code}`);
+        console.log(`   Catalog Number: ${newProduct.catalogNumber}`);
+        
+        // Yangi statistika
+        const updatedProducts = await db.collection<Product>('products').find({ userId: user._id.toString() }).toArray();
+        console.log(`\n=== YANGILANGAN STATISTIKA ===`);
+        console.log(`Jami mahsulotlar: ${updatedProducts.length}`);
+        
+        // Yangi xillar soni
+        let newTotalTypes = 0;
+        for (const product of updatedProducts) {
+          newTotalTypes += 1;
+          if (product.variantSummaries && product.variantSummaries.length > 0) {
+            newTotalTypes += product.variantSummaries.length;
+          }
+        }
+        console.log(`Yangi jami xillar soni: ${newTotalTypes}`);
+        
+        // 589 ni qidirish testi
+        console.log(`\n=== SKU "589" QIDIRISH TESTI ===`);
+        const foundProduct = await db.collection('products').findOne({
+          userId: user._id.toString(),
+          $or: [
+            { sku: '589' },
+            { code: '589' },
+            { catalogNumber: '589' },
+            { 'variantSummaries.sku': '589' },
+            { 'variantSummaries.code': '589' },
+            { 'variantSummaries.catalogNumber': '589' }
+          ]
+        });
+        
+        if (foundProduct) {
+          console.log(`✅ SKU "589" muvaffaqiyatli topildi!`);
+          console.log(`   Mahsulot: ${foundProduct.name}`);
+          console.log(`   SKU: ${foundProduct.sku}`);
+          console.log(`   Code: ${foundProduct.code}`);
+        } else {
+          console.log(`❌ SKU "589" hali ham topilmadi!`);
+        }
+        
+      } else {
+        console.log(`❌ Mahsulot yaratishda xatolik!`);
+      }
+    }
+    
+  } catch (error) {
+    console.error('❌ Xatolik:', error);
+  } finally {
+    await client.close();
+  }
+}
+
+countVariantsAndCreate589();
