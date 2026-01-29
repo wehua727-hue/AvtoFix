@@ -5980,7 +5980,10 @@ export default function Products() {
                       allLabelsHtml += `
                         <div class="label">
                           <div class="name">${displayName} (${finalPrice.toLocaleString('uz-UZ')})</div>
-                          ${finalCode ? `<div class="barcode-id" style="margin-bottom: 1mm; color: #000;">Kod: ${finalCode}</div>` : ''}
+                          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 1mm;">
+                            ${item.sku ? `<div class="barcode-id" style="color: #000;">(${item.sku})</div>` : '<div></div>'}
+                            ${finalCode ? `<div class="barcode-id" style="color: #000;">Kod: ${finalCode}</div>` : '<div></div>'}
+                          </div>
                           <svg class="barcode" jsbarcode-value="${barcode}" jsbarcode-format="CODE128" jsbarcode-width="3" jsbarcode-height="${paperHeight > 35 ? '70' : '60'}" jsbarcode-displayvalue="false" jsbarcode-margin="5"></svg>
                           <div class="barcode-id">${barcodeId}</div>
                         </div>

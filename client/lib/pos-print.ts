@@ -1514,7 +1514,10 @@ export function printLabelViaBrowser(label: LabelData): boolean {
     <body>
       <div class="label">
         <div class="name">${label.name} (${label.price.toLocaleString()})</div>
-        ${label.code ? `<div class="barcode-id" style="margin-bottom: 1mm; color: #000;">Kod: ${label.code}</div>` : ''}
+        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 1mm;">
+          ${label.sku ? `<div class="barcode-id" style="color: #000;">(${label.sku})</div>` : '<div></div>'}
+          ${label.code ? `<div class="barcode-id" style="color: #000;">Kod: ${label.code}</div>` : '<div></div>'}
+        </div>
         ${barcodeValue ? `
           <div class="barcode-container">
             <svg id="barcode"></svg>
