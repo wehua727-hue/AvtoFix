@@ -5852,11 +5852,16 @@ export default function Products() {
                           const variantCode = (item.variant as any)?.code || (item.variant as any)?.catalogNumber || (item.variant as any)?.sku;
                           const finalCode = variantCode || productCode || undefined;
                           
-                          console.log('[Bulk Label] Item:', item.name, 'Product code:', productCode, 'Variant code:', variantCode, 'Final code:', finalCode);
+                          // MUHIM: Xil narxini tekshirish - agar xil bo'lsa, xil narxini ishlatish
+                          const productPrice = item.product.price || 0;
+                          const variantPrice = item.variant?.price;
+                          const finalPrice = variantPrice !== undefined ? variantPrice : productPrice;
+                          
+                          console.log('[Bulk Label] Item:', item.name, 'Product price:', productPrice, 'Variant price:', variantPrice, 'Final price:', finalPrice);
                           
                           await printLabel(labelPrinter, {
                             name: item.name,
-                            price: item.product.price || 0,
+                            price: finalPrice,
                             sku: item.sku,
                             code: finalCode, // 5 talik kod
                             barcode: barcode,
@@ -5965,11 +5970,16 @@ export default function Products() {
                       const variantCode = (item.variant as any)?.code || (item.variant as any)?.catalogNumber || (item.variant as any)?.sku;
                       const finalCode = variantCode || productCode || undefined;
                       
-                      console.log('[Bulk Label Browser] Item:', item.name, 'Product code:', productCode, 'Variant code:', variantCode, 'Final code:', finalCode);
+                      // MUHIM: Xil narxini tekshirish - agar xil bo'lsa, xil narxini ishlatish
+                      const productPrice = item.product.price || 0;
+                      const variantPrice = item.variant?.price;
+                      const finalPrice = variantPrice !== undefined ? variantPrice : productPrice;
+                      
+                      console.log('[Bulk Label Browser] Item:', item.name, 'Product price:', productPrice, 'Variant price:', variantPrice, 'Final price:', finalPrice);
                       
                       allLabelsHtml += `
                         <div class="label">
-                          <div class="name">${displayName} (${(item.product.price || 0).toLocaleString('uz-UZ')})</div>
+                          <div class="name">${displayName} (${finalPrice.toLocaleString('uz-UZ')})</div>
                           ${finalCode ? `<div class="barcode-id" style="margin-bottom: 1mm; color: #000;">Kod: ${finalCode}</div>` : ''}
                           <svg class="barcode" jsbarcode-value="${barcode}" jsbarcode-format="CODE128" jsbarcode-width="3" jsbarcode-height="${paperHeight > 35 ? '70' : '60'}" jsbarcode-displayvalue="false" jsbarcode-margin="5"></svg>
                           <div class="barcode-id">${barcodeId}</div>
