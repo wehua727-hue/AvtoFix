@@ -46,14 +46,14 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
     
-    // For Electron (file:// protocol) - API server 5175 portda
+    // For Electron (file:// protocol) - API server 5176 portda
     if (window.location.protocol === 'file:') {
-      return 'ws://127.0.0.1:5175/ws';
+      return 'ws://127.0.0.1:5176/ws';
     }
     
-    // Development da Vite 5174, API 5175 - WebSocket API server bilan birga
+    // Development da Vite 5174, API 5176 - WebSocket API server bilan birga
     if (host.includes('5174')) {
-      return 'ws://127.0.0.1:5175/ws';
+      return 'ws://127.0.0.1:5176/ws';
     }
     
     return `${protocol}//${host}/ws`;

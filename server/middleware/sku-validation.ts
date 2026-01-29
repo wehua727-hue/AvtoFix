@@ -65,7 +65,7 @@ export const validateSkuMiddleware = async (req: Request, res: Response, next: N
  */
 export const dbConnectionMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { connectMongo } = require('../mongo');
+    const { connectMongo } = await import('../mongo');
     const conn = await connectMongo();
     
     if (!conn || !conn.db) {

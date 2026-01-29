@@ -14,10 +14,11 @@ export default function ProtectedRoute({ children }: { children: ReactNode }) {
     return <Navigate to="/login" replace />;
   }
 
-  // Barcha foydalanuvchilar Telegram ulashi kerak
-  if (!user.telegramChatId) {
-    return <Navigate to="/telegram-setup" replace />;
-  }
+  // Local development uchun Telegram tekshiruvini o'chirish
+  // Production da bu qatorni qaytarish kerak:
+  // if (!user.telegramChatId) {
+  //   return <Navigate to="/telegram-setup" replace />;
+  // }
 
   return <>{children}</>;
 }
