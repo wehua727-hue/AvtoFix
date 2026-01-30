@@ -41,17 +41,12 @@ export function initTelegramBot() {
       console.error('[Telegram Bot] Polling error:', error.message);
       if (error.message.includes('409') || error.message.includes('Conflict')) {
         console.log('[Telegram Bot] Conflict detected, stopping polling...');
-        setTimeout(() => {
-          if (bot) {
-            bot.stopPolling();
-            setTimeout(() => {
-              if (bot) {
-                bot.startPolling();
-                console.log('[Telegram Bot] Restarted polling after conflict');
-              }
-            }, 5000);
-          }
-        }, 1000);
+        // Faqat to'xtatish, qayta boshlamaslik
+        if (bot) {
+          bot.stopPolling();
+          bot = null;
+          console.log('[Telegram Bot] Bot stopped due to conflict. Manual restart required.');
+        }
       }
     });
 

@@ -744,10 +744,14 @@ export function createServer() {
   });
 
   // Graceful shutdown handlers
-  const cleanup = () => {
+  const cleanup = async () => {
     console.log('[Server] Shutting down gracefully...');
-    const { stopTelegramBot } = require('./telegram-bot');
-    stopTelegramBot();
+    try {
+      const { stopTelegramBot } = await import('./telegram-bot.js');
+      stopTelegramBot();
+    } catch (error) {
+      console.error('[Server] Error stopping telegram bot:', error);
+    }
     process.exit(0);
   };
 
