@@ -5,20 +5,34 @@
 
 /**
  * Get API base URL
- * - Electron with file:// protocol: http://127.0.0.1:5174
- * - Electron with HTTP (production): relative paths (same origin)
- * - Web: relative paths or VITE_API_URL if set
+ * - Development: VITE_API_URL (http://127.0.0.1:5175)
+ * - Production (WPS): relative paths or BASE_URL
+ * - Electron: http://127.0.0.1:5175
  */
 export const getApiBaseUrl = (): string => {
   if (typeof window === 'undefined') return '';
   
-  // Electron with file:// protocol (fallback, not used in production)
+  // Electron with file:// protocol
   if (window.location.protocol === 'file:') {
-    return 'http://127.0.0.1:5174';
+    return 'http://127.0.0.1:5175';
   }
   
-  // Use environment variable if set, otherwise relative paths
-  return import.meta.env.VITE_API_URL || '';
+  // Development rejimida
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl && (envUrl.includes('127.0.0.1') || envUrl.includes('localhost'))) {
+    return envUrl.replace(/\/$/, '');
+  }
+  
+  // Production rejimida (WPS hosting)
+  const baseUrl = import.meta.env.VITE_BASE_URL || window.location.origin;
+  
+  // WPS hosting uchun
+  if (baseUrl.includes('shop.avtofix.uz') || baseUrl.includes('wpshost') || baseUrl.includes('hosting')) {
+    return baseUrl.replace(/\/$/, '');
+  }
+  
+  // Fallback: relative paths (same origin)
+  return '';
 };
 
 /**

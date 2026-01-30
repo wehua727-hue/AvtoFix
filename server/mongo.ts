@@ -9,18 +9,15 @@ const fallbackUri =
 const dbName = process.env.DB_NAME?.trim() || undefined;
 
 if (!uri) {
-  // Intentionally just log; app can still run in demo mode without DB
   console.warn("[mongo] MONGODB_URI is not set. MongoDB will not be connected.");
 }
 
 let isConnected = false;
-let srvLookupWarningLogged = false;
 let connectingPromise: Promise<mongoose.Mongoose> | null = null;
 
 export async function connectMongo() {
   if (!uri) {
-    // WPS da ham MongoDB connection ni ta'minlash
-    console.warn("[mongo] MONGODB_URI is not set. Using fallback URI for WPS...");
+    console.warn("[mongo] MONGODB_URI is not set. Using fallback URI...");
     if (fallbackUri) {
       try {
         connectingPromise = mongoose
@@ -32,17 +29,20 @@ export async function connectMongo() {
         const conn = await connectingPromise;
         connectingPromise = null;
         isConnected = true;
-        console.log("[mongo] Connected to MongoDB via fallback URI (WPS)");
+        console.log("[mongo] Connected to MongoDB via fallback URI");
         return conn.connection;
       } catch (fallbackErr) {
-        console.error("[mongo] Fallback connection failed (WPS):", fallbackErr);
+        console.error("[mongo] Fallback connection failed:", fallbackErr);
       }
     }
     return null;
   }
 
   // If already connected
-  if (mongoose.connection.readyState === 1 && isConnected) return mongoose.connection;
+  if (mongoose.connection.readyState === 1 && isConnected) {
+    return mongoose.connection;
+  }
+  
   // If a connection attempt is in-flight, await it
   if (connectingPromise) {
     try {

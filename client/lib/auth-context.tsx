@@ -26,20 +26,34 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// API base URL - работает для веб и Electron
+// API base URL - WPS hosting va mobil uchun optimallashtirilgan
 const API_BASE = (() => {
   if (typeof window === 'undefined') return '';
+  
   // Electron с file:// протоколом
   if (window.location.protocol === 'file:') {
     return 'http://127.0.0.1:5175';
   }
-  // Для HTTP - используем относительные пути (работает для веб и Electron production)
+  
+  // Environment variable'dan URL olish
   const envUrl = import.meta.env.VITE_API_URL;
-  if (envUrl && !envUrl.includes('YOUR_PUBLIC_IP')) {
+  
+  // Development rejimida
+  if (envUrl && (envUrl.includes('127.0.0.1') || envUrl.includes('localhost'))) {
     return envUrl.replace(/\/$/, '');
   }
-  // Fallback: используем текущий origin
-  return window.location.origin;
+  
+  // Production rejimida (WPS hosting)
+  // Agar BASE_URL environment variable'da bo'lsa, uni ishlatish
+  const baseUrl = import.meta.env.VITE_BASE_URL || window.location.origin;
+  
+  // WPS hosting uchun to'g'ri API path
+  if (baseUrl.includes('shop.avtofix.uz') || baseUrl.includes('wpshost') || baseUrl.includes('hosting')) {
+    return baseUrl.replace(/\/$/, '');
+  }
+  
+  // Fallback: relative paths
+  return '';
 })();
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -102,27 +116,65 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const login = async (phone: string, password: string) => {
-    const res = await fetch(`${API_BASE}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, password }),
-    });
+    console.log('[Auth] Login attempt with API_BASE:', API_BASE);
+    
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ phone, password }),
+        // Mobil va WPS uchun timeout
+        signal: AbortSignal.timeout(30000) // 30 sekund timeout
+      });
 
-    const data = await res.json();
+      console.log('[Auth] Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Auth] Response error:', errorText);
+        
+        if (response.status === 403) {
+          try {
+            const errorData = JSON.parse(errorText);
+            if (errorData.error === 'account_blocked') {
+              window.location.href = '/account-blocked';
+              throw new Error(errorData.message || 'Akkaunt bloklangan');
+            }
+          } catch (e) {
+            // JSON parse error, fallback
+          }
+        }
+        
+        throw new Error(`Server error: ${response.status}`);
+      }
 
-    // Проверка на блокировку аккаунта
-    if (res.status === 403 && data.error === 'account_blocked') {
-      // Перенаправляем на страницу блокировки
-      window.location.href = '/account-blocked';
-      throw new Error(data.message || 'Akkaunt bloklangan');
+      const data = await response.json();
+      console.log('[Auth] Login response:', data);
+
+      if (!data.success) {
+        throw new Error(data.error || 'Login failed');
+      }
+
+      setUser(data.user);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      
+    } catch (error: any) {
+      console.error('[Auth] Login error:', error);
+      
+      // Network yoki timeout xatoliklari uchun
+      if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+        throw new Error('Tarmoq xatosi: Server javob bermayapti');
+      }
+      
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        throw new Error('Tarmoq xatosi: Internetni tekshiring');
+      }
+      
+      throw error;
     }
-
-    if (!res.ok || !data.success) {
-      throw new Error(data.error || 'Ошибка входа');
-    }
-
-    setUser(data.user);
-    localStorage.setItem('user', JSON.stringify(data.user));
   };
 
   const logout = () => {

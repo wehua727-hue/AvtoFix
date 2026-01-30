@@ -5829,27 +5829,20 @@ export default function Products() {
                     if (isNumericA && isNumericB) {
                       const skuNumA = parseInt(skuA, 10);
                       const skuNumB = parseInt(skuB, 10);
-                      console.log(`[Bulk Sort] Comparing numeric: ${skuA} (${skuNumA}) vs ${skuB} (${skuNumB})`);
                       return skuNumA - skuNumB;
                     }
                     
                     // Agar biri raqam, biri matn bo'lsa - raqamni birinchi qo'yish
                     if (isNumericA && !isNumericB) {
-                      console.log(`[Bulk Sort] Numeric first: ${skuA} vs ${skuB}`);
                       return -1; // A ni birinchi qo'y
                     }
                     if (!isNumericA && isNumericB) {
-                      console.log(`[Bulk Sort] Numeric first: ${skuA} vs ${skuB}`);
                       return 1; // B ni birinchi qo'y
                     }
                     
                     // Aks holda - string taqqoslash
-                    console.log(`[Bulk Sort] String compare: ${skuA} vs ${skuB}`);
                     return skuA.localeCompare(skuB);
                   });
-                  
-                  // Debug: Filterlangan mahsulotlarni console'ga chiqarish
-                  console.log('[Bulk Print] Filtered products before sorting:', filteredProducts.map(p => ({ name: p.name, sku: p.sku })));
                   
                   if (filteredProducts.length === 0) {
                     toast.error('Bu kod oralig\'ida mahsulot topilmadi');

@@ -1,9 +1,10 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { connectMongo } from './mongo';
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8283418093:AAEazrxdFKrR3XTsgxwSmnazr4PUjDTutzk';
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
 let bot: TelegramBot | null = null;
+let isInitialized = false;
 
 /**
  * Initialize Telegram bot
@@ -12,6 +13,11 @@ export function initTelegramBot() {
   if (!BOT_TOKEN) {
     console.warn('[Telegram Bot] No bot token provided');
     return null;
+  }
+
+  if (isInitialized) {
+    console.log('[Telegram Bot] Already initialized, skipping...');
+    return bot;
   }
 
   // Stop existing bot if running
@@ -28,7 +34,7 @@ export function initTelegramBot() {
   try {
     bot = new TelegramBot(BOT_TOKEN, { 
       polling: {
-        interval: 1000,
+        interval: 2000,
         autoStart: true,
         params: {
           timeout: 10
@@ -36,17 +42,12 @@ export function initTelegramBot() {
       }
     });
 
-    // Handle polling errors
+    // Handle polling errors - faqat log qilish, qayta boshlamaslik
     bot.on('polling_error', (error) => {
       console.error('[Telegram Bot] Polling error:', error.message);
       if (error.message.includes('409') || error.message.includes('Conflict')) {
-        console.log('[Telegram Bot] Conflict detected, stopping polling...');
-        // Faqat to'xtatish, qayta boshlamaslik
-        if (bot) {
-          bot.stopPolling();
-          bot = null;
-          console.log('[Telegram Bot] Bot stopped due to conflict. Manual restart required.');
-        }
+        console.log('[Telegram Bot] Conflict detected - another bot instance is running');
+        stopTelegramBot();
       }
     });
 
@@ -165,6 +166,7 @@ export function initTelegramBot() {
     });
 
     console.log('[Telegram Bot] Bot started successfully');
+    isInitialized = true;
     return bot;
   } catch (error) {
     console.error('[Telegram Bot] Failed to start bot:', error);
@@ -341,4 +343,5 @@ export function stopTelegramBot() {
     }
     bot = null;
   }
+  isInitialized = false;
 }
