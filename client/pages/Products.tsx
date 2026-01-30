@@ -5816,7 +5816,40 @@ export default function Products() {
                     
                     // Aks holda - string taqqoslash
                     return sku >= bulkMinSku && sku <= bulkMaxSku;
+                  }).sort((a, b) => {
+                    // SKU bo'yicha o'sish tartibida saralash
+                    const skuA = (a.sku || '').trim();
+                    const skuB = (b.sku || '').trim();
+                    
+                    // Faqat raqamlardan iborat SKU'larni tekshirish
+                    const isNumericA = /^\d+$/.test(skuA);
+                    const isNumericB = /^\d+$/.test(skuB);
+                    
+                    // Agar ikkala SKU ham faqat raqam bo'lsa - raqamli taqqoslash
+                    if (isNumericA && isNumericB) {
+                      const skuNumA = parseInt(skuA, 10);
+                      const skuNumB = parseInt(skuB, 10);
+                      console.log(`[Bulk Sort] Comparing numeric: ${skuA} (${skuNumA}) vs ${skuB} (${skuNumB})`);
+                      return skuNumA - skuNumB;
+                    }
+                    
+                    // Agar biri raqam, biri matn bo'lsa - raqamni birinchi qo'yish
+                    if (isNumericA && !isNumericB) {
+                      console.log(`[Bulk Sort] Numeric first: ${skuA} vs ${skuB}`);
+                      return -1; // A ni birinchi qo'y
+                    }
+                    if (!isNumericA && isNumericB) {
+                      console.log(`[Bulk Sort] Numeric first: ${skuA} vs ${skuB}`);
+                      return 1; // B ni birinchi qo'y
+                    }
+                    
+                    // Aks holda - string taqqoslash
+                    console.log(`[Bulk Sort] String compare: ${skuA} vs ${skuB}`);
+                    return skuA.localeCompare(skuB);
                   });
+                  
+                  // Debug: Filterlangan mahsulotlarni console'ga chiqarish
+                  console.log('[Bulk Print] Filtered products before sorting:', filteredProducts.map(p => ({ name: p.name, sku: p.sku })));
                   
                   if (filteredProducts.length === 0) {
                     toast.error('Bu kod oralig\'ida mahsulot topilmadi');
