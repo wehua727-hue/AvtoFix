@@ -205,6 +205,11 @@ export default function Kassa() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedSale, setSelectedSale] = useState<SaleHistory | null>(null);
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [mixedPaymentOpen, setMixedPaymentOpen] = useState(false);
+  const [mixedPayments, setMixedPayments] = useState<Array<{type: string, amount: number}>>([]);
+  const [remainingAmount, setRemainingAmount] = useState(0);
+  const [selectedPaymentType, setSelectedPaymentType] = useState<string | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
 
   const [isRefundMode, setIsRefundMode] = useState(false);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set()); // Tanlangan mahsulotlar (checkbox)
@@ -664,7 +669,7 @@ export default function Kassa() {
       setTimeout(() => setLastScanResult(null), 3000);
     }
   }, [searchBySkuWithVariant, addProduct, productsCount]);
-  const scannerEnabled = !searchOpen && !paymentOpen && !historyOpen && !printerSettingsOpen;
+  const scannerEnabled = !searchOpen && !paymentOpen && !mixedPaymentOpen && !historyOpen && !printerSettingsOpen;
 
   useBarcodeScanner({
     onScan: handleBarcodeScan,
@@ -792,7 +797,7 @@ export default function Kassa() {
       const isInputFocused = document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA";
       if (e.key === "F3") { e.preventDefault(); setSearchOpen(true); return; }
       if (e.key === "Escape") { setSearchOpen(false); return; }
-      if (searchOpen || paymentOpen || historyOpen || isInputFocused) return;
+      if (searchOpen || paymentOpen || mixedPaymentOpen || historyOpen || isInputFocused) return;
       
       const now = Date.now();
       const timeSinceLastKey = now - lastKeyTimeRef.current;
@@ -861,7 +866,7 @@ export default function Kassa() {
         clearTimeout(scannerTimeoutRef.current);
       }
     };
-  }, [searchOpen, paymentOpen, historyOpen, handleNumpadPress]);
+  }, [searchOpen, paymentOpen, mixedPaymentOpen, historyOpen, handleNumpadPress]);
 
 
 
@@ -2252,7 +2257,17 @@ export default function Kassa() {
                 { type: "O'tkazma", icon: Smartphone, color: "from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 shadow-purple-500/30" },
                 { type: "Aralash", icon: Wallet, color: "from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 shadow-amber-500/30" },
               ].map(({ type, icon: Icon, color }) => (
-                <Button key={type} className={`h-24 flex-col gap-3 bg-gradient-to-br ${color} text-white rounded-2xl shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed`} onClick={() => handlePayment(type)} disabled={isPrinting || isProcessingPayment}>
+                <Button key={type} className={`h-24 flex-col gap-3 bg-gradient-to-br ${color} text-white rounded-2xl shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed`} onClick={() => {
+                  if (type === "Aralash") {
+                    setMixedPayments([]);
+                    setRemainingAmount(total);
+                    setSelectedPaymentType(null);
+                    setPaymentAmount("");
+                    setMixedPaymentOpen(true);
+                  } else {
+                    handlePayment(type);
+                  }
+                }} disabled={isPrinting || isProcessingPayment}>
                   <Icon className="w-8 h-8" />
                   <span className="text-lg font-bold">{type}</span>
                 </Button>
@@ -2264,6 +2279,170 @@ export default function Kassa() {
                 <span className="font-medium">{isPrinting ? "Chop etilmoqda..." : "To'lov amalga oshirilmoqda..."}</span>
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mixed Payment Dialog */}
+      <Dialog open={mixedPaymentOpen} onOpenChange={setMixedPaymentOpen}>
+        <DialogContent className="max-w-md bg-slate-900/95 border-slate-700/50 backdrop-blur-xl rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-slate-200 flex items-center gap-3 text-xl font-bold">
+              <Wallet className="w-5 h-5 text-amber-500" />
+              Aralash to'lov
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5">
+            {/* Jami va qolgan summa */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="text-center p-4 rounded-2xl border bg-slate-800/50 border-slate-700/50">
+                <div className="text-sm font-medium text-slate-400">Jami summa</div>
+                <div className="text-2xl font-black text-green-500 mt-1">
+                  {formatNum(total)}
+                </div>
+              </div>
+              <div className="text-center p-4 rounded-2xl border bg-amber-900/20 border-amber-500/40">
+                <div className="text-sm font-medium text-amber-400">Qolgan</div>
+                <div className="text-2xl font-black text-amber-500 mt-1">
+                  {Math.abs(remainingAmount) < 0.01 ? "0" : formatNum(Math.round(remainingAmount * 100) / 100)}
+                </div>
+              </div>
+            </div>
+
+            {/* To'lov turlari */}
+            {!selectedPaymentType ? (
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { type: "Naqd", icon: Banknote, color: "from-emerald-600 to-emerald-700" },
+                  { type: "Karta", icon: CreditCard, color: "from-blue-600 to-blue-700" },
+                  { type: "O'tkazma", icon: Smartphone, color: "from-purple-600 to-purple-700" },
+                ].map(({ type, icon: Icon, color }) => (
+                  <Button
+                    key={type}
+                    className={`h-20 flex-col gap-2 bg-gradient-to-br ${color} text-white rounded-2xl`}
+                    onClick={() => {
+                      setSelectedPaymentType(type);
+                      setPaymentAmount(remainingAmount.toString());
+                    }}
+                    disabled={remainingAmount <= 0}
+                  >
+                    <Icon className="w-6 h-6" />
+                    <span className="text-sm font-bold">{type}</span>
+                  </Button>
+                ))}
+              </div>
+            ) : (
+              /* Input form */
+              <div className="space-y-4">
+                <div className="text-center p-4 rounded-2xl border bg-blue-900/20 border-blue-500/40">
+                  <div className="text-sm font-medium text-blue-400">Tanlangan to'lov turi</div>
+                  <div className="text-xl font-bold text-blue-300 mt-1 flex items-center justify-center gap-2">
+                    {selectedPaymentType === "Naqd" && <Banknote className="w-5 h-5" />}
+                    {selectedPaymentType === "Karta" && <CreditCard className="w-5 h-5" />}
+                    {selectedPaymentType === "O'tkazma" && <Smartphone className="w-5 h-5" />}
+                    {selectedPaymentType}
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-400">Summa kiriting:</label>
+                  <Input
+                    type="number"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    placeholder="0"
+                    className="bg-slate-800/50 border-slate-600/50 text-white text-xl text-center h-14 rounded-xl"
+                    autoFocus
+                  />
+                  <div className="text-xs text-slate-500 text-center">
+                    Maksimal: {formatNum(remainingAmount)}
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    className="flex-1 border-slate-700 text-slate-300"
+                    onClick={() => {
+                      setSelectedPaymentType(null);
+                      setPaymentAmount("");
+                    }}
+                  >
+                    Bekor qilish
+                  </Button>
+                  <Button
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                    disabled={!paymentAmount || isNaN(Number(paymentAmount)) || Number(paymentAmount) <= 0}
+                    onClick={() => {
+                      const amount = Math.min(Number(paymentAmount), remainingAmount);
+                      setMixedPayments(prev => [...prev, { type: selectedPaymentType!, amount }]);
+                      setRemainingAmount(prev => Math.round((prev - amount) * 100) / 100);
+                      setSelectedPaymentType(null);
+                      setPaymentAmount("");
+                    }}
+                  >
+                    Qo'shish
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Qo'shilgan to'lovlar */}
+            {mixedPayments.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-slate-400">Qo'shilgan to'lovlar:</div>
+                {mixedPayments.map((payment, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl">
+                    <div className="flex items-center gap-2">
+                      {payment.type === "Naqd" && <Banknote className="w-4 h-4 text-emerald-400" />}
+                      {payment.type === "Karta" && <CreditCard className="w-4 h-4 text-blue-400" />}
+                      {payment.type === "O'tkazma" && <Smartphone className="w-4 h-4 text-purple-400" />}
+                      <span className="text-slate-200">{payment.type}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-white font-bold">{formatNum(payment.amount)}</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0 text-red-400 hover:text-red-300"
+                        onClick={() => {
+                          setRemainingAmount(prev => Math.round((prev + payment.amount) * 100) / 100);
+                          setMixedPayments(prev => prev.filter((_, i) => i !== index));
+                        }}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Tugmalar */}
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1 border-slate-700 text-slate-300"
+                onClick={() => {
+                  setMixedPaymentOpen(false);
+                  setSelectedPaymentType(null);
+                  setPaymentAmount("");
+                }}
+              >
+                Bekor qilish
+              </Button>
+              <Button
+                className="flex-1 bg-green-600 hover:bg-green-700"
+                disabled={Math.abs(remainingAmount) > 0.01 || mixedPayments.length === 0}
+                onClick={() => {
+                  const paymentTypes = mixedPayments.map(p => `${p.type}: ${formatNum(p.amount)}`).join(', ');
+                  handlePayment(`Aralash (${paymentTypes})`);
+                  setMixedPaymentOpen(false);
+                }}
+              >
+                To'lovni yakunlash
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
