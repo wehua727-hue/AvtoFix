@@ -1,4 +1,4 @@
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectId } from 'mongodb';
 
 /**
  * SKU Validator - Har doim unique SKU larni ta'minlaydi
@@ -41,7 +41,12 @@ export async function validateSkuUniqueness(
     
     // Agar update qilayotgan bo'lsak, o'z ID sini exclude qilish
     if (currentProductId) {
-      baseFilter._id = { $ne: currentProductId };
+      try {
+        baseFilter._id = { $ne: new ObjectId(currentProductId) };
+      } catch (err) {
+        // Agar ObjectId yaratishda xatolik bo'lsa, string sifatida ishlatish
+        baseFilter._id = { $ne: currentProductId };
+      }
     }
     
     // 1. Asosiy mahsulotlarda SKU tekshirish

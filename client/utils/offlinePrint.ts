@@ -245,6 +245,10 @@ export function generateReceiptHTML(
   <div class="footer">
     <div>${footerText}</div>
     <div class="offline-badge">Offline chek</div>
+    <div style="margin-top: 8px; font-weight: bold;">
+      AvtoFix<br>
+      <small style="font-weight: normal;">Sotuv va qaytarish checking</small>
+    </div>
   </div>
 </body>
 </html>

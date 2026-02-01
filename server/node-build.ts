@@ -86,10 +86,23 @@ if (isMainModule || process.env.RUN_SERVER === 'true' || process.env.NODE_ENV !=
   const httpServer = createHTTPServer(app);
   wsManager.initialize(httpServer);
 
-  httpServer.listen(port, () => {
+  httpServer.listen(port, async () => {
     console.log(`🚀 Fusion Starter server running on port ${port}`);
     console.log(`🔧 API: http://localhost:${port}/api`);
     console.log(`🔌 WebSocket: ws://localhost:${port}/ws`);
+    
+    // SKU larni avtomatik tuzatish
+    try {
+      const { connectMongo } = await import('./mongo');
+      const { autoFixAllSkus } = await import('./utils/sku-auto-fix');
+      
+      const conn = await connectMongo();
+      if (conn && conn.db) {
+        await autoFixAllSkus(conn.db);
+      }
+    } catch (error) {
+      console.error('❌ SKU auto-fix failed:', error);
+    }
   });
 
   // Graceful shutdown

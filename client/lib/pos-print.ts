@@ -304,6 +304,15 @@ function buildReceiptData(receipt: ReceiptData): Uint8Array {
   addBytes(ESCPOS.ALIGN_CENTER);
   addLine('Xaridingiz uchun rahmat!');
   addLine('');
+  
+  // AvtoFix branding - ega va xodim uchun
+  if (receipt.userRole === 'ega' || receipt.userRole === 'xodim') {
+    addBytes(ESCPOS.BOLD_ON);
+    addLine('AvtoFix');
+    addBytes(ESCPOS.BOLD_OFF);
+    addLine('Sotuv va qaytarish checking');
+  }
+  
   addLine('');
   addLine('');
   addLine('');
@@ -731,6 +740,12 @@ export function printViaBrowser(receipt: ReceiptData): boolean {
       <div class="footer">
         Xaridingiz uchun rahmat!
       </div>
+      ${(receipt.userRole === 'ega' || receipt.userRole === 'xodim') ? `
+        <div class="footer-brand">
+          <strong>AvtoFix</strong><br>
+          <small>Sotuv va qaytarish checking</small>
+        </div>
+      ` : ''}
       <div class="separator"></div>
     </body>
     </html>

@@ -1465,7 +1465,13 @@ export default function Products() {
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({}));
           console.error('[Products] Failed to save product:', res.status, errorData);
-          alert(`Xatolik: ${errorData.error || errorData.message || 'Ma\'lumotlarni saqlashda xatolik yuz berdi'}`);
+          
+          // SKU duplicate xatolik uchun maxsus xabar
+          if (errorData.error && errorData.error.includes('allaqachon ishlatilgan')) {
+            alert(`SKU Xatolik: ${errorData.error}\n\nTavsiya etilgan SKU: ${errorData.suggestedSku || 'Avtomatik beriladi'}`);
+          } else {
+            alert(`Xatolik: ${errorData.error || errorData.message || 'Ma\'lumotlarni saqlashda xatolik yuz berdi'}`);
+          }
           return;
         }
 
@@ -4527,6 +4533,8 @@ export default function Products() {
                       className={`group relative flex w-full h-full flex-col rounded-xl border-2 shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl overflow-hidden cursor-pointer focus:outline-none focus:ring-2 ${
                         isOutOfStock 
                           ? 'border-red-500/70 bg-red-950/20 focus:ring-red-500/60 hover:border-red-400/80' 
+                          : statusKey === 'tolangan'
+                          ? 'border-green-500/70 bg-green-950/20 focus:ring-green-500/60 hover:border-green-400/80 shadow-green-500/20'
                           : 'border-primary/60 bg-card focus:ring-primary/60 hover:border-primary/80'
                       }`}
                     >

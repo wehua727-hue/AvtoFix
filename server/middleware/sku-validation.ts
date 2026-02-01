@@ -1,13 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
-import { validateProductSkus } from '../utils/sku-validator';
 
 /**
- * Middleware - Mahsulot yaratish/yangilashdan oldin SKU validation
+ * Middleware - SKU larni avtomatik tartiblab berish
  */
 export const validateSkuMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { sku, variantSummaries, userId } = req.body;
-    const productId = req.params.id; // Update uchun
+    const { userId } = req.body;
     
     if (!userId) {
       return res.status(400).json({
@@ -16,8 +14,7 @@ export const validateSkuMiddleware = async (req: Request, res: Response, next: N
       });
     }
 
-    // Database connection
-    const db = (req as any).db; // Middleware orqali o'tkazilgan db
+    const db = (req as any).db;
     if (!db) {
       return res.status(500).json({
         success: false,
@@ -25,30 +22,67 @@ export const validateSkuMiddleware = async (req: Request, res: Response, next: N
       });
     }
 
-    // SKU validation
-    const validation = await validateProductSkus(
-      {
-        sku: sku?.trim(),
-        variantSummaries: variantSummaries
-      },
-      {
-        userId: userId,
-        currentProductId: productId, // Update qilayotganda o'z ID sini exclude qilish
-        db: db,
-        collection: process.env.OFFLINE_PRODUCTS_COLLECTION || 'products'
-      }
-    );
+    const collection = process.env.OFFLINE_PRODUCTS_COLLECTION || 'products';
+    const productsCollection = db.collection(collection);
+    const productId = req.params.id;
 
-    if (!validation.isValid) {
-      console.log('[SKU Middleware] Validation failed:', validation.error);
-      return res.status(400).json({
-        success: false,
-        error: validation.error,
-        suggestedSku: validation.suggestedSku
-      });
+    // Barcha ishlatilgan SKU larni olish
+    const allProducts = await productsCollection.find({ userId }).toArray();
+    const usedSkus = new Set<string>();
+    
+    for (const product of allProducts) {
+      if (productId && product._id.toString() === productId) continue;
+      
+      if (product.sku && product.sku.trim()) {
+        usedSkus.add(product.sku.trim());
+      }
+      
+      if (product.variantSummaries && Array.isArray(product.variantSummaries)) {
+        for (const variant of product.variantSummaries) {
+          if (variant.sku && variant.sku.trim()) {
+            usedSkus.add(variant.sku.trim());
+          }
+        }
+      }
     }
 
-    // Validation o'tdi - keyingi middleware ga o'tish
+    // Keyingi SKU ni topish - bo'sh joylarni to'ldirish
+    let nextSku = 1;
+    
+    // 1 dan boshlab bo'sh joyni topish
+    while (usedSkus.has(nextSku.toString())) {
+      nextSku++;
+    }
+
+    // Asosiy SKU ni tekshirish va tuzatish
+    if (!req.body.sku || !req.body.sku.trim() || usedSkus.has(req.body.sku.trim())) {
+      req.body.sku = nextSku.toString();
+      usedSkus.add(nextSku.toString());
+      nextSku++;
+      
+      // Keyingi bo'sh joyni topish
+      while (usedSkus.has(nextSku.toString())) {
+        nextSku++;
+      }
+    }
+
+    // Variant SKU larni tekshirish va tuzatish
+    if (req.body.variantSummaries && Array.isArray(req.body.variantSummaries)) {
+      for (let i = 0; i < req.body.variantSummaries.length; i++) {
+        const variant = req.body.variantSummaries[i];
+        if (!variant.sku || !variant.sku.trim() || usedSkus.has(variant.sku.trim())) {
+          req.body.variantSummaries[i].sku = nextSku.toString();
+          usedSkus.add(nextSku.toString());
+          nextSku++;
+          
+          // Keyingi bo'sh joyni topish
+          while (usedSkus.has(nextSku.toString())) {
+            nextSku++;
+          }
+        }
+      }
+    }
+
     next();
     
   } catch (error) {

@@ -92,7 +92,16 @@ export default function Sidebar({
         style={{ position: 'fixed', top: 0, left: 0, zIndex: 9999 }}
       >
         {/* Header with toggle button */}
-        <div className="flex items-center justify-end h-12 sm:h-14 lg:h-16 px-3 sm:px-4 border-b border-gray-800/50 dark:border-gray-800/50 bg-gray-900/80 dark:bg-gray-900/80 backdrop-blur-sm flex-shrink-0">
+        <div className="flex items-center justify-between h-12 sm:h-14 lg:h-16 px-3 sm:px-4 border-b border-gray-800/50 dark:border-gray-800/50 bg-gray-900/80 dark:bg-gray-900/80 backdrop-blur-sm flex-shrink-0">
+          {/* AvtoFix Brand */}
+          {!collapsed && (
+            <div className="flex items-center">
+              <h1 className="text-xl sm:text-2xl font-bold text-white italic">
+                AvtoFix
+              </h1>
+            </div>
+          )}
+          
           <button
             onClick={() => {
               const next = !collapsed;
@@ -452,6 +461,15 @@ export default function Sidebar({
               </button>
             )}
           </div>
+          
+          {/* AvtoFix Brand - Pastda */}
+          {!collapsed && (
+            <div className="text-center pt-2 border-t border-gray-800/50">
+              <p className="text-lg font-bold text-white italic mt-1">
+                AvtoFix
+              </p>
+            </div>
+          )}
         </div>
 
       </aside>

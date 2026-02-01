@@ -676,7 +676,7 @@ export function createServer() {
   });
 
   // EXCEL IMPORT ENDPOINTS
-  app.post("/api/excel-import", dbConnectionMiddleware, handleExcelImport);
+  app.post("/api/excel-import", dbConnectionMiddleware, validateSkuMiddleware, handleExcelImport);
   app.post("/api/excel-import/preview", handleExcelPreview);
   app.post("/api/excel-import/fix", handleExcelImportFix);
 
