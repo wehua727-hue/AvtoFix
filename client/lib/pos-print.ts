@@ -1263,7 +1263,10 @@ function buildLabelData(label: LabelData): Uint8Array {
 
   // SKU/Kod - har doim ko'rsatish (agar mavjud bo'lsa)
   if (label.sku) {
-    addLine(`Kod: ${label.sku}`);
+    addBytes(ESCPOS.BOLD_ON);
+    addText('Kod: ');
+    addBytes(ESCPOS.BOLD_OFF);
+    addLine(label.sku);
   }
   
   // Ombordagi soni - har doim ko'rsatish (agar mavjud bo'lsa)
@@ -1426,10 +1429,10 @@ export function printLabelViaBrowser(label: LabelData): boolean {
   const paperWidth = label.paperWidth || (label.labelSize ? LABEL_SIZE_CONFIGS[label.labelSize].width : 60);
   const paperHeight = label.paperHeight || (label.labelSize ? LABEL_SIZE_CONFIGS[label.labelSize].height : 40);
   
-  // Font o'lchamlari - qog'oz o'lchamiga qarab (kichikroq)
-  const nameFontSize = paperWidth >= 60 ? '9px' : paperWidth >= 50 ? '8px' : '7px';
+  // Font o'lchamlari - ommaviy senik kabi kattaroq
+  const nameFontSize = paperWidth >= 60 ? '10px' : paperWidth >= 50 ? '9px' : '8px';
   const priceFontSize = paperWidth >= 60 ? '14px' : paperWidth >= 50 ? '12px' : '11px';
-  const smallFontSize = paperWidth >= 60 ? '8px' : '7px';
+  const smallFontSize = paperWidth >= 60 ? '9px' : '8px';
   
   // Barcode o'lchamlari - kattaroq, scanner o'qishi oson
   const barcodeHeight = paperWidth >= 60 ? 55 : paperWidth >= 50 ? 50 : 45;
@@ -1528,15 +1531,14 @@ export function printLabelViaBrowser(label: LabelData): boolean {
     </head>
     <body>
       <div class="label">
-        <div class="name">${label.name} (${label.price.toLocaleString()})</div>
+        <div class="name" style="font-weight: bold;"><strong>${label.name}</strong> (${label.price.toLocaleString()})</div>
         <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 1mm;">
           ${label.sku ? `<div class="barcode-id" style="color: #000;">(${label.sku})</div>` : '<div></div>'}
-          ${label.code ? `<div class="barcode-id" style="color: #000;">Kod: ${label.code}</div>` : '<div></div>'}
+          ${label.code ? `<div class="barcode-id" style="color: #000; font-weight: bold;"><strong>Kod:</strong> ${label.code}</div>` : '<div></div>'}
         </div>
         ${barcodeValue ? `
           <div class="barcode-container">
             <svg id="barcode"></svg>
-            <div class="barcode-id">${displayText}</div>
           </div>
         ` : ''}
       </div>
@@ -1549,10 +1551,13 @@ export function printLabelViaBrowser(label: LabelData): boolean {
               format: "CODE128",
               width: 3,
               height: 70,
-              displayValue: false,
+              displayValue: true,
+              fontSize: 16,
               margin: 5,
+              textMargin: 5,
               font: "Arial",
-              fontOptions: "bold"
+              fontOptions: "bold",
+              text: "${displayText}"
             });
           } catch(e) {
             console.error('Barcode error:', e);
@@ -1631,7 +1636,7 @@ export function printBulkLabelsViaBrowser(labels: LabelData[]): boolean {
     return `
       <div class="label-page" ${index < labels.length - 1 ? 'style="page-break-after: always;"' : ''}>
         <div class="label">
-          <div class="name">${label.name}${label.sku ? ` [${label.sku}]` : ''}</div>
+          <div class="name"><strong>${label.name}</strong>${label.sku ? ` [${label.sku}]` : ''}</div>
           <div class="price">${label.price}</div>
           ${barcodeValue ? `
             <div class="barcode-container">
