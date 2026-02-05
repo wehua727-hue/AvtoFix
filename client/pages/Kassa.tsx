@@ -1910,10 +1910,10 @@ export default function Kassa() {
 
       {/* Sales History Dialog */}
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
-        <DialogContent className="max-w-3xl bg-gradient-to-br from-slate-900 via-blue-950/40 to-slate-900 border-slate-700/50 backdrop-blur-xl rounded-3xl">
+        <DialogContent className="max-w-6xl max-h-[90vh] bg-gradient-to-br from-slate-900 via-blue-950/40 to-slate-900 border-slate-700/50 backdrop-blur-xl rounded-3xl">
           <DialogHeader className="pr-10 flex flex-row items-center justify-between">
-            <DialogTitle className="text-slate-200 text-xl font-bold flex items-center gap-3">
-              <History className="w-5 h-5 text-emerald-400" />
+            <DialogTitle className="text-slate-200 text-2xl font-bold flex items-center gap-3">
+              <History className="w-6 h-6 text-emerald-400" />
               Sotuvlar tarixi
               {pendingSalesCount > 0 && <span className="text-xs bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full font-medium">{pendingSalesCount} ta sinxronlanmagan</span>}
             </DialogTitle>
@@ -1923,7 +1923,7 @@ export default function Kassa() {
                   console.log("[ClearButton] Clear button clicked");
                   setClearHistoryConfirmOpen(true);
                 }}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-600/20 border border-red-500/30 text-red-400 hover:bg-red-600/30 hover:border-red-500/50 transition-all text-sm font-medium"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600/20 border border-red-500/30 text-red-400 hover:bg-red-600/30 hover:border-red-500/50 transition-all text-sm font-medium"
                 title="Tarixni tozalash (faqat ega uchun)"
               >
                 <Trash2 className="w-4 h-4" />
@@ -1932,12 +1932,41 @@ export default function Kassa() {
             )}
           </DialogHeader>
           
+          {/* Search Input */}
+          <div className="mb-6">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <Input
+                type="text"
+                placeholder="Sana bo'yicha qidirish (yyyy-mm-dd)..."
+                className="pl-12 pr-4 py-3 bg-slate-800/50 border-slate-600/50 text-slate-200 placeholder-slate-400 rounded-xl focus:border-emerald-500/50 focus:ring-emerald-500/20"
+                value={searchQuery}
+                onChange={(e) => {
+                  // Faqat raqam va "-" belgisini qabul qilish
+                  const value = e.target.value.replace(/[^0-9-]/g, '');
+                  setSearchQuery(value);
+                }}
+                onKeyDown={(e) => {
+                  // Faqat raqam, "-", backspace, delete, arrow keys ga ruxsat
+                  const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'];
+                  const isNumber = /^[0-9]$/.test(e.key);
+                  const isDash = e.key === '-';
+                  
+                  if (!isNumber && !isDash && !allowedKeys.includes(e.key)) {
+                    e.preventDefault();
+                  }
+                }}
+                maxLength={10} // yyyy-mm-dd = 10 belgi
+              />
+            </div>
+          </div>
+          
           {/* Bugun / O'tgan Switch */}
-          <div className="flex gap-2 mb-4">
+          <div className="flex gap-3 mb-6">
             <button
               type="button"
               onClick={() => setHistoryFilter("today")}
-              className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${
+              className={`flex-1 py-3 rounded-xl text-base font-bold transition-all ${
                 historyFilter === "today"
                   ? "bg-emerald-600 text-white shadow-lg shadow-emerald-500/30"
                   : "bg-slate-800 text-slate-400 hover:bg-slate-700"
@@ -1948,48 +1977,110 @@ export default function Kassa() {
             <button
               type="button"
               onClick={() => setHistoryFilter("past")}
-              className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${
+              className={`flex-1 py-3 rounded-xl text-base font-bold transition-all ${
                 historyFilter === "past"
                   ? "bg-purple-600 text-white shadow-lg shadow-purple-500/30"
                   : "bg-slate-800 text-slate-400 hover:bg-slate-700"
               }`}
             >
-              O'tgan
+              O'tgan kunlar
             </button>
           </div>
           
-          <div className="max-h-[60vh] overflow-auto space-y-4 pr-2">
+          <div className="max-h-[65vh] overflow-auto space-y-6 pr-2">
             {(() => {
               // Bugungi sanani olish
               const today = new Date();
               today.setHours(0, 0, 0, 0);
+              
+              // Sana qidiruv filtri
+              // Sana qidiruv filtri - yyyy-mm-dd format (soddalashtirilgan)
+              const matchesSearchDate = (saleDate: Date, searchText: string) => {
+                if (!searchText.trim()) return true;
+                
+                // Sale sanasini yyyy-mm-dd formatga o'tkazish
+                const year = saleDate.getFullYear();
+                const month = String(saleDate.getMonth() + 1).padStart(2, '0');
+                const day = String(saleDate.getDate()).padStart(2, '0');
+                const saleDateStr = `${year}-${month}-${day}`;
+                
+                const searchTrimmed = searchText.trim();
+                
+                // Debug logging
+                console.log('[History Search] Sale date:', saleDateStr, 'Search:', searchTrimmed);
+                
+                // To'liq mos kelish
+                if (saleDateStr === searchTrimmed) {
+                  console.log('[History Search] Exact match found!');
+                  return true;
+                }
+                
+                // Qisman mos kelish - boshidan
+                if (saleDateStr.startsWith(searchTrimmed)) {
+                  console.log('[History Search] Partial match found!');
+                  return true;
+                }
+                
+                console.log('[History Search] No match found');
+                return false;
+              };
               
               // Filtrlangan tarix
               const filteredHistory = salesHistory.filter((sale) => {
                 const saleDate = new Date(sale.date);
                 saleDate.setHours(0, 0, 0, 0);
                 
+                console.log('[History Filter] Processing sale:', sale.id, 'Date:', saleDate, 'Search query:', searchQuery);
+                
+                // Sana qidiruv filtri
+                if (searchQuery && !matchesSearchDate(saleDate, searchQuery)) {
+                  console.log('[History Filter] Sale filtered out by date search');
+                  return false;
+                }
+                
                 // Tarix dialogida BARCHA sotuvlar va qaytarishlar ko'rsatiladi
                 // Qaytarish rejimida faqat refund turini ko'rsatish
                 if (isRefundMode && sale.type !== "refund") {
+                  console.log('[History Filter] Sale filtered out by refund mode');
                   return false;
+                }
+                
+                // Agar qidiruv bo'lsa, bugun/o'tgan filtrini e'tiborsiz qoldirish
+                if (searchQuery) {
+                  console.log('[History Filter] Sale passed search filter');
+                  return true;
                 }
                 
                 // Sotish rejimida BARCHA turlarni ko'rsatish (sale va refund)
                 // Faqat sana filtri qo'llaniladi
                 
                 if (historyFilter === "today") {
-                  return saleDate.getTime() === today.getTime();
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const result = saleDate.getTime() === today.getTime();
+                  console.log('[History Filter] Today filter result:', result);
+                  return result;
                 } else {
-                  return saleDate.getTime() < today.getTime();
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const result = saleDate.getTime() < today.getTime();
+                  console.log('[History Filter] Past filter result:', result);
+                  return result;
                 }
               });
               
+              console.log('[History Filter] Total sales:', salesHistory.length, 'Filtered:', filteredHistory.length);
+              
               if (filteredHistory.length === 0) {
                 return (
-                  <div className="text-center text-slate-500 py-12">
-                    <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                    {historyFilter === "today" ? "Bugun sotuvlar yo'q" : "O'tgan kunlarda sotuvlar yo'q"}
+                  <div className="text-center text-slate-500 py-16">
+                    <History className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                    <h3 className="text-xl font-semibold mb-2">
+                      {searchQuery ? "Topilmadi" : historyFilter === "today" ? "Bugun sotuvlar yo'q" : "O'tgan kunlarda sotuvlar yo'q"}
+                    </h3>
+                    <p className="text-slate-400">
+                      {searchQuery ? `"${searchQuery}" sanasida sotuvlar topilmadi` : historyFilter === "today" ? "Birinchi sotuvni amalga oshiring" : "Boshqa sanani tanlang"}
+                    </p>
                   </div>
                 );
               }
@@ -1997,19 +2088,26 @@ export default function Kassa() {
               // Sanalar bo'yicha guruhlash
               const grouped: Record<string, SaleHistory[]> = {};
               filteredHistory.forEach((sale) => {
-                const dateKey = new Date(sale.date).toLocaleDateString("ru-RU");
+                const saleDate = new Date(sale.date);
+                const year = saleDate.getFullYear();
+                const month = String(saleDate.getMonth() + 1).padStart(2, '0');
+                const day = String(saleDate.getDate()).padStart(2, '0');
+                const dateKey = `${year}-${month}-${day}`;
+                
                 if (!grouped[dateKey]) grouped[dateKey] = [];
                 grouped[dateKey].push(sale);
               });
               
               return Object.entries(grouped).map(([dateKey, sales]) => (
-                <div key={dateKey}>
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="text-lg font-bold text-slate-200">{dateKey}</div>
-                    <div className="flex-1 h-px bg-slate-700/50" />
-                    <div className="text-sm text-slate-500">{sales.length} ta</div>
+                <div key={dateKey} className="bg-slate-800/30 rounded-2xl p-6 border border-slate-700/50">
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="text-2xl font-bold text-slate-200">{dateKey}</div>
+                    <div className="flex-1 h-px bg-gradient-to-r from-slate-600/50 to-transparent" />
+                    <div className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-sm font-medium">
+                      {sales.length} ta sotuv
+                    </div>
                   </div>
-                  <div className="space-y-2 ml-2">
+                  <div className="space-y-3">
                     {sales.map((sale, idx) => {
                       const PaymentIcon = sale.paymentType === "Naqd" ? Banknote : sale.paymentType === "Karta" ? CreditCard : sale.paymentType === "O'tkazma" ? Smartphone : Wallet;
                       const isRefund = sale.type === "refund";
@@ -2021,30 +2119,47 @@ export default function Kassa() {
                       return (
                         <div
                           key={sale.id}
-                          className={`p-4 border rounded-2xl cursor-pointer transition-all ${isRefund ? "border-red-500/40 bg-red-900/20 hover:bg-red-800/30" : "border-slate-700/50 bg-slate-800/30 hover:bg-slate-700/50"}`}
+                          className={`p-4 border rounded-xl cursor-pointer transition-all hover:scale-[1.02] ${
+                            isRefund 
+                              ? "border-red-500/40 bg-red-900/20 hover:bg-red-800/30 hover:border-red-400/60" 
+                              : "border-slate-600/50 bg-slate-700/30 hover:bg-slate-600/50 hover:border-slate-500/60"
+                          }`}
                           onClick={() => setSelectedSale(sale)}
                         >
-                          {/* Truck Icon - Chekni teppasiga */}
-                          <div className="mb-3 flex justify-center">
-                            <Truck className="w-8 h-8 text-slate-400" />
-                          </div>
-                          
-                          {/* Mahsulot nomlari */}
-                          <div className={`text-sm font-medium mb-2 truncate ${isRefund ? "text-red-300" : "text-slate-300"}`}>
-                            {displayNames}
-                            {moreCount > 0 && <span className="text-slate-500 ml-1">+{moreCount} ta</span>}
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-4">
-                              {isRefund && <RotateCcw className="w-4 h-4 text-red-500" />}
-                              <span className={`font-bold ${isRefund ? "text-red-400" : "text-slate-200"}`}>#{idx + 1}</span>
-                              <span className="text-slate-500 text-sm">{new Date(sale.date).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}</span>
-                              <PaymentIcon className={`w-4 h-4 ${isRefund ? "text-red-400" : "text-slate-400"}`} />
-                              {!sale.synced && <span title="Sinxronlanmagan"><CloudOff className="w-3 h-3 text-amber-500" /></span>}
+                          <div className="flex items-center gap-4">
+                            {/* Truck Icon */}
+                            <div className={`p-3 rounded-xl flex-shrink-0 ${isRefund ? "bg-red-500/20" : "bg-emerald-500/20"}`}>
+                              <Truck className={`w-6 h-6 ${isRefund ? "text-red-400" : "text-emerald-400"}`} />
                             </div>
-                            <span className={`text-xl font-black ${isRefund ? "text-red-500" : "text-green-500"}`}>
-                              <span className="text-green-400 mr-1">$</span>{isRefund ? "-" : ""}{formatNum(sale.total)}
-                            </span>
+                            
+                            {/* Ma'lumotlar */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-2">
+                                {isRefund && <RotateCcw className="w-4 h-4 text-red-400" />}
+                                <span className={`font-bold ${isRefund ? "text-red-400" : "text-slate-200"}`}>
+                                  #{idx + 1}
+                                </span>
+                                <span className="text-slate-400 text-sm">
+                                  {new Date(sale.date).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}
+                                </span>
+                                <PaymentIcon className={`w-4 h-4 ${isRefund ? "text-red-400" : "text-slate-400"}`} />
+                                {!sale.synced && <CloudOff className="w-4 h-4 text-amber-500" title="Sinxronlanmagan" />}
+                              </div>
+                              
+                              {/* Mahsulot nomlari */}
+                              <div className={`text-sm font-medium truncate ${isRefund ? "text-red-300" : "text-slate-300"}`}>
+                                {displayNames}
+                                {moreCount > 0 && <span className="text-slate-500 ml-1">+{moreCount} ta</span>}
+                              </div>
+                            </div>
+                            
+                            {/* Summa */}
+                            <div className="flex-shrink-0">
+                              <span className={`text-xl font-black ${isRefund ? "text-red-500" : "text-emerald-500"}`}>
+                                {isRefund ? "-" : ""}{formatNum(sale.total)}
+                                <span className="text-sm ml-1 opacity-70">so'm</span>
+                              </span>
+                            </div>
                           </div>
                         </div>
                       );
