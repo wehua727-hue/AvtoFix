@@ -5,7 +5,7 @@
 module.exports = {
   apps: [
     {
-      name: 'oflayn-dokon',
+      name: 'avtofixshop',
       script: './dist/server/node-build.mjs',
       
       // ESM module uchun sozlash
