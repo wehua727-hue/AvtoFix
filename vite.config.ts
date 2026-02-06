@@ -6,9 +6,16 @@ import path from "path";
 export default defineConfig({
   base: "/",
   server: {
-    host: "localhost",
+    host: "0.0.0.0", // VPS da barcha interfacelar uchun
     port: 5174, // Frontend uchun boshqa port (backend 5173 da ishlaydi)
     strictPort: false,
+    allowedHosts: [
+      "localhost",
+      "127.0.0.1",
+      "shop.avtofix.uz",
+      "avtofix.uz",
+      ".avtofix.uz", // Barcha subdomenlar
+    ],
     fs: {
       allow: ["./", "./client", "./shared"],
       deny: [".env", ".env.*", "*.{crt,pem}", "**/.git/**", "server/**"],
