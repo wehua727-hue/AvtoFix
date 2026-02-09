@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Trash2, Tag, Loader2, Printer, X, FileSpreadsheet, Plus, Search, History } from 'lucide-react';
@@ -436,6 +436,7 @@ export default function Products() {
   const [isSaving, setIsSaving] = useState(false);
   const [selectedParent, setSelectedParent] = useState<CategoryOption | null>(null);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [productLoadingId, setProductLoadingId] = useState<string | null>(null);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
@@ -469,6 +470,34 @@ export default function Products() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+  
+  // Scroll button state
+  const [showScrollButton, setShowScrollButton] = useState(false);
+  const [isAtTop, setIsAtTop] = useState(true);
+  
+  // Pagination state
+  const [displayedCount, setDisplayedCount] = useState(50); // Dastlab 50 ta
+  const ITEMS_PER_PAGE = 50;
+  
+  // Reset displayed count when search changes
+  useEffect(() => {
+    setDisplayedCount(50);
+  }, [search]);
+  
+  // Debounce search - 300ms kutish
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [search]);
+  
+  // Memoized search results - faqat products yoki debouncedSearch o'zgarganda hisoblash
+  const filteredProducts = useMemo(() => {
+    return searchProductsAndVariants(products, debouncedSearch);
+  }, [products, debouncedSearch]);
+  
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
   const [exchangeRates, setExchangeRates] = useState<{ usd: number; rub: number; cny: number } | null>(null);
@@ -494,6 +523,63 @@ export default function Products() {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyTab, setHistoryTab] = useState<'today' | 'past'>('today');
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<ProductHistoryItem | null>(null);
+  
+  // Memoized profit calculation - faqat products yoki exchangeRates o'zgarganda hisoblash
+  const { totalProfitUSD, totalDaromadUSD } = useMemo(() => {
+    const toUSD = (amount: number, currency?: string): number => {
+      if (!amount) return 0;
+      const defaultUsdRate = 12500;
+      const rates = exchangeRates || { usd: defaultUsdRate, rub: 140, cny: 1750 };
+      
+      switch (currency) {
+        case 'USD': return amount;
+        case 'UZS': return amount / rates.usd;
+        case 'RUB': return (amount * rates.rub) / rates.usd;
+        case 'CNY': return (amount * rates.cny) / rates.usd;
+        default: return amount / rates.usd;
+      }
+    };
+    
+    let totalProfitUSD = 0;
+    let totalDaromadUSD = 0;
+    
+    // Mahsulotlarning sof foydasini va daromadini hisoblash
+    for (const product of products) {
+      // Mahsulotning o'z sof foydasini hisoblash
+      const basePrice = product.basePrice ? parseFloat(String(product.basePrice)) : 0;
+      const sellingPrice = product.price ? parseFloat(String(product.price)) : 0;
+      const stock = product.stock || 0;
+      const profitPerUnit = sellingPrice - basePrice;
+      const productProfit = profitPerUnit * stock;
+      const productDaromad = sellingPrice * stock;
+      
+      totalProfitUSD += toUSD(productProfit, product.currency);
+      totalDaromadUSD += toUSD(productDaromad, product.currency);
+      
+      // Xillarning sof foydasini va daromadini hisoblash
+      if (product.variantSummaries && product.variantSummaries.length > 0) {
+        for (const variant of product.variantSummaries) {
+          const variantBasePrice = variant.basePrice ? parseFloat(String(variant.basePrice)) : 0;
+          const variantSellingPrice = variant.price ? parseFloat(String(variant.price)) : 0;
+          const variantStock = variant.stock || 0;
+          const variantProfitPerUnit = variantSellingPrice - variantBasePrice;
+          const variantProfit = variantProfitPerUnit * variantStock;
+          const variantDaromad = variantSellingPrice * variantStock;
+          
+          totalProfitUSD += toUSD(variantProfit, variant.currency);
+          totalDaromadUSD += toUSD(variantDaromad, variant.currency);
+        }
+      }
+    }
+    
+    return { totalProfitUSD, totalDaromadUSD };
+  }, [products, exchangeRates]);
+  
+  // Memoized sorted categories - faqat categories o'zgarganda sort qilish
+  const sortedCategories = useMemo(() => {
+    return [...categories].sort((a, b) => a.level - b.level);
+  }, [categories]);
+  
   const [selectedVariantDetail, setSelectedVariantDetail] = useState<{
     name: string;
     sku?: string;
@@ -1228,6 +1314,65 @@ export default function Products() {
       }
     };
   }, [videoPreviewUrl]);
+
+  // Scroll button logic + Infinite scroll
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const scrollHeight = document.documentElement.scrollHeight;
+      const clientHeight = document.documentElement.clientHeight;
+      
+      // Always show button
+      setShowScrollButton(true);
+      
+      // Check if at top (within 100px from top)
+      const isNearTop = scrollTop < 100;
+      
+      // Check if at bottom (within 100px from bottom)
+      const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100;
+      
+      // Show DOWN button if at top, show UP button if at bottom
+      if (isNearTop) {
+        setIsAtTop(true); // Show DOWN button
+      } else if (isNearBottom) {
+        setIsAtTop(false); // Show UP button
+        
+        // Infinite scroll - load more products
+        if (displayedCount < filteredProducts.length) {
+          setDisplayedCount(prev => Math.min(prev + ITEMS_PER_PAGE, filteredProducts.length));
+        }
+      }
+      // If in middle, keep current state
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    handleScroll(); // Initial check
+
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [displayedCount, products, search, ITEMS_PER_PAGE]);
+
+  // Scroll functions - 50 ta mahsulot sakrab o'tish
+  const scrollByProducts = (direction: 'up' | 'down') => {
+    // Har bir mahsulot kartochkasining taxminiy balandligi
+    // Grid layout: gap + card height ≈ 400px (responsive)
+    const isMobile = window.innerWidth < 768;
+    const productHeight = isMobile ? 450 : 400; // Mobile da biroz balandroq
+    const productsToScroll = 50;
+    const scrollAmount = productHeight * productsToScroll;
+    
+    const currentScroll = window.pageYOffset || document.documentElement.scrollTop;
+    const targetScroll = direction === 'down' 
+      ? currentScroll + scrollAmount 
+      : currentScroll - scrollAmount;
+    
+    window.scrollTo({ 
+      top: Math.max(0, targetScroll), 
+      behavior: 'smooth' 
+    });
+  };
+
+  const scrollToTop = () => scrollByProducts('up');
+  const scrollToBottom = () => scrollByProducts('down');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2055,74 +2200,21 @@ export default function Products() {
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Desktop da ko'rinadigan qismlar */}
             <div className="hidden md:flex items-center gap-2 sm:gap-3">
-              {(() => {
-                // Valyutani USD ga aylantirish funksiyasi
-                const toUSD = (amount: number, currency?: string): number => {
-                  if (!amount) return 0;
-                  const defaultUsdRate = 12500;
-                  const rates = exchangeRates || { usd: defaultUsdRate, rub: 140, cny: 1750 };
-                  
-                  switch (currency) {
-                    case 'USD': return amount;
-                    case 'UZS': return amount / rates.usd;
-                    case 'RUB': return (amount * rates.rub) / rates.usd;
-                    case 'CNY': return (amount * rates.cny) / rates.usd;
-                    default: return amount / rates.usd;
-                  }
-                };
-                
-                let totalProfitUSD = 0;
-                let totalDaromadUSD = 0;
-                
-                // Mahsulotlarning sof foydasini va daromadini hisoblash
-                for (const product of products) {
-                  // Mahsulotning o'z sof foydasini hisoblash
-                  const basePrice = product.basePrice ? parseFloat(String(product.basePrice)) : 0;
-                  const sellingPrice = product.price ? parseFloat(String(product.price)) : 0;
-                  const stock = product.stock || 0;
-                  const profitPerUnit = sellingPrice - basePrice;
-                  const productProfit = profitPerUnit * stock;
-                  const productDaromad = sellingPrice * stock;
-                  
-                  totalProfitUSD += toUSD(productProfit, product.currency);
-                  totalDaromadUSD += toUSD(productDaromad, product.currency);
-                  
-                  // Xillarning sof foydasini va daromadini hisoblash
-                  if (product.variantSummaries && product.variantSummaries.length > 0) {
-                    for (const variant of product.variantSummaries) {
-                      const variantBasePrice = variant.basePrice ? parseFloat(String(variant.basePrice)) : 0;
-                      const variantSellingPrice = variant.price ? parseFloat(String(variant.price)) : 0;
-                      const variantStock = variant.stock || 0;
-                      const variantProfitPerUnit = variantSellingPrice - variantBasePrice;
-                      const variantProfit = variantProfitPerUnit * variantStock;
-                      const variantDaromad = variantSellingPrice * variantStock;
-                      
-                      totalProfitUSD += toUSD(variantProfit, variant.currency);
-                      totalDaromadUSD += toUSD(variantDaromad, variant.currency);
-                    }
-                  }
-                }
-                
-                return (
-                  <>
-                    {/* Sof Foyda - ko'k rangda */}
-                    <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-cyan-600/20 to-blue-700/20 border border-cyan-500/30">
-                      <span className="text-cyan-400 font-bold text-base">💰</span>
-                      <span className="text-sm sm:text-base font-bold text-cyan-300">
-                        ${totalProfitUSD.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                      </span>
-                    </div>
-                    
-                    {/* Jami Daromad - ashil rangda */}
-                    <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-green-600/20 to-green-700/20 border border-green-500/30">
-                      <span className="text-green-400 font-bold text-base">$</span>
-                      <span className="text-sm sm:text-base font-bold text-green-300">
-                        {totalDaromadUSD.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                      </span>
-                    </div>
-                  </>
-                );
-              })()}
+              {/* Sof Foyda - ko'k rangda */}
+              <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-cyan-600/20 to-blue-700/20 border border-cyan-500/30">
+                <span className="text-cyan-400 font-bold text-base">💰</span>
+                <span className="text-sm sm:text-base font-bold text-cyan-300">
+                  ${totalProfitUSD.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </span>
+              </div>
+              
+              {/* Jami Daromad - yashil rangda */}
+              <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-green-600/20 to-green-700/20 border border-green-500/30">
+                <span className="text-green-400 font-bold text-base">$</span>
+                <span className="text-sm sm:text-base font-bold text-green-300">
+                  {totalDaromadUSD.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </span>
+              </div>
             </div>
             
             {/* Desktop Search */}
@@ -4151,7 +4243,7 @@ export default function Products() {
                   : 'grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3'
               }`}
             >
-              {searchProductsAndVariants(products, search).map((item) => {
+              {filteredProducts.slice(0, displayedCount).map((item) => {
                   const p = item.product;
                   const isVariant = item.type === 'variant';
                   const statusKey = normalizeProductStatus(p.status);
@@ -6217,6 +6309,30 @@ export default function Products() {
       
       {/* Mobile uchun pastki padding - bottom navigation uchun joy */}
       <div className="md:hidden h-20"></div>
+
+      {/* Scroll Button - O'ng tomonda */}
+      <AnimatePresence>
+        {showScrollButton && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            onClick={isAtTop ? scrollToBottom : scrollToTop}
+            className="fixed right-4 bottom-24 md:bottom-8 z-50 p-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg transition-all duration-200 hover:scale-110 active:scale-95"
+            title={isAtTop ? "Pastga o'tish" : "Tepaga o'tish"}
+          >
+            {isAtTop ? (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+              </svg>
+            )}
+          </motion.button>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
