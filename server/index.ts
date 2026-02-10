@@ -32,7 +32,7 @@ import { startDebtChecker } from "./debt-checker";
 import { startSubscriptionChecker } from "./subscription-checker";
 export { wsManager } from "./websocket";
 
-export function createServer() {
+export async function createServer() {
   const app = express();
 
   // CORS konfiguratsiyasi - WPS hosting va mobil uchun
