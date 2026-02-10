@@ -7,8 +7,8 @@ import { createServer as createHTTPServer } from "http";
 import { wsManager } from "./websocket";
 
 // Export createServer function for Electron
-export function createServer() {
-  const app = createBaseServer();
+export async function createServer() {
+  const app = await createBaseServer();
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
   const distPath = path.join(__dirname, "..");
@@ -60,7 +60,7 @@ const isMainModule = import.meta.url === `file://${process.argv[1]?.replace(/\\/
 
 // Always start server in development mode when run via tsx
 if (isMainModule || process.env.RUN_SERVER === 'true' || process.env.NODE_ENV !== 'production') {
-  const app = createServer();
+  const app = await createServer();
   
   // Port handling with proper fallback
   let port = 5175; // Default API port to match client proxy (5175)

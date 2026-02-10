@@ -366,18 +366,29 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
     }
     const duplicatesList: DuplicateInfo[] = [];
     
-    // Dublikat tekshirish funksiyasi - FAQAT KOD (SKU) BILAN
+    // Dublikat tekshirish funksiyasi - KOD yoki NOM bilan
     const isDuplicate = (row: ParsedRow, product: any): boolean => {
       const rowCode = (row.code || '').toLowerCase().trim();
       const productCode = (product.code || product.sku || '').toLowerCase().trim();
       
-      // Agar kod bo'lmasa - dublikat emas
-      if (!rowCode || !productCode) {
-        return false;
+      // 1. Agar 5 xonali kod bo'lsa - FAQAT kod bilan taqqoslash
+      const is5DigitCode = /^\d{5}$/.test(rowCode);
+      if (is5DigitCode && productCode) {
+        return productCode === rowCode;
       }
       
-      // Faqat kod bilan taqqoslash
-      return productCode === rowCode;
+      // 2. Agar 5 xonali kod bo'lmasa - NOM bilan taqqoslash
+      if (!is5DigitCode) {
+        const rowName = (row.name || '').toLowerCase().trim();
+        const productName = (product.name || '').toLowerCase().trim();
+        
+        // Agar nom bo'sh bo'lmasa va mos kelsa - dublikat
+        if (rowName && productName && rowName === productName) {
+          return true;
+        }
+      }
+      
+      return false;
     };
     
     // Mahsulot yoki uning xillarida dublikat bormi tekshirish
