@@ -93,6 +93,7 @@ interface CategoryOption {
   name: string;
   level: number;
   parentId?: string | null;
+  markupPercentage?: number; // 🆕
 }
 
 // Mahsulot qo'shish/tahrirlash tarixi
@@ -419,6 +420,13 @@ export default function Products() {
   // Debug: categories state o'zgarganda log qilish
   useEffect(() => {
     console.log('[Products] categories state changed:', categories.length, categories.map(c => ({ id: c.id, name: c.name })));
+    
+    // 🆕 Kategoriyalar yuklanganida markuplarni initialize qilish
+    const markups: Record<string, number> = {};
+    categories.forEach(cat => {
+      markups[cat.id] = (cat as any).markupPercentage ?? 20;
+    });
+    setCategoryMarkups(markups);
   }, [categories]);
   
   const [showAddForm, setShowAddForm] = useState(false);
@@ -468,6 +476,8 @@ export default function Products() {
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editingCategoryName, setEditingCategoryName] = useState('');
   const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [updatingCategoryMarkupId, setUpdatingCategoryMarkupId] = useState<string | null>(null); // 🆕
+  const [categoryMarkups, setCategoryMarkups] = useState<Record<string, number>>({}); // 🆕
   const [videoError, setVideoError] = useState<string | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   
@@ -887,6 +897,106 @@ export default function Products() {
       }
     } finally {
       setCreateCategoryLoading(false);
+    }
+  };
+
+  // 🆕 Kategoriya foizini yangilash funksiyasi
+  const handleUpdateCategoryMarkup = async (categoryId: string, newMarkup: number) => {
+    console.log('[handleUpdateCategoryMarkup] Starting update:', { categoryId, newMarkup });
+    
+    if (newMarkup < 0) {
+      toast.error('Foiz manfiy bo\'lishi mumkin emas');
+      return;
+    }
+
+    setUpdatingCategoryMarkupId(categoryId);
+    try {
+      console.log('[handleUpdateCategoryMarkup] Sending request to:', `${API_BASE_URL}/api/categories/${categoryId}/markup`);
+      
+      const res = await fetch(`${API_BASE_URL}/api/categories/${categoryId}/markup`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ markupPercentage: newMarkup }),
+      });
+
+      const data = await res.json();
+      console.log('[handleUpdateCategoryMarkup] Response:', data);
+
+      if (!res.ok) {
+        toast.error(`Xatolik: ${data?.message || 'Foizni yangilab bo\'lmadi'}`);
+        setUpdatingCategoryMarkupId(null);
+        return;
+      }
+
+      if (data?.success) {
+        console.log('[handleUpdateCategoryMarkup] Success! Updated products:', data.updatedProductsCount);
+        
+        // Kategoriyani yangilash
+        setCategories((prev) =>
+          prev.map((c) => (c.id === categoryId ? { ...c, markupPercentage: newMarkup } as any : c))
+        );
+        
+        // Mahsulotlarni qayta yuklash
+        if (user?.id) {
+          console.log('[handleUpdateCategoryMarkup] Reloading products...');
+          const params = new URLSearchParams({ userId: user.id });
+          if (user.phone) {
+            params.append('userPhone', user.phone);
+          }
+          
+          const response = await fetch(`${API_BASE_URL}/api/products?${params.toString()}`);
+          console.log('[handleUpdateCategoryMarkup] Products API response status:', response.status);
+          
+          if (response.ok) {
+            const productsData = await response.json();
+            console.log('[handleUpdateCategoryMarkup] Products API response:', productsData);
+            
+            // API to'g'ridan-to'g'ri array qaytarishi mumkin yoki { products: [...] } formatida
+            const loadedProducts = Array.isArray(productsData) 
+              ? productsData 
+              : (Array.isArray(productsData.products) ? productsData.products : []);
+            
+            console.log('[handleUpdateCategoryMarkup] Reloaded products:', loadedProducts.length);
+            
+            // Debug: Mahsulotlarning categoryId ni tekshirish
+            if (loadedProducts.length > 0) {
+              console.log('[handleUpdateCategoryMarkup] Sample product:', {
+                id: loadedProducts[0].id,
+                name: loadedProducts[0].name,
+                categoryId: loadedProducts[0].categoryId,
+                price: loadedProducts[0].price,
+                basePrice: loadedProducts[0].basePrice,
+                markupPercentage: loadedProducts[0].markupPercentage,
+                priceMultiplier: loadedProducts[0].priceMultiplier
+              });
+              
+              // Tanlangan kategoriyaga tegishli mahsulotlarni sanash
+              const productsInCategory = loadedProducts.filter((p: any) => p.categoryId === categoryId);
+              console.log('[handleUpdateCategoryMarkup] Products in selected category:', productsInCategory.length);
+            } else {
+              console.warn('[handleUpdateCategoryMarkup] No products loaded! API returned empty array');
+            }
+            
+            const sorted = sortProductsBySku(loadedProducts);
+            setProducts(sorted);
+          } else {
+            console.error('[handleUpdateCategoryMarkup] Products API failed:', response.status, response.statusText);
+          }
+        }
+        
+        toast.success(`✅ ${data.message || 'Kategoriya va mahsulotlar narxi yangilandi'}`);
+        
+        // Select ni tozalash
+        setTimeout(() => {
+          setUpdatingCategoryMarkupId(null);
+        }, 500);
+      }
+    } catch (err) {
+      console.error('[handleUpdateCategoryMarkup] Error updating markup:', err);
+      toast.error(`Xatolik yuz berdi: ${err instanceof Error ? err.message : 'Noma\'lum xatolik'}`);
+      setUpdatingCategoryMarkupId(null);
     }
   };
 
@@ -2394,6 +2504,195 @@ export default function Products() {
             )}
           </div>
 
+          {/* 🆕 Kategoriyalar bo'limi - Foizni sozlash */}
+          {categories.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-4 mb-6 p-5 rounded-2xl bg-gradient-to-br from-card/80 via-card/60 to-card/40 border border-border/50 backdrop-blur-sm shadow-lg"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-foreground">
+                      Kategoriya ustama foizini sozlash
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Kategoriya bo'yicha barcha mahsulotlar narxini boshqaring
+                    </p>
+                  </div>
+                </div>
+                <div className="px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
+                  <span className="text-xs font-semibold text-primary">
+                    {categories.filter(c => !c.parentId).length} ta kategoriya
+                  </span>
+                </div>
+              </div>
+              
+              {/* Select va foiz sozlash */}
+              <div className="flex flex-col lg:flex-row items-start lg:items-end gap-4">
+                {/* Kategoriya tanlash */}
+                <div className="flex-1 w-full">
+                  <label className="block text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    </svg>
+                    Kategoriyani tanlang
+                  </label>
+                  <Select
+                    value={updatingCategoryMarkupId || ''}
+                    onValueChange={(value) => {
+                      setUpdatingCategoryMarkupId(value);
+                      // MUHIM: Kategoriya tanlanganda inputni bo'sh qoldirish
+                      setCategoryMarkups(prev => ({
+                        ...prev,
+                        [value]: '' as any
+                      }));
+                    }}
+                  >
+                    <SelectTrigger className="w-full h-11 bg-background/80 border-input hover:border-primary/50 transition-colors">
+                      <SelectValue placeholder="Kategoriyani tanlang..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.filter(c => !c.parentId).map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          <div className="flex items-center gap-2.5 py-0.5">
+                            <div className="w-2 h-2 rounded-full bg-gradient-to-br from-primary to-primary/60"></div>
+                            <span className="font-medium">{category.name}</span>
+                            <span className="text-xs text-muted-foreground ml-auto px-2 py-0.5 rounded-md bg-muted">
+                              {(category as any).markupPercentage ?? 20}%
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Foiz input va tugma */}
+                {updatingCategoryMarkupId && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 w-full lg:w-auto"
+                  >
+                    {/* Foiz input */}
+                    <div className="w-full sm:w-auto">
+                      <label className="block text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        Yangi foiz
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={categoryMarkups[updatingCategoryMarkupId] ?? ''}
+                          onChange={(e) => setCategoryMarkups(prev => ({ 
+                            ...prev, 
+                            [updatingCategoryMarkupId]: e.target.value ? Number(e.target.value) : '' as any
+                          }))}
+                          placeholder="20"
+                          className="w-28 h-11 bg-background/80 border border-input rounded-lg px-4 text-sm font-semibold text-center focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all placeholder:text-muted-foreground/50"
+                        />
+                        <span className="text-sm font-medium text-muted-foreground">%</span>
+                      </div>
+                    </div>
+
+                    {/* Yangilash tugmasi */}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const newMarkup = categoryMarkups[updatingCategoryMarkupId] || 20;
+                        await handleUpdateCategoryMarkup(updatingCategoryMarkupId, newMarkup);
+                      }}
+                      disabled={!updatingCategoryMarkupId}
+                      className="h-11 px-6 rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 text-white text-sm font-semibold hover:from-blue-700 hover:to-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Narxlarni yangilash
+                    </button>
+                  </motion.div>
+                )}
+              </div>
+
+              {/* Tanlangan kategoriya haqida ma'lumot */}
+              {updatingCategoryMarkupId && (() => {
+                const selectedCategory = categories.find(c => c.id === updatingCategoryMarkupId);
+                const currentMarkup = (selectedCategory as any)?.markupPercentage ?? 20;
+                const newMarkup = categoryMarkups[updatingCategoryMarkupId] || 20;
+                const productsInCategory = products.filter(p => p.categoryId === updatingCategoryMarkupId).length;
+                
+                return (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-4 p-4 rounded-xl bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-transparent border border-blue-500/20 backdrop-blur-sm"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-foreground mb-2">
+                          "{selectedCategory?.name}" kategoriyasi
+                        </p>
+                        <div className="space-y-1.5 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-2">
+                            <svg className="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                            </svg>
+                            <span>
+                              <span className="font-semibold text-blue-400">{productsInCategory}</span> ta mahsulot
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <svg className="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                            <span>
+                              Hozirgi foiz: <span className="font-semibold text-foreground">{currentMarkup}%</span>
+                              {newMarkup !== currentMarkup && (
+                                <>
+                                  <svg className="w-3 h-3 inline mx-1 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                  </svg>
+                                  <span className="font-bold text-blue-400">{newMarkup}%</span>
+                                </>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                        {newMarkup !== currentMarkup && (
+                          <div className="mt-3 pt-3 border-t border-blue-500/20">
+                            <p className="text-xs text-blue-400 font-medium flex items-center gap-1.5">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                              </svg>
+                              Barcha mahsulotlar narxi avtomatik yangilanadi
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })()}
+            </motion.div>
+          )}
+
           <AnimatePresence>
             {showAddForm && (
               <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 backdrop-blur-sm px-2 sm:px-4">
@@ -2776,86 +3075,90 @@ export default function Products() {
                           ).map((c) => {
                             const isSelected = categoryId === c.id;
                             const isEditing = editingCategoryId === c.id;
+                            
                             return (
                               <div
                                 key={c.id}
-                                className={`w-full flex items-center gap-2 rounded-xl border text-xs transition-all px-3 py-2 ${
+                                className={`w-full flex flex-col gap-2 rounded-xl border text-xs transition-all px-3 py-2 ${
                                   isSelected
                                     ? 'border-primary bg-primary/20 text-primary-foreground'
                                     : 'border-border bg-background text-foreground hover:bg-muted'
                                 }`}
                               >
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    // Agar aynan shu kategoriya hozir tahrirlash rejimida bo'lsa, ichiga kirmaymiz
-                                    if (isEditing) return;
+                                {/* Kategoriya nomi va tugmalar */}
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      // Agar aynan shu kategoriya hozir tahrirlash rejimida bo'lsa, ichiga kirmaymiz
+                                      if (isEditing) return;
 
-                                    // Tanlangan kategoriyani belgilaymiz
-                                    setCategoryId(c.id);
-                                    // Sidebardagi kabi: har doim shu kategoriyani joriy parent sifatida ochamiz,
-                                    // ichida hozircha child bo'lmasa ham keyinchalik ichki kategoriya qo'shish mumkin bo'ladi
-                                    setSelectedParent(c);
-                                    setSelectedPath((prev) => [...prev, c]);
-                                  }}
-                                  className="flex-1 text-left truncate"
-                                  disabled={isSaving}
-                                >
+                                      // Tanlangan kategoriyani belgilaymiz
+                                      setCategoryId(c.id);
+                                      // Sidebardagi kabi: har doim shu kategoriyani joriy parent sifatida ochamiz,
+                                      // ichida hozircha child bo'lmasa ham keyinchalik ichki kategoriya qo'shish mumkin bo'ladi
+                                      setSelectedParent(c);
+                                      setSelectedPath((prev) => [...prev, c]);
+                                    }}
+                                    className="flex-1 text-left truncate"
+                                    disabled={isSaving}
+                                  >
+                                    {isEditing ? (
+                                      <input
+                                        type="text"
+                                        value={editingCategoryName}
+                                        onChange={(e) => setEditingCategoryName(e.target.value)}
+                                        className="w-full bg-background border border-input rounded-md px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                                        autoFocus
+                                      />
+                                    ) : (
+                                      <span>{c.name}</span>
+                                    )}
+                                  </button>
+
                                   {isEditing ? (
-                                    <input
-                                      type="text"
-                                      value={editingCategoryName}
-                                      onChange={(e) => setEditingCategoryName(e.target.value)}
-                                      className="w-full bg-background border border-input rounded-md px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                                      autoFocus
-                                    />
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={handleSaveCategoryEdit}
+                                        className="px-2 py-0.5 rounded-md bg-primary text-primary-foreground text-[10px] font-semibold hover:bg-primary/90"
+                                        disabled={createCategoryLoading}
+                                      >
+                                        Saqlash
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingCategoryId(null);
+                                          setEditingCategoryName('');
+                                        }}
+                                        className="px-2 py-0.5 rounded-md border border-border text-[10px] hover:bg-muted"
+                                        disabled={createCategoryLoading}
+                                      >
+                                        Bekor
+                                      </button>
+                                    </div>
                                   ) : (
-                                    <span>{c.name}</span>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleStartEditCategory(c)}
+                                        className="px-2 py-0.5 rounded-md border border-border text-[10px] hover:bg-muted"
+                                        disabled={createCategoryLoading}
+                                      >
+                                        Tahrir
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => confirmDelete(c.id)}
+                                        className="px-2 py-0.5 rounded-md border border-destructive text-destructive text-[10px] hover:bg-destructive/10"
+                                        disabled={createCategoryLoading}
+                                      >
+                                        O'chirish
+                                      </button>
+                                    </div>
                                   )}
-                                </button>
-
-                                {isEditing ? (
-                                  <div className="flex items-center gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={handleSaveCategoryEdit}
-                                      className="px-2 py-0.5 rounded-md bg-primary text-primary-foreground text-[10px] font-semibold hover:bg-primary/90"
-                                      disabled={createCategoryLoading}
-                                    >
-                                      Saqlash
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setEditingCategoryId(null);
-                                        setEditingCategoryName('');
-                                      }}
-                                      className="px-2 py-0.5 rounded-md border border-border text-[10px] hover:bg-muted"
-                                      disabled={createCategoryLoading}
-                                    >
-                                      Bekor
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleStartEditCategory(c)}
-                                      className="px-2 py-0.5 rounded-md border border-border text-[10px] hover:bg-muted"
-                                      disabled={createCategoryLoading}
-                                    >
-                                      Tahrir
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => confirmDelete(c.id)}
-                                      className="px-2 py-0.5 rounded-md bg-destructive text-destructive-foreground text-[10px] hover:bg-destructive/90"
-                                      disabled={createCategoryLoading}
-                                    >
-                                      O'chir
-                                    </button>
-                                  </div>
-                                )}
+                                </div>
                               </div>
                             );
                           })}
@@ -4451,10 +4754,14 @@ export default function Products() {
                                   productData.basePrice != null
                                     ? String(productData.basePrice)
                                     : (p.basePrice != null ? String(p.basePrice) : '');
-                                const existingPriceMultiplier =
-                                  productData.priceMultiplier != null
+                                // MUHIM: markupPercentage va priceMultiplier bir xil narsa
+                                // Avval markupPercentage ni tekshiramiz, keyin priceMultiplier
+                                const existingMarkup = productData.markupPercentage ?? p.markupPercentage;
+                                const existingPriceMultiplier = existingMarkup != null 
+                                  ? String(existingMarkup)
+                                  : (productData.priceMultiplier != null
                                     ? String(productData.priceMultiplier)
-                                    : (p.priceMultiplier != null ? String(p.priceMultiplier) : '');
+                                    : (p.priceMultiplier != null ? String(p.priceMultiplier) : ''));
 
                                 setPrice(existingPrice);
                                 setPriceCurrency(productData.currency || p.currency || 'USD');
@@ -4719,10 +5026,14 @@ export default function Products() {
                                   productData.basePrice != null
                                     ? String(productData.basePrice)
                                     : (p.basePrice != null ? String(p.basePrice) : '');
-                                const existingPriceMultiplier =
-                                  productData.priceMultiplier != null
+                                // MUHIM: markupPercentage va priceMultiplier bir xil narsa
+                                // Avval markupPercentage ni tekshiramiz, keyin priceMultiplier
+                                const existingMarkup = productData.markupPercentage ?? p.markupPercentage;
+                                const existingPriceMultiplier = existingMarkup != null 
+                                  ? String(existingMarkup)
+                                  : (productData.priceMultiplier != null
                                     ? String(productData.priceMultiplier)
-                                    : (p.priceMultiplier != null ? String(p.priceMultiplier) : '');
+                                    : (p.priceMultiplier != null ? String(p.priceMultiplier) : ''));
 
                                 setPrice(existingPrice);
                                 setPriceCurrency(productData.currency || p.currency || 'USD'); // Preserve original currency

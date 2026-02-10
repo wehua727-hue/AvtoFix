@@ -1,5 +1,17 @@
 // Shared types between frontend and backend
 
+// 🆕 Kategoriya interfeysi
+export interface Category {
+  id: string;
+  name: string;
+  parentId?: string | null;
+  level?: number;
+  order?: number;
+  isActive?: boolean;
+  slug?: string;
+  markupPercentage: number;  // Ustama foiz (default: 20)
+}
+
 // Bola mahsulot interfeysi
 export interface ChildProduct {
   productId: string;  // Bola mahsulot ID
@@ -10,9 +22,10 @@ export interface ChildProduct {
 export interface Product {
   id: string;
   name: string;
-  price: number;
-  basePrice?: number;
+  price: number;                  // Sotilish narxi (selling price)
+  basePrice?: number;             // Asl narx (base price) - o'zgarmaydi
   priceMultiplier?: number;
+  markupPercentage?: number;      // 🆕 Ustama foiz (kategoriyadan olinadi)
   currency?: string;
   sku: string;
   stock: number;

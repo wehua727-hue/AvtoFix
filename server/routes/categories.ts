@@ -14,6 +14,7 @@ interface CategoryDoc {
   isActive?: boolean;
   slug?: string;
   userId?: string;
+  markupPercentage?: number; // 🆕 Ustama foiz (default: 20)
 }
 
 // Специальный пользователь который видит старые категории
@@ -100,6 +101,7 @@ export const handleCategoriesGet: RequestHandler = async (req, res) => {
       level: typeof c.level === "number" ? c.level : 0,
       isActive: typeof c.isActive === "boolean" ? c.isActive : true,
       slug: c.slug ?? "",
+      markupPercentage: typeof c.markupPercentage === "number" ? c.markupPercentage : 20, // 🆕 Default 20%
     }));
 
     return res.json({ categories });
@@ -112,7 +114,7 @@ export const handleCategoriesGet: RequestHandler = async (req, res) => {
 
 export const handleCategoriesCreate: RequestHandler = async (req, res) => {
   try {
-    const { name, storeId, parentId, level, order, isActive, slug, userId } = req.body || {};
+    const { name, storeId, parentId, level, order, isActive, slug, userId, markupPercentage } = req.body || {};
 
     if (!name) {
       return res.status(400).json({ success: false, message: "name kerak" });
@@ -132,6 +134,7 @@ export const handleCategoriesCreate: RequestHandler = async (req, res) => {
     if (typeof isActive === "boolean") doc.isActive = isActive;
     if (slug) doc.slug = slug;
     if (userId) doc.userId = userId; // Привязка к пользователю
+    doc.markupPercentage = typeof markupPercentage === "number" ? markupPercentage : 20; // 🆕 Default 20%
 
     const result = await db.collection(CATEGORIES_COLLECTION).insertOne(doc);
 
@@ -144,6 +147,7 @@ export const handleCategoriesCreate: RequestHandler = async (req, res) => {
       order: typeof order === "number" ? order : 0,
       isActive: typeof isActive === "boolean" ? isActive : true,
       slug: slug ?? "",
+      markupPercentage: doc.markupPercentage, // 🆕
     };
 
     return res.status(201).json({ success: true, category });
@@ -156,7 +160,7 @@ export const handleCategoriesCreate: RequestHandler = async (req, res) => {
 export const handleCategoryUpdate: RequestHandler = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, parentId, level, order, isActive, slug } = req.body || {};
+    const { name, parentId, level, order, isActive, slug, markupPercentage } = req.body || {};
 
     console.log('[handleCategoryUpdate] Received request:', { id, body: req.body });
 
@@ -200,6 +204,7 @@ export const handleCategoryUpdate: RequestHandler = async (req, res) => {
     if (typeof order === "number") update.order = order;
     if (typeof isActive === "boolean") update.isActive = isActive;
     if (typeof slug === "string") update.slug = slug;
+    if (typeof markupPercentage === "number") update.markupPercentage = markupPercentage; // 🆕
 
     console.log('[handleCategoryUpdate] Update object:', update);
 
@@ -228,6 +233,7 @@ export const handleCategoryUpdate: RequestHandler = async (req, res) => {
       level: typeof c.level === "number" ? c.level : 0,
       isActive: typeof c.isActive === "boolean" ? c.isActive : true,
       slug: c.slug ?? "",
+      markupPercentage: typeof c.markupPercentage === "number" ? c.markupPercentage : 20, // 🆕
     };
 
     console.log('[handleCategoryUpdate] Returning category:', category);
@@ -279,5 +285,154 @@ export const handleCategoryDelete: RequestHandler = async (req, res) => {
   } catch (err) {
     console.error("[api/categories DELETE] error", err);
     return res.status(500).json({ success: false, message: "Server xatosi", error: err instanceof Error ? err.message : String(err) });
+  }
+};
+
+// 🆕 Kategoriya foizini yangilash va barcha mahsulotlar narxini avtomatik hisoblash
+export const handleCategoryMarkupUpdate: RequestHandler = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { markupPercentage } = req.body || {};
+
+    console.log('[handleCategoryMarkupUpdate] Received request:', { id, markupPercentage });
+
+    if (!id) {
+      return res.status(400).json({ success: false, message: "id kerak" });
+    }
+
+    if (typeof markupPercentage !== "number" || markupPercentage < 0) {
+      return res.status(400).json({ success: false, message: "markupPercentage musbat son bo'lishi kerak" });
+    }
+
+    const conn = await connectMongo();
+    if (!conn || !conn.db) {
+      console.error('[handleCategoryMarkupUpdate] MongoDB connection failed');
+      return res.status(500).json({ success: false, message: "MongoDB ulanmagan" });
+    }
+
+    const db = conn.db;
+    let _id: any;
+    
+    try {
+      _id = new mongoose.Types.ObjectId(id);
+    } catch (err) {
+      console.error('[handleCategoryMarkupUpdate] Invalid ObjectId:', id, err);
+      return res.status(400).json({ success: false, message: "Noto'g'ri ID formati" });
+    }
+
+    // 1. Kategoriyani yangilash
+    const categoryResult = await db.collection(CATEGORIES_COLLECTION).findOneAndUpdate(
+      { _id },
+      { $set: { markupPercentage } },
+      { returnDocument: "after" }
+    );
+
+    if (!categoryResult) {
+      return res.status(404).json({ success: false, message: "Kategoriya topilmadi" });
+    }
+
+    console.log('[handleCategoryMarkupUpdate] Category updated:', categoryResult);
+
+    // 2. Shu kategoriyaga tegishli barcha mahsulotlarni topish
+    const PRODUCTS_COLLECTION = process.env.OFFLINE_PRODUCTS_COLLECTION || "offline_products";
+    
+    console.log('[handleCategoryMarkupUpdate] Searching for products with categoryId:', id);
+    console.log('[handleCategoryMarkupUpdate] Using collection:', PRODUCTS_COLLECTION);
+    
+    // MUHIM: categoryId string sifatida saqlanadi, shuning uchun string bilan qidirish
+    const products = await db.collection(PRODUCTS_COLLECTION).find({ 
+      categoryId: id // String format
+    }).toArray();
+
+    console.log('[handleCategoryMarkupUpdate] Found products:', products.length);
+    
+    // Debug: Agar mahsulotlar topilmasa, barcha mahsulotlarni ko'ramiz
+    if (products.length === 0) {
+      const allProducts = await db.collection(PRODUCTS_COLLECTION).find({}).limit(10).toArray();
+      console.log('[handleCategoryMarkupUpdate] Sample products (first 10):');
+      allProducts.forEach(p => {
+        console.log('  Product:', {
+          _id: p._id,
+          name: p.name,
+          categoryId: p.categoryId,
+          categoryIdType: typeof p.categoryId,
+          price: p.price,
+          basePrice: p.basePrice,
+          markupPercentage: p.markupPercentage
+        });
+      });
+      console.log('[handleCategoryMarkupUpdate] Looking for categoryId:', id, 'Type:', typeof id);
+    }
+
+    // 3. Har bir mahsulot uchun yangi narxni hisoblash va yangilash
+    let updatedCount = 0;
+    const bulkOps = [];
+
+    for (const product of products) {
+      const basePrice = product.basePrice || product.price || 0;
+      
+      // Yangi sotilish narxini hisoblash: basePrice + (basePrice * markupPercentage / 100)
+      const sellingPrice = basePrice + (basePrice * markupPercentage / 100);
+
+      bulkOps.push({
+        updateOne: {
+          filter: { _id: product._id },
+          update: {
+            $set: {
+              markupPercentage,
+              price: sellingPrice,
+              // Agar basePrice yo'q bo'lsa, hozirgi narxni basePrice sifatida saqlash
+              ...(product.basePrice ? {} : { basePrice: product.price || 0 })
+            }
+          }
+        }
+      });
+
+      // 🆕 Agar mahsulotda variantlar bo'lsa, ularni ham yangilash
+      if (product.variantSummaries && Array.isArray(product.variantSummaries)) {
+        const updatedVariants = product.variantSummaries.map((variant: any) => {
+          const variantBasePrice = variant.basePrice || variant.price || 0;
+          const variantSellingPrice = variantBasePrice + (variantBasePrice * markupPercentage / 100);
+          
+          return {
+            ...variant,
+            basePrice: variant.basePrice || variant.price || 0,
+            price: variantSellingPrice,
+            priceMultiplier: markupPercentage, // MUHIM: markupPercentage ni to'g'ridan-to'g'ri o'rnatish (20, 30, etc.)
+            markupPercentage: markupPercentage // MUHIM: markupPercentage ni ham o'rnatish
+          };
+        });
+
+        // Variant mahsulotlarni ham yangilash
+        bulkOps[bulkOps.length - 1].updateOne.update.$set.variantSummaries = updatedVariants;
+      }
+    }
+
+    if (bulkOps.length > 0) {
+      const bulkResult = await db.collection(PRODUCTS_COLLECTION).bulkWrite(bulkOps);
+      updatedCount = bulkResult.modifiedCount;
+      console.log('[handleCategoryMarkupUpdate] Updated products:', updatedCount);
+    }
+
+    const c = categoryResult as CategoryDoc;
+    const category = {
+      id: c._id?.toString?.() ?? "",
+      name: c.name ?? "",
+      markupPercentage: c.markupPercentage ?? 20,
+    };
+
+    return res.json({ 
+      success: true, 
+      category,
+      updatedProductsCount: updatedCount,
+      message: `Kategoriya va ${updatedCount} ta mahsulot narxi yangilandi`
+    });
+  } catch (err) {
+    console.error("[api/categories/:id/markup PUT] error", err);
+    return res.status(500).json({ 
+      success: false, 
+      message: "Server xatosi", 
+      error: err instanceof Error ? err.message : String(err) 
+    });
   }
 };

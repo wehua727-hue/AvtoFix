@@ -139,7 +139,9 @@ export const handleProductsGet: RequestHandler = async (req, res) => {
       
       // Marketplace field nomlarini standart nomlarga aylantirish
       const basePrice = product.basePrice ?? product.originalPrice ?? null;
-      const priceMultiplier = product.priceMultiplier ?? product.markupPercent ?? null;
+      // MUHIM: markupPercentage va priceMultiplier bir xil narsa
+      // Avval markupPercentage ni tekshiramiz (kategoriya yangilanganida bu o'rnatiladi)
+      const priceMultiplier = product.markupPercentage ?? product.priceMultiplier ?? product.markupPercent ?? null;
       // MUHIM: stock ni faqat serverdan olish - fallback ishlatmaslik
       const stock = product.stock ?? 0;
       // MUHIM: initialStock ni faqat serverdan olish - fallback ishlatmaslik
@@ -159,11 +161,13 @@ export const handleProductsGet: RequestHandler = async (req, res) => {
         variantSummaries = variantSummaries.map((v: any) => {
           // MUHIM: variant stock ni faqat serverdan olish - fallback ishlatmaslik
           const vStock = v.stock ?? 0;
+          // MUHIM: variant markupPercentage va priceMultiplier bir xil narsa
+          const vPriceMultiplier = v.markupPercentage ?? v.priceMultiplier ?? v.markupPercent ?? undefined;
           return {
             ...v,
             // Marketplace field nomlarini standart nomlarga aylantirish
             basePrice: v.basePrice ?? v.originalPrice ?? undefined,
-            priceMultiplier: v.priceMultiplier ?? v.markupPercent ?? undefined,
+            priceMultiplier: vPriceMultiplier,
             stock: vStock,
             // MUHIM: Xil uchun initialStock - faqat serverdan kelgan qiymat
             initialStock: v.initialStock, // Fallback yo'q
@@ -233,7 +237,9 @@ export const handleProductGetById: RequestHandler = async (req, res) => {
     
     // Marketplace field nomlarini standart nomlarga aylantirish
     const basePrice = product.basePrice ?? product.originalPrice ?? null;
-    const priceMultiplier = product.priceMultiplier ?? product.markupPercent ?? null;
+    // MUHIM: markupPercentage va priceMultiplier bir xil narsa
+    // Avval markupPercentage ni tekshiramiz (kategoriya yangilanganida bu o'rnatiladi)
+    const priceMultiplier = product.markupPercentage ?? product.priceMultiplier ?? product.markupPercent ?? null;
     // MUHIM: stock ni faqat serverdan olish - fallback ishlatmaslik
     const stock = product.stock ?? 0;
     // MUHIM: initialStock ni faqat serverdan olish - fallback ishlatmaslik
@@ -245,11 +251,13 @@ export const handleProductGetById: RequestHandler = async (req, res) => {
       variantSummaries = variantSummaries.map((v: any) => {
         // MUHIM: variant stock ni faqat serverdan olish - fallback ishlatmaslik
         const vStock = v.stock ?? 0;
+        // MUHIM: variant markupPercentage va priceMultiplier bir xil narsa
+        const vPriceMultiplier = v.markupPercentage ?? v.priceMultiplier ?? v.markupPercent ?? undefined;
         return {
           ...v,
           // Marketplace field nomlarini standart nomlarga aylantirish
           basePrice: v.basePrice ?? v.originalPrice ?? undefined,
-          priceMultiplier: v.priceMultiplier ?? v.markupPercent ?? undefined,
+          priceMultiplier: vPriceMultiplier,
           stock: vStock,
           // MUHIM: Xil uchun initialStock - faqat serverdan kelgan qiymat
           initialStock: v.initialStock, // Fallback yo'q

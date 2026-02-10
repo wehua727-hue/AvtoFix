@@ -7,7 +7,7 @@ import mongoose from "mongoose";
 import { ObjectId } from "mongodb";
 import { handleProductsGet, handleProductsCreate, handleProductGetById, handleProductUpdate, handleProductDelete, handleProductsClearAll, handleProductStockUpdate, handleProductHistoryGet, handleProductHistoryCreate, handleProductHistoryDelete, handleProductHistoryClear, handleProductImageUpload } from "./routes/products";
 import { dbConnectionMiddleware, validateSkuMiddleware } from "./middleware/sku-validation";
-import { handleCategoriesGet, handleCategoriesCreate, handleCategoryUpdate, handleCategoryDelete } from "./routes/categories";
+import { handleCategoriesGet, handleCategoriesCreate, handleCategoryUpdate, handleCategoryDelete, handleCategoryMarkupUpdate } from "./routes/categories";
 import { handleStoresGet, handleStoresCreate, handleStoreDelete } from "./routes/stores";
 import { handleProductsSync, handleGetAllProducts } from "./routes/sync";
 import { handleBulkSync, handleCreateProduct, handleSyncStatus } from "./routes/product-sync.route";
@@ -136,6 +136,7 @@ export async function createServer() {
   app.get("/api/categories", handleCategoriesGet);
   app.post("/api/categories", handleCategoriesCreate);
   app.put("/api/categories/:id", handleCategoryUpdate);
+  app.put("/api/categories/:id/markup", handleCategoryMarkupUpdate); // 🆕 Kategoriya foizini yangilash
   app.delete("/api/categories/:id", handleCategoryDelete);
 
   // STORES ENDPOINTS

@@ -41,9 +41,10 @@ export interface IProduct extends Document {
   sizes: string[];
   images: IProductImage[];
   video?: IProductVideo;
-  price?: number;
-  basePrice?: number;
+  price?: number;              // Sotilish narxi (selling price)
+  basePrice?: number;          // Asl narx (base price) - o'zgarmaydi
   priceMultiplier?: number;
+  markupPercentage?: number;   // 🆕 Ustama foiz (kategoriyadan olinadi)
   currency?: string;
   sku?: string; // Nomerofka (1, 2, 3...)
   code?: string; // Excel dan kelgan kod
@@ -117,9 +118,10 @@ const ProductSchema = new Schema<IProduct>(
     sizes: { type: [String], default: [], index: true },
     images: { type: [ProductImageSchema], default: [] },
     video: { type: ProductVideoSchema },
-    price: { type: Number },
-    basePrice: { type: Number },
+    price: { type: Number },                    // Sotilish narxi
+    basePrice: { type: Number },                // Asl narx
     priceMultiplier: { type: Number },
+    markupPercentage: { type: Number },         // 🆕 Ustama foiz
     currency: { type: String, required: true, default: 'UZS' },
     sku: { type: String }, // Nomerofka (1, 2, 3...)
     code: { type: String, trim: true }, // Excel dan kelgan kod

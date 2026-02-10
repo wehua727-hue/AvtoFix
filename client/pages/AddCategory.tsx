@@ -21,6 +21,7 @@ interface Category {
   order?: number;
   isActive?: boolean;
   slug?: string;
+  markupPercentage?: number; // 🆕 Ustama foiz
 }
 
 export default function AddCategory() {
@@ -356,6 +357,7 @@ export default function AddCategory() {
                   : categories.filter((c) => !c.parentId)
                 ).map((cat) => {
                   const isEditing = editingId === cat.id;
+                  
                   return (
                     <div
                       key={cat.id}
