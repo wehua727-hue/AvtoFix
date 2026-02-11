@@ -107,11 +107,13 @@ AvtoFix/
 
 **Funksiyalar:**
 - ✅ Mahsulot CRUD operatsiyalari
+- ✅ **Dublikat tekshiruvi (5 xonali kod yoki nom bo'yicha)** 🆕
 - ✅ Kategoriya bo'yicha filtrlash
 - ✅ Qidiruv (nom, kod, katalog)
 - ✅ Mahsulot variantlari (o'lcham, rang, va boshqalar)
 - ✅ Rasm yuklash (drag & drop)
 - ✅ Excel import
+- ✅ **Excel export (barcha mahsulotlar va xillar)** 🆕
 - ✅ Ota-bola mahsulot tizimi
 - ✅ Mahsulot holati (mavjud, kutilmoqda, tugagan)
 - ✅ Narx va valyuta boshqaruvi

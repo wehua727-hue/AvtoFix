@@ -357,6 +357,63 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
 
     const collection = db.collection(PRODUCTS_COLLECTION);
 
+    // 🆕 DUBLIKAT TEKSHIRUVI
+    // 1. Agar 5 xonali kod (code) mavjud bo'lsa - kod bo'yicha tekshirish
+    // 2. Agar kod bo'lmasa - mahsulot nomi bo'yicha tekshirish
+    const { code } = req.body;
+    
+    if (code && code.trim()) {
+      // 5 xonali kod bo'yicha tekshirish
+      const codeLower = code.trim().toLowerCase();
+      
+      // Asosiy mahsulotlarni tekshirish
+      const existingByCode = await collection.findOne({
+        code: { $regex: new RegExp(`^${codeLower}$`, 'i') },
+        userId: finalUserId
+      });
+      
+      if (existingByCode) {
+        console.log('[Products POST] Code duplicate found:', { code, existingProduct: existingByCode.name });
+        return res.status(400).json({ 
+          success: false, 
+          error: `"${code}" kodli mahsulot allaqachon mavjud: "${existingByCode.name}"` 
+        });
+      }
+      
+      // Xillarni tekshirish
+      const productWithVariantCode = await collection.findOne({
+        'variantSummaries.code': { $regex: new RegExp(`^${codeLower}$`, 'i') },
+        userId: finalUserId
+      });
+      
+      if (productWithVariantCode) {
+        const variant = productWithVariantCode.variantSummaries?.find((v: any) => 
+          v.code?.toLowerCase() === codeLower
+        );
+        console.log('[Products POST] Code duplicate found in variant:', { code, variant: variant?.name });
+        return res.status(400).json({ 
+          success: false, 
+          error: `"${code}" kodli mahsulot allaqachon mavjud: "${productWithVariantCode.name}" - "${variant?.name}"` 
+        });
+      }
+    } else {
+      // Kod bo'lmasa - mahsulot nomi bo'yicha tekshirish
+      const nameLower = name.trim().toLowerCase();
+      
+      const existingByName = await collection.findOne({
+        name: { $regex: new RegExp(`^${nameLower}$`, 'i') },
+        userId: finalUserId
+      });
+      
+      if (existingByName) {
+        console.log('[Products POST] Name duplicate found:', { name, existingProduct: existingByName.name });
+        return res.status(400).json({ 
+          success: false, 
+          error: `"${name}" nomli mahsulot allaqachon mavjud` 
+        });
+      }
+    }
+
     // ✅ SKU duplikat tekshiruvi - faqat kod bo'yicha
     if (sku && sku.trim()) {
       const skuLower = sku.trim().toLowerCase();

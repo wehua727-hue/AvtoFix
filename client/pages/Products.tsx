@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Trash2, Tag, Loader2, Printer, X, FileSpreadsheet, Plus, Search, History } from 'lucide-react';
+import { Trash2, Tag, Loader2, Printer, X, FileSpreadsheet, Plus, Search, History, Download } from 'lucide-react';
 import Sidebar from '@/components/Layout/Sidebar';
 import Navbar from '@/components/Layout/Navbar';
 import ProductStatusSelector, { productStatusConfig, type ProductStatus } from '@/components/ProductStatusSelector';
@@ -622,6 +622,10 @@ export default function Products() {
   const [selectedLabelPrinter, setSelectedLabelPrinter] = useState<string | null>(null);
   const [isPrinting, setIsPrinting] = useState(false);
   
+  // 🆕 Bo'sh kodlar state'lari
+  const [emptyCodesDialogOpen, setEmptyCodesDialogOpen] = useState(false);
+  const [emptyCodes, setEmptyCodes] = useState<number[]>([]);
+  
   // Confirmation modal states
   const [confirmModal, setConfirmModal] = useState<{
     open: boolean;
@@ -997,6 +1001,248 @@ export default function Products() {
       console.error('[handleUpdateCategoryMarkup] Error updating markup:', err);
       toast.error(`Xatolik yuz berdi: ${err instanceof Error ? err.message : 'Noma\'lum xatolik'}`);
       setUpdatingCategoryMarkupId(null);
+    }
+  };
+
+  // 🆕 Bo'sh kodlarni topish funksiyasi
+  const findEmptyCodes = () => {
+    console.log('[findEmptyCodes] Boshlandi...');
+    
+    // Barcha mavjud SKU larni to'plash (mahsulotlar + xillar)
+    const allSkus: number[] = [];
+    
+    products.forEach((p) => {
+      // Mahsulotning o'z SKU si
+      const mainSku = (p.sku ?? '').trim();
+      if (/^\d+$/.test(mainSku)) {
+        const num = parseInt(mainSku, 10);
+        if (Number.isFinite(num)) {
+          allSkus.push(num);
+        }
+      }
+      
+      // variantSummaries - xillarning SKU lari
+      if (Array.isArray(p.variantSummaries)) {
+        p.variantSummaries.forEach((vs) => {
+          const variantSku = (vs.sku ?? '').trim();
+          if (/^\d+$/.test(variantSku)) {
+            const num = parseInt(variantSku, 10);
+            if (Number.isFinite(num)) {
+              allSkus.push(num);
+            }
+          }
+        });
+      }
+    });
+    
+    if (allSkus.length === 0) {
+      toast.info('Hech qanday mahsulot topilmadi');
+      return;
+    }
+    
+    // Eng katta SKU ni topish
+    const maxSku = Math.max(...allSkus);
+    console.log('[findEmptyCodes] Eng katta SKU:', maxSku);
+    console.log('[findEmptyCodes] Mavjud SKU lar:', allSkus.length, 'ta');
+    
+    // 1 dan maxSku gacha bo'sh kodlarni topish
+    const empty: number[] = [];
+    for (let i = 1; i <= maxSku; i++) {
+      if (!allSkus.includes(i)) {
+        empty.push(i);
+      }
+    }
+    
+    console.log('[findEmptyCodes] Bo\'sh kodlar:', empty.length, 'ta');
+    console.log('[findEmptyCodes] Bo\'sh kodlar ro\'yxati:', empty);
+    
+    setEmptyCodes(empty);
+    setEmptyCodesDialogOpen(true);
+    
+    if (empty.length === 0) {
+      toast.success('✅ Barcha kodlar band! Bo\'sh kod yo\'q.');
+    } else {
+      toast.info(`📋 ${empty.length} ta bo'sh kod topildi`);
+    }
+  };
+
+  // 🆕 Excel export funksiyasi - barcha mahsulotlar va xillarni yuklab olish
+  const handleExportToExcel = async () => {
+    try {
+      // Dinamik import - faqat kerak bo'lganda yuklanadi
+      const XLSX = await import('xlsx');
+      
+      console.log('[handleExportToExcel] ========== EXPORT BOSHLANDI ==========');
+      console.log('[handleExportToExcel] Total products:', products.length);
+      
+      // Barcha mahsulotlarni batafsil log qilish
+      let totalVariants = 0;
+      let productsWithVariants = 0;
+      let productsWithoutVariants = 0;
+      
+      products.forEach((product, index) => {
+        const variantCount = product.variantSummaries?.length || 0;
+        if (variantCount > 0) {
+          productsWithVariants++;
+          totalVariants += variantCount;
+          console.log(`[handleExportToExcel] Product ${index + 1}: "${product.name}" - ${variantCount} ta xil`);
+          product.variantSummaries?.forEach((v, i) => {
+            console.log(`  - Xil ${i + 1}: "${v.name}"`);
+          });
+        } else {
+          productsWithoutVariants++;
+          console.log(`[handleExportToExcel] Product ${index + 1}: "${product.name}" - xilsiz`);
+        }
+      });
+      
+      console.log('[handleExportToExcel] ========== STATISTIKA ==========');
+      console.log(`[handleExportToExcel] Xilli mahsulotlar: ${productsWithVariants} ta`);
+      console.log(`[handleExportToExcel] Xilsiz mahsulotlar: ${productsWithoutVariants} ta`);
+      console.log(`[handleExportToExcel] Jami xillar: ${totalVariants} ta`);
+      console.log(`[handleExportToExcel] Kutilayotgan Excel qatorlar: ${totalVariants + productsWithoutVariants} ta`);
+      console.log('[handleExportToExcel] ========================================');
+      
+      // Excel uchun ma'lumotlarni tayyorlash
+      const excelData: any[] = [];
+      let rowNumber = 1; // Qator raqami
+      
+      // Har bir mahsulotni va uning xillarini qo'shish
+      products.forEach((product, index) => {
+        // 🆕 YANGI LOGIKA: Har bir mahsulotni qo'shish (xilli yoki xilsiz)
+        const price = product.price || 0;
+        const stock = product.stock || 0;
+        const summa = price * stock;
+        
+        // 1. Avval ota mahsulotni qo'shish
+        excelData.push({
+          '№': rowNumber++,
+          'Код': (product as any).code || '',
+          'Наименование': product.name,
+          '№ по каталогу': (product as any).catalogNumber || '',
+          'Ед': 'шт',
+          'Кол-во': stock,
+          'Цена': price,
+          'Сумма': summa
+        });
+        
+        // 2. Agar xillar bo'lsa, ularni ham qo'shish
+        if (product.variantSummaries && product.variantSummaries.length > 0) {
+          product.variantSummaries.forEach((variant, vIndex) => {
+            const variantPrice = variant.price || product.price || 0;
+            const variantStock = variant.stock || 0;
+            const variantSumma = variantPrice * variantStock;
+            
+            excelData.push({
+              '№': rowNumber++,
+              'Код': (variant as any).code || (product as any).code || '',
+              'Наименование': variant.name || product.name,
+              '№ по каталогу': (variant as any).catalogNumber || (product as any).catalogNumber || '',
+              'Ед': 'шт',
+              'Кол-во': variantStock,
+              'Цена': variantPrice,
+              'Сумма': variantSumma
+            });
+          });
+        }
+      });
+      
+      console.log('[handleExportToExcel] ========== NATIJA ==========');
+      console.log('[handleExportToExcel] Haqiqiy Excel qatorlar:', excelData.length);
+      console.log('[handleExportToExcel] Farq:', (totalVariants + productsWithoutVariants) - excelData.length, 'ta qator kam');
+      console.log('[handleExportToExcel] ===================================');
+      
+      // Excel workbook yaratish
+      const worksheet = XLSX.utils.json_to_sheet(excelData);
+      
+      // Ustun kengliklarini o'rnatish (rasmga mos)
+      const columnWidths = [
+        { wch: 5 },   // №
+        { wch: 8 },   // Код
+        { wch: 70 },  // Наименование
+        { wch: 20 },  // № по каталогу
+        { wch: 5 },   // Ед
+        { wch: 8 },   // Кол-во
+        { wch: 8 },   // Цена
+        { wch: 10 },  // Сумма
+      ];
+      worksheet['!cols'] = columnWidths;
+      
+      // 🆕 Border va styling qo'shish
+      const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+      
+      // Border style
+      const borderStyle = {
+        top: { style: 'thin', color: { rgb: '000000' } },
+        bottom: { style: 'thin', color: { rgb: '000000' } },
+        left: { style: 'thin', color: { rgb: '000000' } },
+        right: { style: 'thin', color: { rgb: '000000' } }
+      };
+      
+      // Header style (birinchi qator)
+      const headerStyle = {
+        font: { bold: true, sz: 11 },
+        fill: { fgColor: { rgb: 'E0E0E0' } },
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+        border: borderStyle
+      };
+      
+      // Data style (qolgan qatorlar)
+      const dataStyle = {
+        font: { sz: 10 },
+        alignment: { horizontal: 'left', vertical: 'center', wrapText: true },
+        border: borderStyle
+      };
+      
+      // Number style (raqamlar uchun)
+      const numberStyle = {
+        font: { sz: 10 },
+        alignment: { horizontal: 'right', vertical: 'center' },
+        border: borderStyle,
+        numFmt: '0.00'
+      };
+      
+      // Har bir katakchaga style qo'llash
+      for (let R = range.s.r; R <= range.e.r; ++R) {
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!worksheet[cellAddress]) continue;
+          
+          // Birinchi qator - header
+          if (R === 0) {
+            worksheet[cellAddress].s = headerStyle;
+          } else {
+            // Raqamli ustunlar: Кол-во (5), Цена (6), Сумма (7)
+            if (C === 5 || C === 6 || C === 7) {
+              worksheet[cellAddress].s = numberStyle;
+            } else {
+              worksheet[cellAddress].s = dataStyle;
+            }
+          }
+        }
+      }
+      
+      // Qator balandliklarini o'rnatish
+      const rowHeights: any[] = [];
+      for (let i = 0; i <= range.e.r; i++) {
+        rowHeights.push({ hpt: i === 0 ? 25 : 18 }); // Header 25px, data 18px
+      }
+      worksheet['!rows'] = rowHeights;
+      
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Mahsulotlar');
+      
+      // Fayl nomini yaratish - sana bilan
+      const date = new Date();
+      const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      const fileName = `mahsulotlar_${dateStr}.xlsx`;
+      
+      // Faylni yuklab olish
+      XLSX.writeFile(workbook, fileName);
+      
+      toast.success(`✅ ${excelData.length} ta mahsulot Excel fayliga yuklandi`);
+    } catch (error) {
+      console.error('[handleExportToExcel] Error:', error);
+      toast.error('Excel faylini yaratishda xatolik yuz berdi');
     }
   };
 
@@ -2447,7 +2693,16 @@ export default function Products() {
               className="flex items-center gap-1.5 text-green-400 hover:text-green-300 transition"
             >
               <FileSpreadsheet className="w-4 h-4" />
-              <span className="font-medium">Excel</span>
+              <span className="font-medium">Excel import</span>
+            </button>
+            <span className="text-gray-600">|</span>
+            <button
+              type="button"
+              onClick={handleExportToExcel}
+              className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 transition"
+            >
+              <Download className="w-4 h-4" />
+              <span className="font-medium">Excel export</span>
             </button>
             <span className="text-gray-600">|</span>
             <button
@@ -2457,6 +2712,16 @@ export default function Products() {
             >
               <Tag className="w-4 h-4" />
               <span className="font-medium">Ommaviy senik</span>
+            </button>
+            <span className="text-gray-600">|</span>
+            {/* 🆕 Bo'sh kodlar tugmasi */}
+            <button
+              type="button"
+              onClick={findEmptyCodes}
+              className="flex items-center gap-1.5 text-purple-400 hover:text-purple-300 transition"
+            >
+              <Search className="w-4 h-4" />
+              <span className="font-medium">Bo'sh kodlar</span>
             </button>
             {/* Hammasini o'chirish - faqat ega uchun */}
             {(user?.role === 'egasi' || user?.role === 'owner' || user?.role === 'admin') && products.length > 0 && (
@@ -2565,9 +2830,6 @@ export default function Products() {
                           <div className="flex items-center gap-2.5 py-0.5">
                             <div className="w-2 h-2 rounded-full bg-gradient-to-br from-primary to-primary/60"></div>
                             <span className="font-medium">{category.name}</span>
-                            <span className="text-xs text-muted-foreground ml-auto px-2 py-0.5 rounded-md bg-muted">
-                              {(category as any).markupPercentage ?? 20}%
-                            </span>
                           </div>
                         </SelectItem>
                       ))}
@@ -2600,6 +2862,7 @@ export default function Products() {
                             ...prev, 
                             [updatingCategoryMarkupId]: e.target.value ? Number(e.target.value) : '' as any
                           }))}
+                          onWheel={(e) => e.currentTarget.blur()}
                           placeholder="20"
                           className="w-28 h-11 bg-background/80 border border-input rounded-lg px-4 text-sm font-semibold text-center focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all placeholder:text-muted-foreground/50"
                         />
@@ -2919,11 +3182,29 @@ export default function Products() {
                           inputMode="decimal"
                           value={basePrice}
                           onChange={(e) => {
-                            // Vergul va nuqtani qabul qilish - faqat raqamlar, nuqta va vergul
+                            // Faqat raqamlar, nuqta va vergulni qabul qilish
                             const value = e.target.value.replace(/[^\d.,]/g, '');
                             setBasePrice(value);
                             // Asl narx o'zgarsa, agar narx qo'lda o'zgartirilgan bo'lsa foiz qayta hisoblanadi
                             // Aks holda narx qayta hisoblanadi (useEffect orqali)
+                          }}
+                          onBlur={(e) => {
+                            // Fokusdan chiqqanda formatlash
+                            if (basePrice) {
+                              const cleanValue = basePrice.replace(/\s/g, '').replace(',', '.');
+                              const num = parseFloat(cleanValue);
+                              if (!isNaN(num)) {
+                                // Formatlangan qiymatni ko'rsatish
+                                setBasePrice(num.toLocaleString('uz-UZ'));
+                              }
+                            }
+                          }}
+                          onFocus={(e) => {
+                            // Fokusga kelganda formatni olib tashlash
+                            if (basePrice) {
+                              const cleanValue = basePrice.replace(/\s/g, '').replace(',', '.');
+                              setBasePrice(cleanValue);
+                            }
                           }}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
@@ -6470,6 +6751,72 @@ export default function Products() {
               ) : (
                 <><Printer className="w-5 h-5 mr-2" />Senik chiqarish ({bulkUseCustomSize ? `${bulkCustomWidth}×${bulkCustomHeight}` : `${LABEL_SIZE_CONFIGS[bulkLabelSize].width}×${LABEL_SIZE_CONFIGS[bulkLabelSize].height}`}mm)</>
               )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 🆕 Bo'sh Kodlar Dialog */}
+      <Dialog open={emptyCodesDialogOpen} onOpenChange={setEmptyCodesDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] bg-slate-900/95 border-slate-700/50 backdrop-blur-xl rounded-3xl p-6">
+          <DialogHeader className="mb-4">
+            <DialogTitle className="text-slate-200 flex items-center gap-3 text-xl font-bold">
+              <Search className="w-6 h-6 text-purple-400" />
+              Bo'sh Kodlar
+            </DialogTitle>
+            <p className="text-slate-400 text-sm mt-2">
+              O'chirilgan mahsulotlar kodlari. Yangi mahsulot qo'shganda bu kodlarni ishlatishingiz mumkin.
+            </p>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {emptyCodes.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="text-6xl mb-4">✅</div>
+                <p className="text-slate-300 text-lg font-semibold">Barcha kodlar band!</p>
+                <p className="text-slate-400 text-sm mt-2">Bo'sh kod topilmadi</p>
+              </div>
+            ) : (
+              <>
+                <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                  <div className="text-center">
+                    <p className="text-slate-300 font-semibold">Jami bo'sh kodlar:</p>
+                    <p className="text-3xl font-bold text-purple-400">{emptyCodes.length} ta</p>
+                  </div>
+                </div>
+                
+                <div className="bg-slate-800/30 rounded-lg p-4 border border-slate-700 max-h-96 overflow-y-auto">
+                  <div className="grid grid-cols-10 gap-2">
+                    {emptyCodes.map((code) => (
+                      <div
+                        key={code}
+                        className="bg-slate-700/50 hover:bg-slate-700 text-slate-200 rounded px-3 py-2 text-center font-mono text-sm transition cursor-pointer"
+                        onClick={() => {
+                          navigator.clipboard.writeText(String(code));
+                          toast.success(`✅ Kod ${code} nusxalandi!`);
+                        }}
+                        title={`Kod ${code} ni nusxalash`}
+                      >
+                        {code}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="text-slate-400 text-xs text-center">
+                  💡 Kodga bosing - nusxalanadi
+                </div>
+              </>
+            )}
+          </div>
+          
+          <div className="flex justify-end gap-3 mt-6">
+            <Button
+              variant="outline"
+              onClick={() => setEmptyCodesDialogOpen(false)}
+              className="bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-600"
+            >
+              Yopish
             </Button>
           </div>
         </DialogContent>

@@ -50,20 +50,35 @@ const createProduct = async (product: ProductInput) => {
     throw new Error('Nom va kod majburiy');
   }
   
-  // 2. SKU dublikat tekshirish
+  // 2. 🆕 DUBLIKAT TEKSHIRUVI
+  // Agar 5 xonali kod (code) mavjud bo'lsa - kod bo'yicha tekshirish
+  // Agar kod bo'lmasa - mahsulot nomi bo'yicha tekshirish
+  if (product.code && product.code.trim()) {
+    const existingByCode = await api.get(`/api/products?code=${product.code}`);
+    if (existingByCode.length > 0) {
+      throw new Error(`"${product.code}" kodli mahsulot allaqachon mavjud: "${existingByCode[0].name}"`);
+    }
+  } else {
+    const existingByName = await api.get(`/api/products?name=${product.name}`);
+    if (existingByName.length > 0) {
+      throw new Error(`"${product.name}" nomli mahsulot allaqachon mavjud`);
+    }
+  }
+  
+  // 3. SKU dublikat tekshirish
   const existing = await api.get(`/api/products?sku=${product.sku}`);
   if (existing.length > 0) {
     throw new Error('Bu kod allaqachon mavjud');
   }
   
-  // 3. Mahsulot yaratish
+  // 4. Mahsulot yaratish
   const response = await api.post('/api/products', {
     ...product,
     userId: user.id,
     createdAt: new Date(),
   });
   
-  // 4. Offline DB ga saqlash
+  // 5. Offline DB ga saqlash
   await offlineDB.products.add(response.data);
   
   return response.data;
