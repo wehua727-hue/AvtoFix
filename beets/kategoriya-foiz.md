@@ -390,6 +390,78 @@ Expected Output:
 
 ---
 
+## 🐛 Muammolar va Yechimlar
+
+### Muammo 1: Ba'zi mahsulotlar yangilanmaydi
+**Sabab:** Mahsulotda `basePrice` yo'q yoki 0
+
+**Yechim:**
+```typescript
+// Backend avtomatik ravishda hozirgi price ni basePrice sifatida o'rnatadi
+let basePrice = product.basePrice;
+let needsBasePriceUpdate = false;
+
+if (!basePrice || basePrice === 0) {
+  basePrice = product.price || 0;
+  needsBasePriceUpdate = true;
+}
+
+// Agar basePrice hali ham 0 bo'lsa, mahsulotni o'tkazib yuborish
+if (basePrice === 0) {
+  console.log('⚠️ Skipping product (basePrice is 0)');
+  continue;
+}
+```
+
+**Debug:** Server console'da quyidagi loglar ko'rsatiladi:
+- `[handleCategoryMarkupUpdate] ✅ Updating product: ...` - yangilanayotgan mahsulotlar
+- `[handleCategoryMarkupUpdate] ⚠️ Skipping product: ...` - o'tkazib yuborilgan mahsulotlar
+
+### Muammo 2: TypeScript xatolari (req.params.id)
+**Sabab:** `req.params.id` ning type'i `string | string[]`
+
+**Yechim:**
+```typescript
+const id = req.params.id as string; // Type assertion
+```
+
+### Muammo 3: bulkOps array type xatosi
+**Sabab:** TypeScript array type'ini to'g'ri aniqlay olmaydi
+
+**Yechim:**
+```typescript
+const bulkOps: any[] = []; // Explicit type annotation
+```
+
+### Muammo 4: Variant narxlari yangilanmaydi
+**Sabab:** Variantlar uchun alohida yangilash kerak
+
+**Yechim:**
+```typescript
+// Variantlarni ham yangilash
+if (product.variantSummaries && Array.isArray(product.variantSummaries)) {
+  const updatedVariants = product.variantSummaries.map((variant: any) => {
+    let variantBasePrice = variant.basePrice;
+    if (!variantBasePrice || variantBasePrice === 0) {
+      variantBasePrice = variant.price || 0;
+    }
+    
+    const variantSellingPrice = variantBasePrice + (variantBasePrice * markupPercentage / 100);
+    
+    return {
+      ...variant,
+      basePrice: variantBasePrice,
+      price: variantSellingPrice,
+      markupPercentage: markupPercentage
+    };
+  });
+
+  bulkOps[bulkOps.length - 1].updateOne.update.$set.variantSummaries = updatedVariants;
+}
+```
+
+---
+
 ## 📈 Kelajakda Qo'shilishi Mumkin
 
 ### 1. Tarix:

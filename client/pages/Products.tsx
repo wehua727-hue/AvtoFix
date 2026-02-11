@@ -2631,7 +2631,20 @@ export default function Products() {
                 const selectedCategory = categories.find(c => c.id === updatingCategoryMarkupId);
                 const currentMarkup = (selectedCategory as any)?.markupPercentage ?? 20;
                 const newMarkup = categoryMarkups[updatingCategoryMarkupId] || 20;
-                const productsInCategory = products.filter(p => p.categoryId === updatingCategoryMarkupId).length;
+                
+                // MUHIM: Ota mahsulotlar + xillar sonini hisoblash
+                const productsInCategoryData = products.filter(p => p.categoryId === updatingCategoryMarkupId);
+                const productsCount = productsInCategoryData.length; // Ota mahsulotlar
+                let variantsCount = 0; // Xillar
+                
+                // Har bir mahsulotning xillarini sanash
+                productsInCategoryData.forEach(p => {
+                  if (p.variantSummaries && Array.isArray(p.variantSummaries)) {
+                    variantsCount += p.variantSummaries.length;
+                  }
+                });
+                
+                const totalCount = productsCount + variantsCount; // Jami
                 
                 return (
                   <motion.div
@@ -2655,22 +2668,11 @@ export default function Products() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                             </svg>
                             <span>
-                              <span className="font-semibold text-blue-400">{productsInCategory}</span> ta mahsulot
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <svg className="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                            </svg>
-                            <span>
-                              Hozirgi foiz: <span className="font-semibold text-foreground">{currentMarkup}%</span>
-                              {newMarkup !== currentMarkup && (
-                                <>
-                                  <svg className="w-3 h-3 inline mx-1 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                                  </svg>
-                                  <span className="font-bold text-blue-400">{newMarkup}%</span>
-                                </>
+                              <span className="font-semibold text-blue-400">{totalCount}</span> ta mahsulot
+                              {variantsCount > 0 && (
+                                <span className="text-muted-foreground ml-1">
+                                  ({productsCount} ota + {variantsCount} xil)
+                                </span>
                               )}
                             </span>
                           </div>

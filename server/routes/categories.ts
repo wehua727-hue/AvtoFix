@@ -159,7 +159,7 @@ export const handleCategoriesCreate: RequestHandler = async (req, res) => {
 
 export const handleCategoryUpdate: RequestHandler = async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { name, parentId, level, order, isActive, slug, markupPercentage } = req.body || {};
 
     console.log('[handleCategoryUpdate] Received request:', { id, body: req.body });
@@ -246,7 +246,7 @@ export const handleCategoryUpdate: RequestHandler = async (req, res) => {
 
 export const handleCategoryDelete: RequestHandler = async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     console.log('[handleCategoryDelete] Received request:', { id });
 
@@ -291,7 +291,7 @@ export const handleCategoryDelete: RequestHandler = async (req, res) => {
 // 🆕 Kategoriya foizini yangilash va barcha mahsulotlar narxini avtomatik hisoblash
 export const handleCategoryMarkupUpdate: RequestHandler = async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { markupPercentage } = req.body || {};
 
     console.log('[handleCategoryMarkupUpdate] Received request:', { id, markupPercentage });
@@ -365,38 +365,114 @@ export const handleCategoryMarkupUpdate: RequestHandler = async (req, res) => {
     }
 
     // 3. Har bir mahsulot uchun yangi narxni hisoblash va yangilash
-    let updatedCount = 0;
-    const bulkOps = [];
+    let updatedProductsCount = 0; // Ota mahsulotlar soni
+    let updatedVariantsCount = 0; // Xillar soni
+    const bulkOps: any[] = [];
 
+    console.log('[handleCategoryMarkupUpdate] Processing products...');
+    
     for (const product of products) {
-      const basePrice = product.basePrice || product.price || 0;
+      // MUHIM: basePrice ni tekshirish - agar yo'q bo'lsa, hozirgi narxni basePrice sifatida o'rnatish
+      let basePrice = product.basePrice;
+      let needsBasePriceUpdate = false;
+      
+      if (!basePrice || basePrice === 0) {
+        // Agar basePrice yo'q bo'lsa, hozirgi narxni basePrice sifatida ishlatish
+        basePrice = product.price || 0;
+        needsBasePriceUpdate = true;
+        
+        console.log('[handleCategoryMarkupUpdate] Product missing basePrice, using current price:', {
+          _id: product._id,
+          name: product.name,
+          price: product.price,
+          willSetBasePrice: basePrice
+        });
+      }
+      
+      // Agar basePrice hali ham 0 bo'lsa, bu mahsulotni o'tkazib yuborish
+      if (basePrice === 0) {
+        console.log('[handleCategoryMarkupUpdate] ⚠️ Skipping product (basePrice is 0):', {
+          _id: product._id,
+          name: product.name,
+          sku: product.sku,
+          price: product.price,
+          basePrice: product.basePrice
+        });
+        continue;
+      }
       
       // Yangi sotilish narxini hisoblash: basePrice + (basePrice * markupPercentage / 100)
       const sellingPrice = basePrice + (basePrice * markupPercentage / 100);
+
+      console.log('[handleCategoryMarkupUpdate] ✅ Updating product:', {
+        _id: product._id,
+        name: product.name,
+        sku: product.sku,
+        oldPrice: product.price,
+        newPrice: sellingPrice,
+        basePrice: basePrice,
+        markupPercentage: markupPercentage,
+        needsBasePriceUpdate: needsBasePriceUpdate,
+        hasVariants: !!(product.variantSummaries && product.variantSummaries.length > 0)
+      });
+
+      const updateFields: any = {
+        markupPercentage,
+        price: sellingPrice,
+        priceMultiplier: markupPercentage, // MUHIM: priceMultiplier ham yangilash
+      };
+      
+      // Agar basePrice yo'q bo'lsa, uni o'rnatish
+      if (needsBasePriceUpdate) {
+        updateFields.basePrice = basePrice;
+      }
 
       bulkOps.push({
         updateOne: {
           filter: { _id: product._id },
           update: {
-            $set: {
-              markupPercentage,
-              price: sellingPrice,
-              // Agar basePrice yo'q bo'lsa, hozirgi narxni basePrice sifatida saqlash
-              ...(product.basePrice ? {} : { basePrice: product.price || 0 })
-            }
+            $set: updateFields
           }
         }
       });
+      
+      // Ota mahsulot yangilandi
+      updatedProductsCount++;
 
       // 🆕 Agar mahsulotda variantlar bo'lsa, ularni ham yangilash
       if (product.variantSummaries && Array.isArray(product.variantSummaries)) {
-        const updatedVariants = product.variantSummaries.map((variant: any) => {
-          const variantBasePrice = variant.basePrice || variant.price || 0;
+        console.log('[handleCategoryMarkupUpdate] Product has variants:', product.variantSummaries.length);
+        
+        const updatedVariants = product.variantSummaries.map((variant: any, index: number) => {
+          // Variant uchun ham basePrice tekshirish
+          let variantBasePrice = variant.basePrice;
+          if (!variantBasePrice || variantBasePrice === 0) {
+            variantBasePrice = variant.price || 0;
+            console.log(`[handleCategoryMarkupUpdate]   Variant ${index + 1} missing basePrice, using current price:`, {
+              name: variant.name,
+              sku: variant.sku,
+              price: variant.price,
+              willSetBasePrice: variantBasePrice
+            });
+          }
+          
           const variantSellingPrice = variantBasePrice + (variantBasePrice * markupPercentage / 100);
+          
+          console.log(`[handleCategoryMarkupUpdate]   ✅ Variant ${index + 1}:`, {
+            name: variant.name,
+            sku: variant.sku,
+            oldPrice: variant.price,
+            newPrice: variantSellingPrice,
+            basePrice: variantBasePrice,
+            markupPercentage: markupPercentage
+          });
+          
+          // Xil yangilandi
+          updatedVariantsCount++;
           
           return {
             ...variant,
-            basePrice: variant.basePrice || variant.price || 0,
+            basePrice: variantBasePrice, // MUHIM: basePrice ni o'rnatish
             price: variantSellingPrice,
             priceMultiplier: markupPercentage, // MUHIM: markupPercentage ni to'g'ridan-to'g'ri o'rnatish (20, 30, etc.)
             markupPercentage: markupPercentage // MUHIM: markupPercentage ni ham o'rnatish
@@ -409,9 +485,15 @@ export const handleCategoryMarkupUpdate: RequestHandler = async (req, res) => {
     }
 
     if (bulkOps.length > 0) {
+      console.log('[handleCategoryMarkupUpdate] Executing bulk update for', bulkOps.length, 'products');
       const bulkResult = await db.collection(PRODUCTS_COLLECTION).bulkWrite(bulkOps);
-      updatedCount = bulkResult.modifiedCount;
-      console.log('[handleCategoryMarkupUpdate] Updated products:', updatedCount);
+      console.log('[handleCategoryMarkupUpdate] Bulk update result:', {
+        modifiedCount: bulkResult.modifiedCount,
+        matchedCount: bulkResult.matchedCount,
+        upsertedCount: bulkResult.upsertedCount
+      });
+    } else {
+      console.log('[handleCategoryMarkupUpdate] No products to update (all skipped or no basePrice)');
     }
 
     const c = categoryResult as CategoryDoc;
@@ -420,12 +502,21 @@ export const handleCategoryMarkupUpdate: RequestHandler = async (req, res) => {
       name: c.name ?? "",
       markupPercentage: c.markupPercentage ?? 20,
     };
+    
+    // Jami yangilangan mahsulotlar va xillar soni
+    const totalUpdated = updatedProductsCount + updatedVariantsCount;
+    
+    console.log('[handleCategoryMarkupUpdate] Summary:', {
+      updatedProducts: updatedProductsCount,
+      updatedVariants: updatedVariantsCount,
+      totalUpdated: totalUpdated
+    });
 
     return res.json({ 
       success: true, 
       category,
-      updatedProductsCount: updatedCount,
-      message: `Kategoriya va ${updatedCount} ta mahsulot narxi yangilandi`
+      updatedProductsCount: totalUpdated, // Jami: ota mahsulotlar + xillar
+      message: `Kategoriya va ${totalUpdated} ta mahsulot narxi yangilandi (${updatedProductsCount} ta ota mahsulot + ${updatedVariantsCount} ta xil)`
     });
   } catch (err) {
     console.error("[api/categories/:id/markup PUT] error", err);
