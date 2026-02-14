@@ -1889,9 +1889,9 @@ export default function ProductDetail() {
             <div className="space-y-4">
               {/* Mahsulot ma'lumotlari */}
               <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50">
-                <div className="text-xl font-bold text-slate-200 mb-3 leading-tight">{labelDialogProduct.name}</div>
+                <div className="text-2xl font-extrabold text-slate-100 mb-3 leading-tight">{labelDialogProduct.name}</div>
                 <div className="flex items-center justify-between">
-                  <span className="text-purple-400 font-semibold text-lg">Kod: {labelDialogProduct.sku || '-'}</span>
+                  <span className="text-purple-400 font-bold text-xl">Kod: {labelDialogProduct.sku || '-'}</span>
                   <span className="text-green-400 font-bold text-base">${labelDialogProduct.price.toLocaleString()}</span>
                 </div>
                 {(labelDialogProduct as any).code && (
