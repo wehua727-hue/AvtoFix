@@ -113,12 +113,15 @@ AvtoFix/
 - ✅ Mahsulot variantlari (o'lcham, rang, va boshqalar)
 - ✅ Rasm yuklash (drag & drop)
 - ✅ Excel import
-- ✅ **Excel export (barcha mahsulotlar va xillar)** 🆕
+- ✅ **Excel export (barcha mahsulotlar va xillar, rus tilida)** 🆕
+- ✅ **Bo'sh kodlar funksiyasi (1 dan max SKU gacha)** 🆕
+- ✅ **Asl narx formatlash (10000 → 10 000)** 🆕
 - ✅ Ota-bola mahsulot tizimi
 - ✅ Mahsulot holati (mavjud, kutilmoqda, tugagan)
 - ✅ Narx va valyuta boshqaruvi
 - ✅ Ombor boshqaruvi
 - ✅ Barcode label chop etish
+- ✅ **Scroll input fix (scroll qiymatni o'zgartirmaydi)** 🆕
 
 **Batafsil:** `beets/mahsulotlar.md`
 
@@ -591,5 +594,6 @@ git commit -m "feat(kassa): chegirma funksiyasi qo'shildi"
 ---
 
 **Yaratilgan:** 2025-02-10
-**Versiya:** 1.0.0
+**Oxirgi yangilanish:** 2025-02-11
+**Versiya:** 1.1.0
 **Muallif:** AvtoFix Development Team

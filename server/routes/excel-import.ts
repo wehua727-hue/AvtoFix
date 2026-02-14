@@ -145,7 +145,7 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
       categoryId,
       userId,
       defaultStock = 5,
-      defaultMultiplier = 20,
+      defaultMultiplier = 25,
       defaultCurrency = 'USD',
       defaultStatus = 'available'
     } = req.body;

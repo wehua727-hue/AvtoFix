@@ -9,7 +9,7 @@ export interface Category {
   order?: number;
   isActive?: boolean;
   slug?: string;
-  markupPercentage: number;  // Ustama foiz (default: 20)
+  markupPercentage: number;  // Ustama foiz (default: 25)
 }
 
 // Bola mahsulot interfeysi

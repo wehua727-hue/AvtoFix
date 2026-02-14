@@ -1888,14 +1888,14 @@ export default function ProductDetail() {
           {labelDialogProduct && (
             <div className="space-y-4">
               {/* Mahsulot ma'lumotlari */}
-              <div className="p-3 bg-slate-800/50 rounded-xl border border-slate-700/50">
-                <div className="text-base font-bold text-slate-200 mb-2">{labelDialogProduct.name}</div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-purple-400 font-medium">Kod: {labelDialogProduct.sku || '-'}</span>
-                  <span className="text-green-400 font-bold">${labelDialogProduct.price.toLocaleString()}</span>
+              <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50">
+                <div className="text-xl font-bold text-slate-200 mb-3 leading-tight">{labelDialogProduct.name}</div>
+                <div className="flex items-center justify-between">
+                  <span className="text-purple-400 font-semibold text-lg">Kod: {labelDialogProduct.sku || '-'}</span>
+                  <span className="text-green-400 font-bold text-base">${labelDialogProduct.price.toLocaleString()}</span>
                 </div>
                 {(labelDialogProduct as any).code && (
-                  <div className="mt-2 text-sm text-amber-400 font-medium">5 talik kod: {(labelDialogProduct as any).code}</div>
+                  <div className="mt-3 text-base text-amber-400 font-semibold">5 talik kod: {(labelDialogProduct as any).code}</div>
                 )}
               </div>
 

@@ -424,7 +424,7 @@ export default function Products() {
     // 🆕 Kategoriyalar yuklanganida markuplarni initialize qilish
     const markups: Record<string, number> = {};
     categories.forEach(cat => {
-      markups[cat.id] = (cat as any).markupPercentage ?? 20;
+      markups[cat.id] = (cat as any).markupPercentage ?? 25;
     });
     setCategoryMarkups(markups);
   }, [categories]);
@@ -437,7 +437,7 @@ export default function Products() {
   const [price, setPrice] = useState('');
   const [priceCurrency, setPriceCurrency] = useState<Currency>('USD');
   const [basePrice, setBasePrice] = useState('');
-  const [priceMultiplier, setPriceMultiplier] = useState('20');
+  const [priceMultiplier, setPriceMultiplier] = useState('25');
   const [stock, setStock] = useState('1');
   const [isPriceManuallyEdited, setIsPriceManuallyEdited] = useState(false);
   const [categoryId, setCategoryId] = useState('');
@@ -2079,7 +2079,7 @@ export default function Products() {
           setPrice('');
           setPriceCurrency('USD');
           setBasePrice('');
-          setPriceMultiplier('20');
+          setPriceMultiplier('25');
           setStock('1');
           setCategoryId('');
           setSelectedParent(null);
@@ -2287,7 +2287,7 @@ export default function Products() {
         setPrice('');
         setPriceCurrency('USD');
         setBasePrice('');
-        setPriceMultiplier('20');
+        setPriceMultiplier('25');
         setStock('1');
         setCategoryId('');
         setSelectedParent(null);
@@ -2594,7 +2594,7 @@ export default function Products() {
                       setPrice('');
                       setPriceCurrency('USD');
                       setBasePrice('');
-                      setPriceMultiplier('20');
+                      setPriceMultiplier('25');
                       setStock('1');
                       setCategoryId('');
                       setSelectedParent(null);
@@ -2863,7 +2863,7 @@ export default function Products() {
                             [updatingCategoryMarkupId]: e.target.value ? Number(e.target.value) : '' as any
                           }))}
                           onWheel={(e) => e.currentTarget.blur()}
-                          placeholder="20"
+                          placeholder="25"
                           className="w-28 h-11 bg-background/80 border border-input rounded-lg px-4 text-sm font-semibold text-center focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all placeholder:text-muted-foreground/50"
                         />
                         <span className="text-sm font-medium text-muted-foreground">%</span>
@@ -2892,8 +2892,8 @@ export default function Products() {
               {/* Tanlangan kategoriya haqida ma'lumot */}
               {updatingCategoryMarkupId && (() => {
                 const selectedCategory = categories.find(c => c.id === updatingCategoryMarkupId);
-                const currentMarkup = (selectedCategory as any)?.markupPercentage ?? 20;
-                const newMarkup = categoryMarkups[updatingCategoryMarkupId] || 20;
+                const currentMarkup = (selectedCategory as any)?.markupPercentage ?? 25;
+                const newMarkup = categoryMarkups[updatingCategoryMarkupId] || 25;
                 
                 // MUHIM: Ota mahsulotlar + xillar sonini hisoblash
                 const productsInCategoryData = products.filter(p => p.categoryId === updatingCategoryMarkupId);
@@ -3060,7 +3060,7 @@ export default function Products() {
                       setPrice('');
                       setPriceCurrency('USD');
                       setBasePrice('');
-                      setPriceMultiplier('20');
+                      setPriceMultiplier('25');
                       setStock('1');
                       setCategoryId('');
                       setSelectedParent(null);
@@ -3597,7 +3597,7 @@ export default function Products() {
                                           basePrice: baseFromVariant != null && Number.isFinite(baseFromVariant)
                                             ? String(baseFromVariant)
                                             : '',
-                                          priceMultiplier: variant?.priceMultiplier != null ? String(variant.priceMultiplier) : '20',
+                                          priceMultiplier: variant?.priceMultiplier != null ? String(variant.priceMultiplier) : '25',
                                           price: priceFromVariant != null && Number.isFinite(priceFromVariant)
                                             ? String(priceFromVariant)
                                             : '',
@@ -4108,7 +4108,7 @@ export default function Products() {
                         setSku('');
                         setPrice('');
                         setBasePrice('');
-                        setPriceMultiplier('20');
+                        setPriceMultiplier('25');
                         setStock('1');
                         setCategoryId('');
                         setSelectedParent(null);
@@ -6009,14 +6009,14 @@ export default function Products() {
           {labelDialogProduct && (
             <div className="space-y-4">
               {/* Mahsulot ma'lumotlari */}
-              <div className="p-3 bg-slate-800/50 rounded-xl border border-slate-700/50">
-                <div className="text-base font-bold text-slate-200 mb-2">{labelDialogProduct.name}</div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-purple-400 font-medium">Kod: {labelDialogProduct.sku || '-'}</span>
-                  <span className="text-green-400 font-bold">${labelDialogProduct.price.toLocaleString()}</span>
+              <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50">
+                <div className="text-xl font-bold text-slate-200 mb-3 leading-tight">{labelDialogProduct.name}</div>
+                <div className="flex items-center justify-between">
+                  <span className="text-purple-400 font-semibold text-lg">Kod: {labelDialogProduct.sku || '-'}</span>
+                  <span className="text-green-400 font-bold text-base">${labelDialogProduct.price.toLocaleString()}</span>
                 </div>
                 {(labelDialogProduct as any).code && (
-                  <div className="mt-2 text-sm text-amber-400 font-medium">5 talik kod: {(labelDialogProduct as any).code}</div>
+                  <div className="mt-3 text-base text-amber-400 font-semibold">5 talik kod: {(labelDialogProduct as any).code}</div>
                 )}
               </div>
 
@@ -6903,7 +6903,7 @@ export default function Products() {
                   setPrice('');
                   setPriceCurrency('USD');
                   setBasePrice('');
-                  setPriceMultiplier('20');
+                  setPriceMultiplier('25');
                   setStock('1');
                   setCategoryId('');
                   setSelectedParent(null);

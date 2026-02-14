@@ -329,9 +329,221 @@ const handleDrop = async (e: DragEvent) => {
 
 ---
 
-### 5. **Excel Import**
+### 5. **Excel Export** 🆕
 
-#### 5.1. Excel Fayl Formati:
+#### 5.1. Excel Export Funksiyasi:
+```typescript
+const handleExportToExcel = async () => {
+  try {
+    // 1. xlsx kutubxonasini dinamik import qilish
+    const XLSX = await import('xlsx');
+    
+    // 2. Barcha mahsulotlarni olish (parent + variants)
+    const allProducts = products.flatMap(p => {
+      if (p.variantSummaries && p.variantSummaries.length > 0) {
+        // Variantlar bilan mahsulot
+        return p.variantSummaries.map(v => ({
+          parent: p,
+          variant: v,
+          isVariant: true
+        }));
+      } else {
+        // Oddiy mahsulot
+        return [{
+          parent: p,
+          variant: null,
+          isVariant: false
+        }];
+      }
+    });
+    
+    // 3. Excel uchun ma'lumotlarni tayyorlash
+    const excelData = allProducts.map((item, index) => {
+      const product = item.parent;
+      const variant = item.variant;
+      
+      return {
+        '№': index + 1,
+        'Код': variant?.sku || product.sku || '',
+        'Наименование': variant ? 
+          `${product.name} (${variant.name})` : 
+          product.name,
+        '№ по каталогу': product.catalogNumber || '',
+        'Ед': 'шт',
+        'Кол-во': variant?.stock ?? product.stock ?? 0,
+        'Цена': variant?.price ?? product.price ?? 0,
+        'Сумма': (variant?.stock ?? product.stock ?? 0) * 
+                 (variant?.price ?? product.price ?? 0)
+      };
+    });
+    
+    // 4. Worksheet yaratish
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    
+    // 5. Ustun kengliklarini sozlash
+    worksheet['!cols'] = [
+      { wch: 5 },   // №
+      { wch: 15 },  // Код
+      { wch: 40 },  // Наименование
+      { wch: 15 },  // № по каталогу
+      { wch: 5 },   // Ед
+      { wch: 10 },  // Кол-во
+      { wch: 12 },  // Цена
+      { wch: 15 }   // Сумма
+    ];
+    
+    // 6. Stil qo'shish (border va format)
+    const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+        if (!worksheet[cellAddress]) continue;
+        
+        // Border qo'shish
+        worksheet[cellAddress].s = {
+          border: {
+            top: { style: 'thin', color: { rgb: '000000' } },
+            bottom: { style: 'thin', color: { rgb: '000000' } },
+            left: { style: 'thin', color: { rgb: '000000' } },
+            right: { style: 'thin', color: { rgb: '000000' } }
+          },
+          alignment: {
+            horizontal: C >= 5 ? 'right' : 'left', // Raqamlar o'ngga
+            vertical: 'center'
+          }
+        };
+        
+        // Header uchun qo'shimcha stil
+        if (R === 0) {
+          worksheet[cellAddress].s.font = { bold: true };
+          worksheet[cellAddress].s.fill = {
+            fgColor: { rgb: 'CCCCCC' }
+          };
+          worksheet[cellAddress].s.alignment = { horizontal: 'center' };
+        }
+      }
+    }
+    
+    // 7. Workbook yaratish va saqlash
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Mahsulotlar');
+    
+    const fileName = `mahsulotlar_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+    
+    toast.success(`✅ ${excelData.length} ta mahsulot Excel fayliga yuklandi`);
+  } catch (error) {
+    console.error('[handleExportToExcel] Error:', error);
+    toast.error('Excel faylini yaratishda xatolik yuz berdi');
+  }
+};
+```
+
+#### 5.2. Excel Fayl Formati:
+```
+| № | Код  | Наименование      | № по каталогу | Ед  | Кол-во | Цена   | Сумма    |
+|---|------|-------------------|---------------|-----|--------|--------|----------|
+| 1 | M001 | Moy 5W-30 1L      | CAT123        | шт  | 100    | 50000  | 5000000  |
+| 2 | M002 | Moy 5W-30 4L      | CAT124        | шт  | 50     | 180000 | 9000000  |
+```
+
+#### 5.3. Excel Export Xususiyatlari:
+- ✅ Barcha mahsulotlar (parent + variants) yuklanadi
+- ✅ Rus tilida (Cyrillic) ustun nomlari
+- ✅ Har bir ma'lumot alohida katakchada
+- ✅ Border va stil qo'shilgan
+- ✅ Header: bold, kulrang fon, markazlashtirilgan
+- ✅ Raqamlar: o'ngga tekislangan
+- ✅ Ustun kengliklari optimallashtirilgan
+- ✅ Dinamik import (performance uchun)
+
+---
+
+### 6. **Bo'sh Kodlar (Empty Codes)** 🆕
+
+#### 6.1. Bo'sh Kodlar Funksiyasi:
+```typescript
+const findEmptyCodes = () => {
+  // 1. Barcha SKU kodlarni to'plash (parent + variants)
+  const allSkus = new Set<number>();
+  
+  products.forEach(p => {
+    const sku = parseInt(p.sku);
+    if (!isNaN(sku)) {
+      allSkus.add(sku);
+    }
+    
+    // Variantlar SKU'larini ham qo'shish
+    if (p.variantSummaries && p.variantSummaries.length > 0) {
+      p.variantSummaries.forEach(v => {
+        if (v.sku) {
+          const variantSku = parseInt(v.sku);
+          if (!isNaN(variantSku)) {
+            allSkus.add(variantSku);
+          }
+        }
+      });
+    }
+  });
+  
+  // 2. Maksimal SKU topish
+  const maxSku = Math.max(...Array.from(allSkus));
+  
+  // 3. Bo'sh kodlarni topish (1 dan maxSku gacha)
+  const emptyCodes: number[] = [];
+  for (let i = 1; i <= maxSku; i++) {
+    if (!allSkus.has(i)) {
+      emptyCodes.push(i);
+    }
+  }
+  
+  return emptyCodes;
+};
+```
+
+#### 6.2. Bo'sh Kodlar Dialog:
+```tsx
+<Dialog open={showEmptyCodesDialog} onOpenChange={setShowEmptyCodesDialog}>
+  <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+    <DialogHeader>
+      <DialogTitle>Bo'sh Kodlar</DialogTitle>
+      <DialogDescription>
+        Jami {emptyCodes.length} ta bo'sh kod mavjud
+      </DialogDescription>
+    </DialogHeader>
+    
+    <div className="grid grid-cols-10 gap-2 mt-4">
+      {emptyCodes.map(code => (
+        <button
+          key={code}
+          onClick={() => {
+            navigator.clipboard.writeText(code.toString());
+            toast.success(`${code} nusxalandi`);
+          }}
+          className="px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 
+                     text-blue-400 rounded border border-blue-500/30 
+                     transition-colors cursor-pointer"
+        >
+          {code}
+        </button>
+      ))}
+    </div>
+  </DialogContent>
+</Dialog>
+```
+
+#### 6.3. Bo'sh Kodlar Xususiyatlari:
+- ✅ 1 dan maksimal SKU gacha barcha bo'sh kodlarni topadi
+- ✅ Parent mahsulotlar va variantlar SKU'larini tekshiradi
+- ✅ Grid ko'rinishda (10 ustun)
+- ✅ Har bir kodga bosish orqali nusxalash
+- ✅ Jami bo'sh kodlar soni ko'rsatiladi
+
+---
+
+### 7. **Excel Import**
+
+#### 7.1. Excel Fayl Formati:
 ```
 | Mahsulot Nomi | Kod | Katalog | Narx | Soni | Kategoriya |
 |---------------|-----|---------|------|------|------------|
@@ -370,7 +582,7 @@ const importFromExcel = async (file: File) => {
 };
 ```
 
-#### 5.3. Birinchi 2 So'z bilan Guruhlash:
+#### 7.3. Birinchi 2 So'z bilan Guruhlash:
 ```typescript
 const groupByFirstTwoWords = (products: Product[]) => {
   const groups = new Map<string, Product[]>();
@@ -398,9 +610,69 @@ const groupByFirstTwoWords = (products: Product[]) => {
 
 ---
 
-### 6. **Qidiruv va Filtrlash**
+### 8. **Asl Narx Formatlash (Base Price Formatting)** 🆕
 
-#### 6.1. Qidiruv:
+#### 8.1. Formatlash Funksiyasi:
+```typescript
+// Raqamni formatlash: 10000 → 10 000
+const formatNumber = (value: number | string): string => {
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+  if (isNaN(num)) return '';
+  return num.toLocaleString('ru-RU');
+};
+
+// Formatni olib tashlash: 10 000 → 10000
+const unformatNumber = (value: string): string => {
+  return value.replace(/\s/g, '').replace(',', '.');
+};
+```
+
+#### 8.2. Input Komponenti:
+```tsx
+<Input
+  type="text"
+  placeholder="Asl narx"
+  value={isBasePriceFocused 
+    ? unformatNumber(basePrice) 
+    : formatNumber(basePrice)
+  }
+  onFocus={() => setIsBasePriceFocused(true)}
+  onBlur={() => setIsBasePriceFocused(false)}
+  onChange={(e) => {
+    const value = e.target.value.replace(/\s/g, '').replace(',', '.');
+    setBasePrice(value);
+  }}
+  onWheel={(e) => e.currentTarget.blur()} // Scroll ta'sirini o'chirish
+/>
+```
+
+#### 8.3. Ishlash Prinsipi:
+```
+1. Focus (kiritish paytida):
+   - Formatni olib tashlash: "10 000" → "10000"
+   - Foydalanuvchi erkin yozishi mumkin
+   
+2. Blur (chiqish paytida):
+   - Formatlash: "10000" → "10 000"
+   - Chiroyli ko'rinish
+   
+3. Scroll:
+   - Input'dan focus olib tashlash
+   - Scroll qiymatni o'zgartirmaydi
+```
+
+#### 8.4. Xususiyatlar:
+- ✅ Focus paytida formatlanmagan ko'rinish (10000)
+- ✅ Blur paytida formatlangan ko'rinish (10 000)
+- ✅ Scroll input qiymatiga ta'sir qilmaydi
+- ✅ Vergul bilan kasr qo'llab-quvvatlanadi (1,5 → 1.5)
+- ✅ Bo'sh qiymat va NaN xatolarini boshqarish
+
+---
+
+### 9. **Qidiruv va Filtrlash**
+
+#### 9.1. Qidiruv:
 ```typescript
 const searchProducts = (query: string, products: Product[]) => {
   const lowerQuery = query.toLowerCase();
@@ -414,21 +686,21 @@ const searchProducts = (query: string, products: Product[]) => {
 };
 ```
 
-#### 6.2. Kategoriya bo'yicha Filtrlash:
+#### 9.2. Kategoriya bo'yicha Filtrlash:
 ```typescript
 const filterByCategory = (categoryId: string, products: Product[]) => {
   return products.filter(p => p.categoryId === categoryId);
 };
 ```
 
-#### 6.3. Holat bo'yicha Filtrlash:
+#### 9.3. Holat bo'yicha Filtrlash:
 ```typescript
 const filterByStatus = (status: ProductStatus, products: Product[]) => {
   return products.filter(p => p.status === status);
 };
 ```
 
-#### 6.4. Narx oralig'i bo'yicha Filtrlash:
+#### 9.4. Narx oralig'i bo'yicha Filtrlash:
 ```typescript
 const filterByPriceRange = (min: number, max: number, products: Product[]) => {
   return products.filter(p => p.price >= min && p.price <= max);
@@ -437,9 +709,9 @@ const filterByPriceRange = (min: number, max: number, products: Product[]) => {
 
 ---
 
-### 7. **Mahsulot Holati (Status)**
+### 10. **Mahsulot Holati (Status)**
 
-#### 7.1. Holat Turlari:
+#### 10.1. Holat Turlari:
 ```typescript
 type ProductStatus = 
   | 'available'      // Mavjud
@@ -471,7 +743,7 @@ const productStatusConfig = {
 };
 ```
 
-#### 7.2. Avtomatik Holat Yangilash:
+#### 10.2. Avtomatik Holat Yangilash:
 ```typescript
 // Ombor 0 ga tushganda avtomatik "tugagan" qilish
 const updateStockStatus = async (productId: string, newStock: number) => {
@@ -484,9 +756,9 @@ const updateStockStatus = async (productId: string, newStock: number) => {
 
 ---
 
-### 8. **Barcode Label Chop Etish**
+### 11. **Barcode Label Chop Etish**
 
-#### 8.1. Label Tuzilmasi:
+#### 11.1. Label Tuzilmasi:
 ```typescript
 interface BarcodeLabel {
   productName: string;
@@ -497,7 +769,7 @@ interface BarcodeLabel {
 }
 ```
 
-#### 8.2. Label Chop Etish:
+#### 11.2. Label Chop Etish:
 ```typescript
 const printLabel = async (product: Product, quantity: number = 1) => {
   const printer = await getDefaultLabelPrinter();
@@ -517,7 +789,7 @@ const printLabel = async (product: Product, quantity: number = 1) => {
 };
 ```
 
-#### 8.3. Label O'lchamlari:
+#### 11.3. Label O'lchamlari:
 ```typescript
 const LABEL_SIZES = {
   '40x30': { width: 40, height: 30 },  // mm
@@ -528,9 +800,9 @@ const LABEL_SIZES = {
 
 ---
 
-### 9. **Mahsulot Tarixi**
+### 12. **Mahsulot Tarixi**
 
-#### 9.1. Tarix Tuzilmasi:
+#### 12.1. Tarix Tuzilmasi:
 ```typescript
 interface ProductHistory {
   id: string;
@@ -543,7 +815,7 @@ interface ProductHistory {
 }
 ```
 
-#### 9.2. Tarix Saqlash:
+#### 12.2. Tarix Saqlash:
 ```typescript
 const saveHistory = async (productId: string, action: string, changes: any) => {
   await api.post('/api/product-history', {
@@ -557,7 +829,7 @@ const saveHistory = async (productId: string, action: string, changes: any) => {
 };
 ```
 
-#### 9.3. Tarix Ko'rish:
+#### 12.3. Tarix Ko'rish:
 ```typescript
 const getProductHistory = async (productId: string) => {
   return await api.get(`/api/product-history?productId=${productId}`);
@@ -566,9 +838,9 @@ const getProductHistory = async (productId: string) => {
 
 ---
 
-### 10. **Ombor Boshqaruvi**
+### 13. **Ombor Boshqaruvi**
 
-#### 10.1. Ombor Yangilash:
+#### 13.1. Ombor Yangilash:
 ```typescript
 const updateStock = async (productId: string, quantity: number) => {
   const product = await getProduct(productId);
@@ -589,7 +861,7 @@ const updateStock = async (productId: string, quantity: number) => {
 };
 ```
 
-#### 10.2. Ombor Ogohlantirish:
+#### 13.2. Ombor Ogohlantirish:
 ```typescript
 const checkLowStock = (products: Product[]) => {
   const lowStock = products.filter(p => p.stock < 10 && p.stock > 0);
@@ -637,5 +909,6 @@ const [isLoading, setIsLoading] = useState(false);
 ---
 
 **Yaratilgan:** 2025-02-10
-**Versiya:** 1.0.0
+**Oxirgi yangilanish:** 2025-02-11
+**Versiya:** 1.1.0
 **Muallif:** AvtoFix Development Team

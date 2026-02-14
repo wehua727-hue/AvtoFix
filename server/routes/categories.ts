@@ -14,7 +14,7 @@ interface CategoryDoc {
   isActive?: boolean;
   slug?: string;
   userId?: string;
-  markupPercentage?: number; // 🆕 Ustama foiz (default: 20)
+  markupPercentage?: number; // 🆕 Ustama foiz (default: 25)
 }
 
 // Специальный пользователь который видит старые категории
@@ -101,7 +101,7 @@ export const handleCategoriesGet: RequestHandler = async (req, res) => {
       level: typeof c.level === "number" ? c.level : 0,
       isActive: typeof c.isActive === "boolean" ? c.isActive : true,
       slug: c.slug ?? "",
-      markupPercentage: typeof c.markupPercentage === "number" ? c.markupPercentage : 20, // 🆕 Default 20%
+      markupPercentage: typeof c.markupPercentage === "number" ? c.markupPercentage : 25, // 🆕 Default 25%
     }));
 
     return res.json({ categories });
@@ -134,7 +134,7 @@ export const handleCategoriesCreate: RequestHandler = async (req, res) => {
     if (typeof isActive === "boolean") doc.isActive = isActive;
     if (slug) doc.slug = slug;
     if (userId) doc.userId = userId; // Привязка к пользователю
-    doc.markupPercentage = typeof markupPercentage === "number" ? markupPercentage : 20; // 🆕 Default 20%
+    doc.markupPercentage = typeof markupPercentage === "number" ? markupPercentage : 25; // 🆕 Default 25%
 
     const result = await db.collection(CATEGORIES_COLLECTION).insertOne(doc);
 
@@ -233,7 +233,7 @@ export const handleCategoryUpdate: RequestHandler = async (req, res) => {
       level: typeof c.level === "number" ? c.level : 0,
       isActive: typeof c.isActive === "boolean" ? c.isActive : true,
       slug: c.slug ?? "",
-      markupPercentage: typeof c.markupPercentage === "number" ? c.markupPercentage : 20, // 🆕
+      markupPercentage: typeof c.markupPercentage === "number" ? c.markupPercentage : 25, // 🆕
     };
 
     console.log('[handleCategoryUpdate] Returning category:', category);
@@ -371,34 +371,48 @@ export const handleCategoryMarkupUpdate: RequestHandler = async (req, res) => {
 
     console.log('[handleCategoryMarkupUpdate] Processing products...');
     
+    let skippedCount = 0;
+    let skippedReasons: Record<string, number> = {
+      'basePrice_is_0': 0,
+      'price_is_0': 0,
+      'both_0': 0
+    };
+    
     for (const product of products) {
-      // MUHIM: basePrice ni tekshirish - agar yo'q bo'lsa, hozirgi narxni basePrice sifatida o'rnatish
+      // MUHIM: basePrice ni tekshirish
       let basePrice = product.basePrice;
       let needsBasePriceUpdate = false;
       
+      // Agar basePrice yo'q yoki 0 bo'lsa
       if (!basePrice || basePrice === 0) {
-        // Agar basePrice yo'q bo'lsa, hozirgi narxni basePrice sifatida ishlatish
-        basePrice = product.price || 0;
-        needsBasePriceUpdate = true;
-        
-        console.log('[handleCategoryMarkupUpdate] Product missing basePrice, using current price:', {
-          _id: product._id,
-          name: product.name,
-          price: product.price,
-          willSetBasePrice: basePrice
-        });
-      }
-      
-      // Agar basePrice hali ham 0 bo'lsa, bu mahsulotni o'tkazib yuborish
-      if (basePrice === 0) {
-        console.log('[handleCategoryMarkupUpdate] ⚠️ Skipping product (basePrice is 0):', {
-          _id: product._id,
-          name: product.name,
-          sku: product.sku,
-          price: product.price,
-          basePrice: product.basePrice
-        });
-        continue;
+        // Hozirgi narxni tekshirish
+        if (product.price && product.price > 0) {
+          // Agar price mavjud bo'lsa, uni basePrice sifatida ishlatish
+          basePrice = product.price;
+          needsBasePriceUpdate = true;
+          
+          console.log('[handleCategoryMarkupUpdate] Product missing basePrice, using current price:', {
+            _id: product._id,
+            name: product.name,
+            sku: product.sku,
+            price: product.price,
+            basePrice: product.basePrice,
+            willSetBasePrice: basePrice
+          });
+        } else {
+          // Agar price ham 0 yoki yo'q bo'lsa, default qiymat berish (1 dollar)
+          basePrice = 1;
+          needsBasePriceUpdate = true;
+          
+          console.log('[handleCategoryMarkupUpdate] ⚠️ Product has no price, setting default basePrice=1:', {
+            _id: product._id,
+            name: product.name,
+            sku: product.sku,
+            price: product.price,
+            basePrice: product.basePrice,
+            willSetBasePrice: basePrice
+          });
+        }
       }
       
       // Yangi sotilish narxini hisoblash: basePrice + (basePrice * markupPercentage / 100)
@@ -446,14 +460,27 @@ export const handleCategoryMarkupUpdate: RequestHandler = async (req, res) => {
         const updatedVariants = product.variantSummaries.map((variant: any, index: number) => {
           // Variant uchun ham basePrice tekshirish
           let variantBasePrice = variant.basePrice;
+          
           if (!variantBasePrice || variantBasePrice === 0) {
-            variantBasePrice = variant.price || 0;
-            console.log(`[handleCategoryMarkupUpdate]   Variant ${index + 1} missing basePrice, using current price:`, {
-              name: variant.name,
-              sku: variant.sku,
-              price: variant.price,
-              willSetBasePrice: variantBasePrice
-            });
+            // Agar variant price mavjud bo'lsa
+            if (variant.price && variant.price > 0) {
+              variantBasePrice = variant.price;
+              console.log(`[handleCategoryMarkupUpdate]   Variant ${index + 1} missing basePrice, using current price:`, {
+                name: variant.name,
+                sku: variant.sku,
+                price: variant.price,
+                willSetBasePrice: variantBasePrice
+              });
+            } else {
+              // Agar variant price ham yo'q bo'lsa, default qiymat
+              variantBasePrice = 1;
+              console.log(`[handleCategoryMarkupUpdate]   ⚠️ Variant ${index + 1} has no price, setting default basePrice=1:`, {
+                name: variant.name,
+                sku: variant.sku,
+                price: variant.price,
+                willSetBasePrice: variantBasePrice
+              });
+            }
           }
           
           const variantSellingPrice = variantBasePrice + (variantBasePrice * markupPercentage / 100);
@@ -500,16 +527,20 @@ export const handleCategoryMarkupUpdate: RequestHandler = async (req, res) => {
     const category = {
       id: c._id?.toString?.() ?? "",
       name: c.name ?? "",
-      markupPercentage: c.markupPercentage ?? 20,
+      markupPercentage: c.markupPercentage ?? 25,
     };
     
     // Jami yangilangan mahsulotlar va xillar soni
     const totalUpdated = updatedProductsCount + updatedVariantsCount;
     
     console.log('[handleCategoryMarkupUpdate] Summary:', {
+      totalProductsFound: products.length,
+      skippedProducts: skippedCount,
+      skippedReasons: skippedReasons,
       updatedProducts: updatedProductsCount,
       updatedVariants: updatedVariantsCount,
-      totalUpdated: totalUpdated
+      totalUpdated: totalUpdated,
+      bulkOpsCount: bulkOps.length
     });
 
     return res.json({ 
