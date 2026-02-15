@@ -1430,9 +1430,9 @@ export function printLabelViaBrowser(label: LabelData): boolean {
   const paperHeight = label.paperHeight || (label.labelSize ? LABEL_SIZE_CONFIGS[label.labelSize].height : 40);
   
   // Font o'lchamlari - ommaviy senik kabi kattaroq
-  const nameFontSize = paperWidth >= 60 ? '10px' : paperWidth >= 50 ? '9px' : '8px';
-  const priceFontSize = paperWidth >= 60 ? '14px' : paperWidth >= 50 ? '12px' : '11px';
-  const smallFontSize = paperWidth >= 60 ? '9px' : '8px';
+  const nameFontSize = paperWidth >= 60 ? '14px' : paperWidth >= 50 ? '12px' : '11px';
+  const priceFontSize = paperWidth >= 60 ? '16px' : paperWidth >= 50 ? '14px' : '13px';
+  const smallFontSize = paperWidth >= 60 ? '10px' : '9px';
   
   // Barcode o'lchamlari - kattaroq, scanner o'qishi oson
   const barcodeHeight = paperWidth >= 60 ? 55 : paperWidth >= 50 ? 50 : 45;

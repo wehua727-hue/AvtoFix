@@ -431,6 +431,8 @@ export default function Products() {
   
   const [showAddForm, setShowAddForm] = useState(false);
   const [showExcelImport, setShowExcelImport] = useState(false);
+  const [showExportCategoryDialog, setShowExportCategoryDialog] = useState(false);
+  const [selectedExportCategory, setSelectedExportCategory] = useState<string>('');
 
   const [name, setName] = useState('');
   const [sku, setSku] = useState('');
@@ -1067,53 +1069,40 @@ export default function Products() {
   };
 
   // 🆕 Excel export funksiyasi - barcha mahsulotlar va xillarni yuklab olish
-  const handleExportToExcel = async () => {
+  const handleExportToExcel = async (selectedCategoryId?: string) => {
     try {
       // Dinamik import - faqat kerak bo'lganda yuklanadi
       const XLSX = await import('xlsx');
       
+      // Kategoriya bo'yicha filtrlash
+      const productsToExport = selectedCategoryId 
+        ? products.filter(p => p.categoryId === selectedCategoryId)
+        : products;
+      
+      if (productsToExport.length === 0) {
+        toast.error('Bu kategoriyada mahsulotlar yo\'q');
+        return;
+      }
+      
+      const categoryName = selectedCategoryId 
+        ? categories.find(c => c.id === selectedCategoryId)?.name || 'Noma\'lum'
+        : 'Barcha';
+      
       console.log('[handleExportToExcel] ========== EXPORT BOSHLANDI ==========');
-      console.log('[handleExportToExcel] Total products:', products.length);
-      
-      // Barcha mahsulotlarni batafsil log qilish
-      let totalVariants = 0;
-      let productsWithVariants = 0;
-      let productsWithoutVariants = 0;
-      
-      products.forEach((product, index) => {
-        const variantCount = product.variantSummaries?.length || 0;
-        if (variantCount > 0) {
-          productsWithVariants++;
-          totalVariants += variantCount;
-          console.log(`[handleExportToExcel] Product ${index + 1}: "${product.name}" - ${variantCount} ta xil`);
-          product.variantSummaries?.forEach((v, i) => {
-            console.log(`  - Xil ${i + 1}: "${v.name}"`);
-          });
-        } else {
-          productsWithoutVariants++;
-          console.log(`[handleExportToExcel] Product ${index + 1}: "${product.name}" - xilsiz`);
-        }
-      });
-      
-      console.log('[handleExportToExcel] ========== STATISTIKA ==========');
-      console.log(`[handleExportToExcel] Xilli mahsulotlar: ${productsWithVariants} ta`);
-      console.log(`[handleExportToExcel] Xilsiz mahsulotlar: ${productsWithoutVariants} ta`);
-      console.log(`[handleExportToExcel] Jami xillar: ${totalVariants} ta`);
-      console.log(`[handleExportToExcel] Kutilayotgan Excel qatorlar: ${totalVariants + productsWithoutVariants} ta`);
-      console.log('[handleExportToExcel] ========================================');
+      console.log('[handleExportToExcel] Kategoriya:', categoryName);
+      console.log('[handleExportToExcel] Total products:', productsToExport.length);
       
       // Excel uchun ma'lumotlarni tayyorlash
       const excelData: any[] = [];
-      let rowNumber = 1; // Qator raqami
+      let rowNumber = 1;
       
       // Har bir mahsulotni va uning xillarini qo'shish
-      products.forEach((product, index) => {
-        // 🆕 YANGI LOGIKA: Har bir mahsulotni qo'shish (xilli yoki xilsiz)
+      productsToExport.forEach((product) => {
         const price = product.price || 0;
         const stock = product.stock || 0;
         const summa = price * stock;
         
-        // 1. Avval ota mahsulotni qo'shish
+        // 1. Ota mahsulotni qo'shish
         excelData.push({
           '№': rowNumber++,
           'Код': (product as any).code || '',
@@ -1122,12 +1111,14 @@ export default function Products() {
           'Ед': 'шт',
           'Кол-во': stock,
           'Цена': price,
-          'Сумма': summa
+          'Сумма': summa,
+          'Вес': '',
+          'Итого': ''
         });
         
-        // 2. Agar xillar bo'lsa, ularni ham qo'shish
+        // 2. Xillarni qo'shish
         if (product.variantSummaries && product.variantSummaries.length > 0) {
-          product.variantSummaries.forEach((variant, vIndex) => {
+          product.variantSummaries.forEach((variant) => {
             const variantPrice = variant.price || product.price || 0;
             const variantStock = variant.stock || 0;
             const variantSumma = variantPrice * variantStock;
@@ -1140,82 +1131,148 @@ export default function Products() {
               'Ед': 'шт',
               'Кол-во': variantStock,
               'Цена': variantPrice,
-              'Сумма': variantSumma
+              'Сумма': variantSumma,
+              'Вес': '',
+              'Итого': ''
             });
           });
         }
       });
       
-      console.log('[handleExportToExcel] ========== NATIJA ==========');
-      console.log('[handleExportToExcel] Haqiqiy Excel qatorlar:', excelData.length);
-      console.log('[handleExportToExcel] Farq:', (totalVariants + productsWithoutVariants) - excelData.length, 'ta qator kam');
-      console.log('[handleExportToExcel] ===================================');
+      console.log('[handleExportToExcel] Excel qatorlar:', excelData.length);
       
-      // Excel workbook yaratish
+      // Worksheet yaratish
       const worksheet = XLSX.utils.json_to_sheet(excelData);
       
-      // Ustun kengliklarini o'rnatish (rasmga mos)
-      const columnWidths = [
+      // Ustun kengliklarini o'rnatish
+      worksheet['!cols'] = [
         { wch: 5 },   // №
-        { wch: 8 },   // Код
-        { wch: 70 },  // Наименование
-        { wch: 20 },  // № по каталогу
+        { wch: 12 },  // Код
+        { wch: 50 },  // Наименование
+        { wch: 18 },  // № по каталогу
         { wch: 5 },   // Ед
         { wch: 8 },   // Кол-во
-        { wch: 8 },   // Цена
-        { wch: 10 },  // Сумма
+        { wch: 10 },  // Цена
+        { wch: 12 },  // Сумма
+        { wch: 8 },   // Вес
+        { wch: 12 },  // Итого
       ];
-      worksheet['!cols'] = columnWidths;
       
-      // 🆕 Border va styling qo'shish
+      // Range olish
       const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
       
-      // Border style
-      const borderStyle = {
+      // 🎨 PROFESSIONAL STYLING - Rasmga mos
+      
+      // Border style - barcha tomonlarda
+      const thinBorder = {
         top: { style: 'thin', color: { rgb: '000000' } },
         bottom: { style: 'thin', color: { rgb: '000000' } },
         left: { style: 'thin', color: { rgb: '000000' } },
         right: { style: 'thin', color: { rgb: '000000' } }
       };
       
-      // Header style (birinchi qator)
+      // Header style - yashil fon, oq matn, bold
       const headerStyle = {
-        font: { bold: true, sz: 11 },
-        fill: { fgColor: { rgb: 'E0E0E0' } },
-        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
-        border: borderStyle
+        font: { 
+          bold: true, 
+          sz: 11, 
+          color: { rgb: 'FFFFFF' },
+          name: 'Arial'
+        },
+        fill: { 
+          fgColor: { rgb: '70AD47' }  // Yashil rang
+        },
+        alignment: { 
+          horizontal: 'center', 
+          vertical: 'center',
+          wrapText: true 
+        },
+        border: thinBorder
       };
       
-      // Data style (qolgan qatorlar)
+      // Data style - oddiy matn
       const dataStyle = {
-        font: { sz: 10 },
-        alignment: { horizontal: 'left', vertical: 'center', wrapText: true },
-        border: borderStyle
+        font: { 
+          sz: 10,
+          name: 'Arial'
+        },
+        alignment: { 
+          horizontal: 'left', 
+          vertical: 'center',
+          wrapText: false
+        },
+        border: thinBorder
       };
       
-      // Number style (raqamlar uchun)
+      // Number style - raqamlar o'ngga
       const numberStyle = {
-        font: { sz: 10 },
-        alignment: { horizontal: 'right', vertical: 'center' },
-        border: borderStyle,
-        numFmt: '0.00'
+        font: { 
+          sz: 10,
+          name: 'Arial'
+        },
+        alignment: { 
+          horizontal: 'right', 
+          vertical: 'center'
+        },
+        border: thinBorder,
+        numFmt: '#,##0.00'  // Raqam formati
+      };
+      
+      // Center style - markazga
+      const centerStyle = {
+        font: { 
+          sz: 10,
+          name: 'Arial'
+        },
+        alignment: { 
+          horizontal: 'center', 
+          vertical: 'center'
+        },
+        border: thinBorder
       };
       
       // Har bir katakchaga style qo'llash
       for (let R = range.s.r; R <= range.e.r; ++R) {
         for (let C = range.s.c; C <= range.e.c; ++C) {
           const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
-          if (!worksheet[cellAddress]) continue;
           
-          // Birinchi qator - header
+          if (!worksheet[cellAddress]) {
+            // Bo'sh katakcha yaratish
+            worksheet[cellAddress] = { t: 's', v: '' };
+          }
+          
+          // Header qatori (0)
           if (R === 0) {
             worksheet[cellAddress].s = headerStyle;
-          } else {
-            // Raqamli ustunlar: Кол-во (5), Цена (6), Сумма (7)
-            if (C === 5 || C === 6 || C === 7) {
-              worksheet[cellAddress].s = numberStyle;
-            } else {
-              worksheet[cellAddress].s = dataStyle;
+          } 
+          // Data qatorlari
+          else {
+            // Ustun bo'yicha style tanlash
+            switch (C) {
+              case 0: // № - markaz
+                worksheet[cellAddress].s = centerStyle;
+                break;
+              case 1: // Код - markaz
+                worksheet[cellAddress].s = centerStyle;
+                break;
+              case 2: // Наименование - chap
+                worksheet[cellAddress].s = dataStyle;
+                break;
+              case 3: // № по каталогу - markaz
+                worksheet[cellAddress].s = centerStyle;
+                break;
+              case 4: // Ед - markaz
+                worksheet[cellAddress].s = centerStyle;
+                break;
+              case 5: // Кол-во - o'ng
+              case 6: // Цена - o'ng
+              case 7: // Сумма - o'ng
+              case 8: // Вес - o'ng
+              case 9: // Итого - o'ng
+                worksheet[cellAddress].s = numberStyle;
+                break;
+              default:
+                worksheet[cellAddress].s = dataStyle;
             }
           }
         }
@@ -1224,17 +1281,22 @@ export default function Products() {
       // Qator balandliklarini o'rnatish
       const rowHeights: any[] = [];
       for (let i = 0; i <= range.e.r; i++) {
-        rowHeights.push({ hpt: i === 0 ? 25 : 18 }); // Header 25px, data 18px
+        rowHeights.push({ 
+          hpt: i === 0 ? 30 : 20  // Header 30px, data 20px
+        });
       }
       worksheet['!rows'] = rowHeights;
       
+      // Workbook yaratish
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Mahsulotlar');
       
-      // Fayl nomini yaratish - sana bilan
+      // Fayl nomini yaratish
       const date = new Date();
       const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-      const fileName = `mahsulotlar_${dateStr}.xlsx`;
+      const fileName = selectedCategoryId 
+        ? `mahsulotlar_${categoryName}_${dateStr}.xlsx`
+        : `mahsulotlar_${dateStr}.xlsx`;
       
       // Faylni yuklab olish
       XLSX.writeFile(workbook, fileName);
@@ -2698,7 +2760,7 @@ export default function Products() {
             <span className="text-gray-600">|</span>
             <button
               type="button"
-              onClick={handleExportToExcel}
+              onClick={() => setShowExportCategoryDialog(true)}
               className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 transition"
             >
               <Download className="w-4 h-4" />
@@ -6817,6 +6879,102 @@ export default function Products() {
               className="bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-600"
             >
               Yopish
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 🆕 Excel Export - Kategoriya Tanlash Dialog */}
+      <Dialog open={showExportCategoryDialog} onOpenChange={setShowExportCategoryDialog}>
+        <DialogContent className="max-w-md bg-slate-900/95 border-slate-700/50 backdrop-blur-xl rounded-3xl p-6">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold text-slate-100">
+              📊 Excel ga Yuklash
+            </DialogTitle>
+            <p className="text-slate-400 text-sm mt-2">
+              Kategoriya tanlang yoki barcha mahsulotlarni yuklang
+            </p>
+          </DialogHeader>
+          
+          <div className="space-y-4 mt-4">
+            {/* Kategoriya tanlash */}
+            <div>
+              <label className="text-sm font-medium text-slate-300 mb-2 block">
+                Kategoriya
+              </label>
+              <Select
+                value={selectedExportCategory}
+                onValueChange={setSelectedExportCategory}
+              >
+                <SelectTrigger className="w-full bg-slate-800 border-slate-700 text-slate-200">
+                  <SelectValue placeholder="Kategoriya tanlang..." />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-800 border-slate-700">
+                  <SelectItem value="all" className="text-slate-200">
+                    📦 Barcha mahsulotlar
+                  </SelectItem>
+                  {categories
+                    .filter(c => c.level === 0)
+                    .map(category => (
+                      <SelectItem 
+                        key={category.id} 
+                        value={category.id}
+                        className="text-slate-200"
+                      >
+                        📁 {category.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Statistika */}
+            {selectedExportCategory && (
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                <p className="text-slate-400 text-sm">
+                  {selectedExportCategory === 'all' ? (
+                    <>
+                      <span className="text-blue-400 font-bold">{products.length}</span> ta mahsulot yuklanadi
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-blue-400 font-bold">
+                        {products.filter(p => p.categoryId === selectedExportCategory).length}
+                      </span> ta mahsulot yuklanadi
+                    </>
+                  )}
+                </p>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex justify-end gap-3 mt-6">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowExportCategoryDialog(false);
+                setSelectedExportCategory('');
+              }}
+              className="bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-600"
+            >
+              Bekor qilish
+            </Button>
+            <Button
+              onClick={() => {
+                if (!selectedExportCategory) {
+                  toast.error('Kategoriya tanlang');
+                  return;
+                }
+                handleExportToExcel(
+                  selectedExportCategory === 'all' ? undefined : selectedExportCategory
+                );
+                setShowExportCategoryDialog(false);
+                setSelectedExportCategory('');
+              }}
+              disabled={!selectedExportCategory}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              📥 Yuklash
             </Button>
           </div>
         </DialogContent>
