@@ -6970,26 +6970,48 @@ export default function Products() {
       {/* Mobile uchun pastki padding - bottom navigation uchun joy */}
       <div className="md:hidden h-20"></div>
 
-      {/* Scroll Button - O'ng tomonda */}
+      {/* Scroll Button - Sidebar yonida chap tomonda (yashil - sahifa oxiriga) */}
       <AnimatePresence>
         {showScrollButton && (
           <motion.button
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
-            onClick={isAtTop ? scrollToBottom : scrollToTop}
-            className="fixed right-4 bottom-24 md:bottom-8 z-50 p-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg transition-all duration-200 hover:scale-110 active:scale-95"
-            title={isAtTop ? "Pastga o'tish" : "Tepaga o'tish"}
+            onClick={() => {
+              window.scrollTo({
+                top: document.documentElement.scrollHeight,
+                behavior: 'smooth'
+              });
+            }}
+            className={`fixed bottom-24 md:bottom-8 z-50 p-4 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-full shadow-lg transition-all duration-200 hover:scale-110 active:scale-95 ${
+              sidebarCollapsed ? 'left-24' : 'left-[21rem]'
+            }`}
+            style={{
+              transition: 'left 0.3s ease-in-out'
+            }}
+            title="Sahifa oxiriga o'tish"
           >
-            {isAtTop ? (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-              </svg>
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-              </svg>
-            )}
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* Scroll Button - O'ng tomonda (qizil - tepaga) */}
+      <AnimatePresence>
+        {showScrollButton && !isAtTop && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            onClick={scrollToTop}
+            className="fixed right-4 bottom-24 md:bottom-8 z-50 p-4 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white rounded-full shadow-lg transition-all duration-200 hover:scale-110 active:scale-95"
+            title="Tepaga o'tish"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+            </svg>
           </motion.button>
         )}
       </AnimatePresence>
