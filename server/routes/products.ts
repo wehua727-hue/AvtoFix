@@ -1223,63 +1223,50 @@ export const handleProductDelete: RequestHandler = async (req, res) => {
     const productName = product?.name;
     const productVariants = product?.variantSummaries || [];
 
-    // MUHIM: Agar mahsulotda xillar (variantlar) bo'lsa, eng kichik SKU li xilni yangi ota mahsulot qilish
+    // MUHIM: Mahsulot o'chirilganda, uning barcha variantlari ham o'chiriladi
+    // Variantlarni yangi ota mahsulotga aylantirilmaydi
     if (productVariants.length > 0) {
-      console.log('[api/products/:id DELETE] Product has variants:', productVariants.length);
+      console.log('[api/products/:id DELETE] Product has', productVariants.length, 'variants - they will be deleted with parent');
+    }
+
+    // MUHIM: O'chirishdan OLDIN tarixga yozish (qaytarish uchun)
+    try {
+      const historyCollection = db.collection(PRODUCT_HISTORY_COLLECTION);
       
-      // Eng kichik SKU li xilni topish
-      const sortedVariants = [...productVariants].sort((a: any, b: any) => {
-        const aSku = a.sku ? String(a.sku) : '';
-        const bSku = b.sku ? String(b.sku) : '';
-        return aSku.localeCompare(bSku, undefined, { numeric: true });
-      });
-      
-      const smallestVariant = sortedVariants[0];
-      console.log('[api/products/:id DELETE] Smallest variant:', smallestVariant?.sku, smallestVariant?.name);
-      
-      if (smallestVariant) {
-        // Yangi ota mahsulot yaratish (eng kichik SKU li xildan)
-        // MUHIM: Yangi ota mahsulot variant nomini saqlab qoladi, ota mahsulot nomini emas
-        const newParentProduct = {
-          name: smallestVariant.name, // Variant nomini saqlab qolish
-          sku: smallestVariant.sku, // Faqat SKU o'zgaradi
-          price: smallestVariant.price || product.price,
-          basePrice: smallestVariant.basePrice || product.basePrice,
-          priceMultiplier: smallestVariant.priceMultiplier || product.priceMultiplier,
-          stock: smallestVariant.stock || 0,
-          initialStock: smallestVariant.initialStock || smallestVariant.stock || 0,
-          currency: smallestVariant.currency || product.currency,
-          categoryId: product.categoryId,
-          status: product.status,
-          description: product.description,
-          imageUrl: smallestVariant.imageUrl || product.imageUrl,
-          imagePaths: smallestVariant.imagePaths || product.imagePaths,
-          userId: product.userId,
-          createdByRole: product.createdByRole,
-          // Qolgan xillarni variantSummaries ga qo'shish (eng kichik xildan boshqa)
-          variantSummaries: sortedVariants.slice(1).map((v: any) => ({
+      // Xillarni tarix uchun formatlash
+      const historyVariants = Array.isArray(productVariants) 
+        ? productVariants.map((v: any) => ({
             name: v.name,
             sku: v.sku,
-            price: v.price,
-            basePrice: v.basePrice,
-            priceMultiplier: v.priceMultiplier,
-            stock: v.stock,
-            initialStock: v.initialStock,
-            currency: v.currency,
-            imageUrl: v.imageUrl,
-            imagePaths: v.imagePaths,
-            status: v.status,
-          })),
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-        
-        console.log('[api/products/:id DELETE] Creating new parent product with', newParentProduct.variantSummaries.length, 'variants');
-        
-        // Yangi ota mahsulotni yaratish
-        const insertResult = await collection.insertOne(newParentProduct);
-        console.log('[api/products/:id DELETE] New parent product created:', insertResult.insertedId);
-      }
+            stock: v.stock ?? 0,
+            price: v.price ?? 0,
+            currency: v.currency || product.currency || 'UZS',
+          }))
+        : [];
+      
+      await historyCollection.insertOne({
+        userId: productUserId || 'unknown',
+        type: 'delete',
+        productId: id,
+        productName: productName || 'Unknown',
+        sku: product.sku || '',
+        stock: product.stock || 0,
+        price: product.price || 0,
+        currency: product.currency || 'UZS',
+        basePrice: product.basePrice,
+        priceMultiplier: product.priceMultiplier,
+        categoryId: product.categoryId,
+        description: product.description,
+        imageUrl: product.imageUrl,
+        imagePaths: product.imagePaths,
+        message: `Mahsulot o'chirildi: ${productName} (${product.sku})`,
+        variants: historyVariants.length > 0 ? historyVariants : undefined,
+        timestamp: new Date(),
+        createdAt: new Date(),
+      });
+      console.log('[api/products/:id DELETE] History saved for product:', productName);
+    } catch (histErr) {
+      console.error('[api/products/:id DELETE] Failed to save history:', histErr);
     }
 
     const result = await collection.deleteOne({ _id: new ObjectId(id) });

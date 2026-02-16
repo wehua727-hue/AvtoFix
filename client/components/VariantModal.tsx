@@ -67,7 +67,7 @@ export default function VariantModal({
   const [name, setName] = useState('');
   const [sku, setSku] = useState('');
   const [basePrice, setBasePrice] = useState('');
-  const [priceMultiplier, setPriceMultiplier] = useState('20');
+  const [priceMultiplier, setPriceMultiplier] = useState('25');
   const [price, setPrice] = useState('');
   const [priceCurrency, setPriceCurrency] = useState<Currency>('USD');
   const [stock, setStock] = useState('1');
@@ -117,7 +117,7 @@ export default function VariantModal({
       setName(initialData.name ?? '');
       setSku(initialData.sku ?? '');
       setBasePrice(initialData.basePrice ?? '');
-      setPriceMultiplier(initialData.priceMultiplier ?? '20');
+      setPriceMultiplier(initialData.priceMultiplier ?? '25');
       setPrice(initialData.price ?? '');
       setPriceCurrency(initialData.priceCurrency ?? (initialData as any).currency ?? productCurrency ?? 'USD');
       setStock(initialData.stock ?? '');
@@ -131,7 +131,7 @@ export default function VariantModal({
       setName('');
       setSku(nextSku ?? ''); // Avtomatik keyingi SKU
       setBasePrice('');
-      setPriceMultiplier('20');
+      setPriceMultiplier('25');
       setPrice('');
       setPriceCurrency(productCurrency || 'USD'); // Mahsulotning currency sini ishlatish
       setStock('1');

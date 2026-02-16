@@ -131,13 +131,15 @@ const updateProduct = async (id: string, updates: Partial<Product>) => {
 ```
 
 #### 1.5. DELETE - Mahsulotni O'chirish:
+
+##### 1.5.1. Bitta Mahsulotni O'chirish:
 ```typescript
 const deleteProduct = async (id: string) => {
   // 1. Tasdiqlash
   const confirmed = await confirm('Mahsulotni o\'chirmoqchimisiz?');
   if (!confirmed) return;
   
-  // 2. O'chirish
+  // 2. O'chirish (backend avtomatik barcha variantlarni ham o'chiradi)
   await api.delete(`/api/products/${id}`);
   
   // 3. Offline DB dan o'chirish
@@ -146,6 +148,213 @@ const deleteProduct = async (id: string) => {
   toast.success('Mahsulot o\'chirildi');
 };
 ```
+
+##### 1.5.2. Kod Oralig'i Bo'yicha O'chirish (Tozalash): 🆕
+```typescript
+const deleteByCodeRange = async (minCode: number, maxCode: number) => {
+  // 1. O'chiriladigan mahsulotlarni topish
+  const productsToDelete = products.filter(p => {
+    const productCode = parseInt(p.sku);
+    
+    // Ota mahsulot kodi oraliqda bo'lsa
+    if (!isNaN(productCode) && productCode >= minCode && productCode <= maxCode) {
+      return true;
+    }
+    
+    // Xillarning kodini tekshirish
+    if (p.variantSummaries && p.variantSummaries.length > 0) {
+      const hasVariantInRange = p.variantSummaries.some(v => {
+        if (!v.sku) return false;
+        const variantCode = parseInt(v.sku);
+        return !isNaN(variantCode) && variantCode >= minCode && variantCode <= maxCode;
+      });
+      
+      if (hasVariantInRange) {
+        return true; // Agar biror xil oraliqda bo'lsa, butun mahsulotni o'chirish
+      }
+    }
+    
+    return false;
+  });
+  
+  // 2. Tasdiqlash
+  if (productsToDelete.length === 0) {
+    toast.error('Bu kod oralig\'ida mahsulotlar topilmadi');
+    return;
+  }
+  
+  const confirmed = await confirm(
+    `${minCode} dan ${maxCode} gacha ${productsToDelete.length} ta mahsulot (xillar bilan) o'chiriladi. Davom etasizmi?`
+  );
+  
+  if (!confirmed) return;
+  
+  // 3. Har bir mahsulotni o'chirish
+  const deletePromises = productsToDelete.map(p => 
+    api.delete(`/api/products/${p.id}`)
+  );
+  
+  await Promise.all(deletePromises);
+  
+  toast.success(`${productsToDelete.length} ta mahsulot o'chirildi`);
+};
+```
+
+##### 1.5.3. To'liq Tozalash:
+```typescript
+const clearAllProducts = async () => {
+  // 1. Tasdiqlash
+  const confirmed = await confirm(
+    'Barcha mahsulotlar o\'chiriladi. Davom etasizmi?'
+  );
+  
+  if (!confirmed) return;
+  
+  // 2. O'chirish
+  await api.delete('/api/products/clear-all', {
+    data: { userId: user.id }
+  });
+  
+  // 3. Offline DB ni tozalash
+  await offlineDB.products.clear();
+  
+  toast.success('Barcha mahsulotlar o\'chirildi');
+};
+```
+
+##### 1.5.4. Tozalash Dialog:
+```tsx
+<Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>Mahsulotlarni Tozalash</DialogTitle>
+      <DialogDescription>
+        Qaysi usulda tozalamoqchisiz?
+      </DialogDescription>
+    </DialogHeader>
+    
+    <div className="space-y-3">
+      {/* To'liq Tozalash */}
+      <button
+        onClick={handleClearAll}
+        className="w-full p-4 bg-red-500/10 hover:bg-red-500/20 
+                   border border-red-500/30 rounded-lg"
+      >
+        <div className="font-semibold text-red-400">To'liq Tozalash</div>
+        <div className="text-sm text-gray-400">
+          Barcha mahsulotlar o'chiriladi
+        </div>
+      </button>
+      
+      {/* Kod Bo'yicha Tozalash */}
+      <button
+        onClick={() => setShowCodeRangeDialog(true)}
+        className="w-full p-4 bg-blue-500/10 hover:bg-blue-500/20 
+                   border border-blue-500/30 rounded-lg"
+      >
+        <div className="font-semibold text-blue-400">Kod Bo'yicha Tozalash</div>
+        <div className="text-sm text-gray-400">
+          Kod oralig'idagi mahsulotlarni o'chirish
+        </div>
+      </button>
+    </div>
+  </DialogContent>
+</Dialog>
+
+{/* Kod Oralig'i Dialog */}
+<Dialog open={showCodeRangeDialog} onOpenChange={setShowCodeRangeDialog}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>Kod Oralig'ini Kiriting</DialogTitle>
+    </DialogHeader>
+    
+    <div className="space-y-4">
+      <div>
+        <Label>Minimum Kod</Label>
+        <Input
+          type="number"
+          value={minCode}
+          onChange={(e) => setMinCode(parseInt(e.target.value))}
+          placeholder="Masalan: 2000"
+        />
+      </div>
+      
+      <div>
+        <Label>Maximum Kod</Label>
+        <Input
+          type="number"
+          value={maxCode}
+          onChange={(e) => setMaxCode(parseInt(e.target.value))}
+          placeholder="Masalan: 3000"
+        />
+      </div>
+      
+      <Button
+        onClick={() => deleteByCodeRange(minCode, maxCode)}
+        variant="destructive"
+        className="w-full"
+      >
+        O'chirish
+      </Button>
+    </div>
+  </DialogContent>
+</Dialog>
+```
+
+##### 1.5.5. Backend O'chirish Logikasi:
+```typescript
+// server/routes/products.ts
+export const handleProductDelete: RequestHandler = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const collection = db.collection(PRODUCTS_COLLECTION);
+    
+    // Mahsulotni topish
+    const product = await collection.findOne({ _id: new ObjectId(id) });
+    
+    if (!product) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+    
+    // MUHIM: Mahsulot o'chirilganda, uning barcha variantlari ham o'chiriladi
+    // Variantlarni yangi ota mahsulotga aylantirilmaydi
+    if (product.variantSummaries && product.variantSummaries.length > 0) {
+      console.log('[DELETE] Product has', product.variantSummaries.length, 
+                  'variants - they will be deleted with parent');
+    }
+    
+    // Mahsulotni o'chirish (variantlar ham o'chiriladi)
+    const result = await collection.deleteOne({ _id: new ObjectId(id) });
+    
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+    
+    // WebSocket orqali xabar yuborish
+    wsManager.broadcastToUser(product.userId, {
+      type: 'product-deleted',
+      productId: id,
+      productName: product.name,
+      timestamp: Date.now(),
+    });
+    
+    return res.json({ success: true, message: "Product deleted" });
+  } catch (error) {
+    console.error("[DELETE] Error:", error);
+    return res.status(500).json({ error: "Failed to delete product" });
+  }
+};
+```
+
+##### 1.5.6. O'chirish Xususiyatlari:
+- ✅ Bitta mahsulotni o'chirish
+- ✅ Kod oralig'i bo'yicha o'chirish (masalan: 10-20)
+- ✅ To'liq tozalash (barcha mahsulotlar)
+- ✅ Ota mahsulot o'chirilganda, barcha variantlar ham o'chiriladi
+- ✅ Agar biror variant kodi oraliqda bo'lsa, butun mahsulot o'chiriladi
+- ✅ O'chirishdan oldin tasdiqlash dialogi
+- ✅ O'chiriladigan mahsulotlar soni ko'rsatiladi
+- ✅ WebSocket orqali real-time yangilanish
 
 ---
 

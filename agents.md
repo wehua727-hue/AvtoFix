@@ -114,14 +114,20 @@ AvtoFix/
 - ✅ Rasm yuklash (drag & drop)
 - ✅ Excel import
 - ✅ **Excel export (barcha mahsulotlar va xillar, rus tilida)** 🆕
+- ✅ **Excel export kategoriya bo'yicha (kategoriya tanlash)** 🆕
 - ✅ **Bo'sh kodlar funksiyasi (1 dan max SKU gacha)** 🆕
 - ✅ **Asl narx formatlash (10000 → 10 000)** 🆕
+- ✅ **Mahsulot o'chirishda tarixga yozish (qaytarish uchun)** 🆕
+- ✅ **Kod oralig'i bo'yicha o'chirish (10-20)** 🆕
+- ✅ **To'liq tozalash (barcha mahsulotlar)** 🆕
+- ✅ **O'chirilgan mahsulotlarni qaytarish scripti** 🆕
 - ✅ Ota-bola mahsulot tizimi
 - ✅ Mahsulot holati (mavjud, kutilmoqda, tugagan)
 - ✅ Narx va valyuta boshqaruvi
 - ✅ Ombor boshqaruvi
 - ✅ Barcode label chop etish
 - ✅ **Scroll input fix (scroll qiymatni o'zgartirmaydi)** 🆕
+- ✅ **Scroll buttons (tepaga/pastga)** 🆕
 
 **Batafsil:** `beets/mahsulotlar.md`
 
@@ -511,6 +517,48 @@ Har bir funksiya uchun batafsil hujjat `beets/` papkasida:
 17. `database.md` - Ma'lumotlar bazasi
 18. `security.md` - Xavfsizlik
 19. `deployment.md` - Deployment
+
+---
+
+## 🔧 Yordamchi Scriptlar
+
+### Scripts Papkasi: `scripts/`
+
+#### 1. **restore-deleted-products.ts** - O'chirilgan Mahsulotlarni Qaytarish (Interactive)
+```bash
+npx tsx scripts/restore-deleted-products.ts
+```
+
+**Funksiyalar:**
+- ✅ Foydalanuvchi ID bo'yicha filtrlash
+- ✅ O'chirilgan mahsulotlar ro'yxati
+- ✅ Tasdiqlash dialogi
+- ✅ Dublikat tekshiruvi
+- ✅ Variantlar bilan qaytarish
+
+#### 2. **restore-deleted-products-auto.ts** - Avtomatik Qaytarish (Non-interactive)
+```bash
+npx tsx scripts/restore-deleted-products-auto.ts [userId]
+```
+
+**Funksiyalar:**
+- ✅ Command line argument qo'llab-quvvatlash
+- ✅ Avtomatik qaytarish
+- ✅ Tarixga yozish
+
+#### 3. **check-database.ts** - Database Holatini Tekshirish
+```bash
+npx tsx scripts/check-database.ts
+```
+
+**Funksiyalar:**
+- ✅ Products collection statistikasi
+- ✅ Product history statistikasi
+- ✅ Users collection statistikasi
+- ✅ Barcha collections ro'yxati
+- ✅ Type bo'yicha statistika
+
+**Batafsil:** `scripts/README.md`
 
 ---
 
