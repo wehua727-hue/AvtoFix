@@ -1130,6 +1130,10 @@ export default function Products() {
             fetch(`${API_BASE_URL}/api/products/${p.id}`, {
               method: 'DELETE',
               headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userRole: user?.role,
+                canEditProducts: user?.canEditProducts
+              })
             })
           );
           

@@ -191,35 +191,43 @@ scp -r dist/* user@shop.avtofix.uz:/var/www/shop.avtofix.uz/
 
 ## 🚨 Hozirgi Muammo: DELETE API 500 Error
 
-**Sabab:** VPS'da eski kod ishlayapti, yangi o'zgarishlar deploy qilinmagan.
+**Sabab:** Frontend DELETE so'rovida `body` yuborilmagan, backend esa `userRole` va `canEditProducts` ni kutayapti.
 
 **Yechim:**
 ```bash
-# 1. VPS'ga kirish
+# 1. Local'da build qilish
+cd AvtoFix
+npm run build
+
+# 2. Git commit va push
+git add .
+git commit -m "fix: DELETE so'roviga userRole va canEditProducts qo'shildi"
+git push origin main
+
+# 3. VPS'ga kirish
 ssh user@shop.avtofix.uz
 
-# 2. Loyihani yangilash
+# 4. Loyihani yangilash
 cd /path/to/AvtoFix
 git pull origin main
 
-# 3. Backend'ni qayta ishga tushirish
-pm2 restart avtofix-api
+# 5. Frontend build qilish (agar kerak bo'lsa)
+npm run build
 
-# 4. Loglarni tekshirish
-pm2 logs avtofix-api --lines 50
+# 6. Frontend fayllarini nginx ga ko'chirish
+cp -r dist/* /var/www/shop.avtofix.uz/
+
+# 7. Nginx ni qayta yuklash
+sudo systemctl reload nginx
 ```
 
-**Agar git pull ishlamasa:**
-```bash
-# Lokal o'zgarishlarni saqlash
-git stash
+**Test qilish:**
+1. https://shop.avtofix.uz ga kiring
+2. Mahsulotlar → "Tozalash" → "Kod Bo'yicha Tozalash"
+3. Min: 10, Max: 20 → "O'chirish"
+4. Mahsulotlar o'chiriladi va qaytib kelmaydi ✅
 
-# Pull qilish
-git pull origin main
-
-# Lokal o'zgarishlarni qaytarish
-git stash pop
-```
+**Batafsil ma'lumot:** `FIX-DELETE-ISSUE.md` faylini o'qing.
 
 ---
 
