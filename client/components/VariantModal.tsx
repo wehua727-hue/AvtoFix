@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { type ProductStatus } from '@/components/ProductStatusSelector';
 import CurrencyPriceInput, { type Currency } from '@/components/CurrencyPriceInput';
-import { X, Plus, Trash2, CheckCircle2, Clock, XCircle, ChevronRight, FolderPlus, Pencil, Check } from 'lucide-react';
+import { X, Plus, Trash2, CheckCircle2, Clock, XCircle, ChevronRight, FolderPlus, Pencil, Check, Tag } from 'lucide-react';
+import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'; // ✅ YANGI: Barcode scanner hook
 
 interface CategoryOption {
   id: string;
@@ -14,6 +15,7 @@ interface CategoryOption {
 interface VariantData {
   name: string;
   sku: string; // Xil uchun alohida SKU/kod
+  customId?: string; // ✅ YANGI: Qo'lda kiritilgan ID
   basePrice: string;
   priceMultiplier: string;
   price: string;
@@ -45,14 +47,14 @@ interface VariantModalProps {
   onRemoveBasePrice?: (price: string) => void; // Asl narxni ro'yxatdan o'chirish
 }
 
-export default function VariantModal({ 
-  isOpen, 
-  onClose, 
-  onSave, 
-  exchangeRates, 
-  mode = 'create', 
-  initialData, 
-  nextSku, 
+export default function VariantModal({
+  isOpen,
+  onClose,
+  onSave,
+  exchangeRates,
+  mode = 'create',
+  initialData,
+  nextSku,
   productCurrency,
   categories = [],
   onCreateCategory,
@@ -63,9 +65,10 @@ export default function VariantModal({
   onBasePriceUsed,
   onRemoveBasePrice
 }: VariantModalProps) {
-  
+
   const [name, setName] = useState('');
   const [sku, setSku] = useState('');
+  const [customId, setCustomId] = useState(''); // ✅ YANGI: Xil uchun Custom ID
   const [basePrice, setBasePrice] = useState('');
   const [priceMultiplier, setPriceMultiplier] = useState('25');
   const [price, setPrice] = useState('');
@@ -76,10 +79,10 @@ export default function VariantModal({
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [imageError, setImageError] = useState<string | null>(null);
   const [isPriceManuallyEdited, setIsPriceManuallyEdited] = useState(false);
-  
+
   // Asl narx suggestions uchun
   const [showBasePriceSuggestions, setShowBasePriceSuggestions] = useState(false);
-  
+
   // Kategoriya state'lari
   const [categoryId, setCategoryId] = useState('');
   const [selectedParent, setSelectedParent] = useState<CategoryOption | null>(null);
@@ -92,7 +95,7 @@ export default function VariantModal({
   const [updateCategoryLoading, setUpdateCategoryLoading] = useState(false);
   const [deleteCategoryId, setDeleteCategoryId] = useState<string | null>(null);
   const [deleteCategoryLoading, setDeleteCategoryLoading] = useState(false);
-  
+
   // LOCAL CATEGORIES - props dan nusxa olish va lokal boshqarish
   const [localCategories, setLocalCategories] = useState<CategoryOption[]>([]);
 
@@ -116,6 +119,7 @@ export default function VariantModal({
     if (mode === 'edit' && initialData) {
       setName(initialData.name ?? '');
       setSku(initialData.sku ?? '');
+      setCustomId((initialData as any).customId ?? ''); // ✅ YANGI: Custom ID
       setBasePrice(initialData.basePrice ?? '');
       setPriceMultiplier(initialData.priceMultiplier ?? '25');
       setPrice(initialData.price ?? '');
@@ -130,6 +134,7 @@ export default function VariantModal({
     } else {
       setName('');
       setSku(nextSku ?? ''); // Avtomatik keyingi SKU
+      setCustomId(''); // ✅ YANGI: Custom ID tozalash
       setBasePrice('');
       setPriceMultiplier('25');
       setPrice('');
@@ -176,7 +181,7 @@ export default function VariantModal({
 
     const path = buildPath(categoryId);
     setSelectedPath(path);
-    
+
     // Oxirgi kategoriyani parent qilish
     if (path.length > 0) {
       setSelectedParent(path[path.length - 1]);
@@ -197,7 +202,7 @@ export default function VariantModal({
 
     const percentValue = percent || 0;
     const total = base + base * (percentValue / 100);
-    
+
     if (!isFinite(total)) {
       setPrice('');
       return;
@@ -219,17 +224,47 @@ export default function VariantModal({
     }
 
     const calculatedPercent = ((finalPrice - base) / base) * 100;
-    
+
     if (!isFinite(calculatedPercent)) {
       return;
     }
 
-    const formatted = Number.isInteger(calculatedPercent) 
-      ? String(calculatedPercent) 
+    const formatted = Number.isInteger(calculatedPercent)
+      ? String(calculatedPercent)
       : calculatedPercent.toFixed(2);
-    
+
     setPriceMultiplier(formatted);
   }, [price, basePrice, isPriceManuallyEdited]);
+
+  /* -------------------------------------------------------------------------- */
+  /*                             BARCODE SCANNER                                */
+  /* -------------------------------------------------------------------------- */
+
+  // Barcode scanner handler
+  const handleBarcodeScan = (barcode: string) => {
+    // Agar modal ochiq bo'lmasa, ishlamasligi kerak (lekin hook modal ichida, demak modal ochiq)
+    if (!isOpen) return;
+
+    // CustomID ni o'rnatish
+    setCustomId(barcode.toUpperCase());
+
+    // Vizual effekt
+    const input = document.getElementById('variant-custom-id-input');
+    if (input) {
+      input.focus();
+      // Kichik animatsiya yoki border rangi o'zgarishi mumkin
+      input.classList.add('ring-2', 'ring-green-500');
+      setTimeout(() => input.classList.remove('ring-2', 'ring-green-500'), 1000);
+    }
+  };
+
+  useBarcodeScanner({
+    onScan: handleBarcodeScan,
+    minLength: 3,
+    scanTimeout: 500,
+    enabled: isOpen, // Faqat modal ochiq bo'lganda ishlaydi
+    preventDefault: true,
+  });
 
   // Cleanup image previews
   useEffect(() => {
@@ -268,14 +303,14 @@ export default function VariantModal({
 
   const handleRemoveImage = (index: number) => {
     const preview = imagePreviews[index];
-    
+
     // Only revoke blob URLs (new images)
     if (preview && preview.startsWith('blob:')) {
       URL.revokeObjectURL(preview);
       // Remove from images array (File objects)
       setImages((prev) => prev.filter((_, i) => i !== index));
     }
-    
+
     // Always remove from previews (both server URLs and blob URLs)
     setImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
@@ -283,7 +318,7 @@ export default function VariantModal({
   // Kategoriya yaratish
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim() || !onCreateCategory) return;
-    
+
     setCreateCategoryLoading(true);
     try {
       const parentId = selectedParent?.id;
@@ -305,21 +340,21 @@ export default function VariantModal({
   // Kategoriya tahrirlash
   const handleSaveCategoryEdit = async () => {
     if (!editingCategoryId || !editingCategoryName.trim() || !onUpdateCategory) return;
-    
+
     const catId = editingCategoryId;
     const newName = editingCategoryName.trim();
-    
+
     setUpdateCategoryLoading(true);
     try {
       console.log('[VariantModal] Updating category:', catId, newName);
-      
+
       // DARHOL LOCAL STATE NI YANGILASH - UI darhol yangilanadi
       setLocalCategories(prev => prev.map(c => c.id === catId ? { ...c, name: newName } : c));
-      
+
       // Serverga yuborish (background da)
       await onUpdateCategory(catId, newName);
       console.log('[VariantModal] Category updated successfully');
-      
+
       // Tahrirlash holatini tozalash
       setEditingCategoryId(null);
       setEditingCategoryName('');
@@ -340,14 +375,14 @@ export default function VariantModal({
   // Kategoriya o'chirishni tasdiqlash
   const handleConfirmDeleteCategory = async () => {
     if (!deleteCategoryId || !onDeleteCategory) return;
-    
+
     const catIdToDelete = deleteCategoryId;
-    
+
     setDeleteCategoryLoading(true);
     try {
       // DARHOL LOCAL STATE DAN O'CHIRISH
       setLocalCategories(prev => prev.filter(c => c.id !== catIdToDelete));
-      
+
       const success = await onDeleteCategory(catIdToDelete);
       if (success) {
         // Agar o'chirilgan kategoriya tanlangan bo'lsa, tanlovni tozalash
@@ -397,6 +432,7 @@ export default function VariantModal({
     onSave({
       name: name.trim(),
       sku: sku.trim(),
+      customId: customId.trim() || undefined, // ✅ YANGI: Custom ID
       basePrice,
       priceMultiplier,
       price,
@@ -431,53 +467,47 @@ export default function VariantModal({
                 <h2 className="text-base sm:text-lg font-semibold truncate text-foreground">
                   {mode === 'edit' ? "Xilni tahrirlash" : "Xil qo'shish"}
                 </h2>
-                
+
                 {exchangeRates && (
-                  <div className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border backdrop-blur-sm ${
-                    priceCurrency === 'USD' 
+                  <div className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border backdrop-blur-sm ${priceCurrency === 'USD'
                       ? 'bg-gradient-to-r from-green-600/25 via-green-700/25 to-green-600/25 border-green-600/40'
                       : priceCurrency === 'RUB'
-                      ? 'bg-gradient-to-r from-purple-600/25 via-purple-700/25 to-purple-600/25 border-purple-600/40'
-                      : priceCurrency === 'CNY'
-                      ? 'bg-gradient-to-r from-red-600/25 via-red-700/25 to-red-600/25 border-red-600/40'
-                      : 'bg-gradient-to-r from-blue-600/25 via-blue-700/25 to-blue-600/25 border-blue-600/40'
-                  }`}>
-                    <svg className={`w-3.5 h-3.5 flex-shrink-0 ${
-                      priceCurrency === 'USD' ? 'text-green-400' 
-                      : priceCurrency === 'RUB' ? 'text-purple-400'
-                      : priceCurrency === 'CNY' ? 'text-red-400'
-                      : 'text-blue-400'
-                    }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        ? 'bg-gradient-to-r from-purple-600/25 via-purple-700/25 to-purple-600/25 border-purple-600/40'
+                        : priceCurrency === 'CNY'
+                          ? 'bg-gradient-to-r from-red-600/25 via-red-700/25 to-red-600/25 border-red-600/40'
+                          : 'bg-gradient-to-r from-blue-600/25 via-blue-700/25 to-blue-600/25 border-blue-600/40'
+                    }`}>
+                    <svg className={`w-3.5 h-3.5 flex-shrink-0 ${priceCurrency === 'USD' ? 'text-green-400'
+                        : priceCurrency === 'RUB' ? 'text-purple-400'
+                          : priceCurrency === 'CNY' ? 'text-red-400'
+                            : 'text-blue-400'
+                      }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <span className={`text-[10px] font-bold whitespace-nowrap ${
-                      priceCurrency === 'USD' ? 'text-green-300'
-                      : priceCurrency === 'RUB' ? 'text-purple-300'
-                      : priceCurrency === 'CNY' ? 'text-red-300'
-                      : 'text-blue-300'
-                    }`}>
+                    <span className={`text-[10px] font-bold whitespace-nowrap ${priceCurrency === 'USD' ? 'text-green-300'
+                        : priceCurrency === 'RUB' ? 'text-purple-300'
+                          : priceCurrency === 'CNY' ? 'text-red-300'
+                            : 'text-blue-300'
+                      }`}>
                       1 {priceCurrency === 'USD' ? 'USD' : priceCurrency === 'RUB' ? 'RUB' : priceCurrency === 'CNY' ? 'CNY' : 'USD'}
                     </span>
-                    <span className={`text-[10px] font-semibold ${
-                      priceCurrency === 'USD' ? 'text-green-400'
-                      : priceCurrency === 'RUB' ? 'text-purple-400'
-                      : priceCurrency === 'CNY' ? 'text-red-400'
-                      : 'text-blue-400'
-                    }`}>=</span>
-                    <span className={`text-[10px] font-extrabold whitespace-nowrap ${
-                      priceCurrency === 'USD' ? 'text-green-200'
-                      : priceCurrency === 'RUB' ? 'text-purple-200'
-                      : priceCurrency === 'CNY' ? 'text-red-200'
-                      : 'text-blue-200'
-                    }`}>
+                    <span className={`text-[10px] font-semibold ${priceCurrency === 'USD' ? 'text-green-400'
+                        : priceCurrency === 'RUB' ? 'text-purple-400'
+                          : priceCurrency === 'CNY' ? 'text-red-400'
+                            : 'text-blue-400'
+                      }`}>=</span>
+                    <span className={`text-[10px] font-extrabold whitespace-nowrap ${priceCurrency === 'USD' ? 'text-green-200'
+                        : priceCurrency === 'RUB' ? 'text-purple-200'
+                          : priceCurrency === 'CNY' ? 'text-red-200'
+                            : 'text-blue-200'
+                      }`}>
                       {(priceCurrency === 'USD' ? exchangeRates.usd : priceCurrency === 'RUB' ? exchangeRates.rub : priceCurrency === 'CNY' ? exchangeRates.cny : exchangeRates.usd).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
-                    <span className={`text-[10px] font-bold whitespace-nowrap ${
-                      priceCurrency === 'USD' ? 'text-green-300'
-                      : priceCurrency === 'RUB' ? 'text-purple-300'
-                      : priceCurrency === 'CNY' ? 'text-red-300'
-                      : 'text-blue-300'
-                    }`}>UZS</span>
+                    <span className={`text-[10px] font-bold whitespace-nowrap ${priceCurrency === 'USD' ? 'text-green-300'
+                        : priceCurrency === 'RUB' ? 'text-purple-300'
+                          : priceCurrency === 'CNY' ? 'text-red-300'
+                            : 'text-blue-300'
+                      }`}>UZS</span>
                   </div>
                 )}
               </div>
@@ -534,6 +564,35 @@ export default function VariantModal({
               </div>
             </div>
 
+            {/* Custom ID - Qo'lda kiritilgan ID */}
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-foreground flex items-center gap-2">
+                <Tag className="w-4 h-4 text-primary" />
+                Custom ID
+                <span className="text-xs font-normal text-muted-foreground">(ixtiyoriy)</span>
+              </label>
+              <input
+                id="variant-custom-id-input" // ✅ ID qo'shildi
+                type="text"
+                value={customId}
+                onChange={(e) => setCustomId(e.target.value.toUpperCase())}
+                onKeyDown={(e) => {
+                  // ✅ YANGI: Enter tugmasini bloklash (scanner uchun)
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Focus ni keyingi input ga o'tkazish
+                    document.getElementById('variant-baseprice-input')?.focus();
+                  }
+                }}
+                className="w-full px-4 py-3 rounded-xl bg-background border border-input text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all"
+                placeholder="Masalan: 98F3C471"
+              />
+              <p className="text-xs text-muted-foreground">
+                Eski senik yopishtirgan mahsulotni qayta qo'shganda, eski ID ni bu yerga kiriting
+              </p>
+            </div>
+
             {/* Narx ma'lumotlari - Card */}
             <div className="rounded-2xl border border-border bg-muted/30 p-4 sm:p-5 space-y-4">
               <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
@@ -542,7 +601,7 @@ export default function VariantModal({
                 </svg>
                 Narx hisob-kitobi
               </h3>
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Asl narxi */}
                 <div className="space-y-2 relative">
@@ -571,7 +630,7 @@ export default function VariantModal({
                     className="w-full px-4 py-3 rounded-xl bg-background border border-input text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all"
                     placeholder="10000"
                   />
-                  
+
                   {/* Asl narx suggestions dropdown */}
                   {showBasePriceSuggestions && recentBasePrices.length > 0 && (
                     <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-lg max-h-40 overflow-y-auto">
@@ -704,7 +763,7 @@ export default function VariantModal({
                   </svg>
                 </div>
               </div>
-              
+
               {/* Status preview */}
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border border-border">
                 {status === 'available' && (
@@ -757,7 +816,7 @@ export default function VariantModal({
                       </button>
                     )}
                   </p>
-                  
+
                   {/* Kategoriyalar ro'yxati */}
                   <div className="space-y-1">
                     {(selectedParent
@@ -767,15 +826,14 @@ export default function VariantModal({
                       const isSelected = categoryId === c.id;
                       const isEditing = editingCategoryId === c.id;
                       const hasChildren = localCategories.some((cat) => cat.parentId === c.id);
-                      
+
                       return (
                         <div
                           key={c.id}
-                          className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors ${
-                            isSelected
+                          className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors ${isSelected
                               ? 'bg-primary/20 border border-primary/40'
                               : 'hover:bg-muted border border-transparent'
-                          }`}
+                            }`}
                         >
                           {isEditing ? (
                             <div className="flex-1 flex items-center gap-2">
@@ -881,7 +939,7 @@ export default function VariantModal({
                       );
                     })}
                   </div>
-                  
+
                   {/* Orqaga tugmasi */}
                   {selectedParent && (
                     <button
@@ -897,7 +955,7 @@ export default function VariantModal({
                       ← Orqaga
                     </button>
                   )}
-                  
+
                   {/* Yangi kategoriya qo'shish */}
                   {onCreateCategory && (
                     <div className="pt-2 border-t border-border">
@@ -955,7 +1013,7 @@ export default function VariantModal({
                 Rasmlar
                 <span className="text-xs font-normal text-muted-foreground">(cheksiz)</span>
               </label>
-              
+
               {/* Image previews */}
               {imagePreviews.length > 0 && (
                 <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">

@@ -189,10 +189,10 @@ export default function Kassa() {
     getProduct,
     refreshCache,
   } = useOfflineKassa(userId, userPhone, defectiveCounts);
-  
+
   // Unused but needed for compatibility
-  const reloadProducts = () => {};
-  const triggerSync = () => {};
+  const reloadProducts = () => { };
+  const triggerSync = () => { };
   const isSyncing = false;
 
   // Local state
@@ -206,7 +206,7 @@ export default function Kassa() {
   const [selectedSale, setSelectedSale] = useState<SaleHistory | null>(null);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [mixedPaymentOpen, setMixedPaymentOpen] = useState(false);
-  const [mixedPayments, setMixedPayments] = useState<Array<{type: string, amount: number}>>([]);
+  const [mixedPayments, setMixedPayments] = useState<Array<{ type: string, amount: number }>>([]);
   const [remainingAmount, setRemainingAmount] = useState(0);
   const [selectedPaymentType, setSelectedPaymentType] = useState<string | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
@@ -216,13 +216,13 @@ export default function Kassa() {
   const [isDefective, setIsDefective] = useState(false); // Yaroqsiz mahsulotmi?
   const [numpadValue, setNumpadValue] = useState("");
   const [historyFilter, setHistoryFilter] = useState<"today" | "past">("today"); // Tarix filtri: Bugun yoki O'tgan
-  
+
   // Numpad KOD/SON qismi
   const [activeInput, setActiveInput] = useState<"code" | "quantity">("code"); // KOD yoki SON
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null); // Tanlangan mahsulot index
   const quantityInputRefs = useRef<Record<number, HTMLInputElement | null>>({}); // Quantity input refs
   const checkItemsRef = useRef(checkItems); // Track latest checkItems
-  
+
   // Update ref when checkItems changes
   useEffect(() => {
     checkItemsRef.current = checkItems;
@@ -246,7 +246,7 @@ export default function Kassa() {
   const [isPrinting, setIsPrinting] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [lastScanResult, setLastScanResult] = useState<string | null>(null);
-  
+
   // Clear history confirmation dialog
   const [clearHistoryConfirmOpen, setClearHistoryConfirmOpen] = useState(false);
 
@@ -269,11 +269,11 @@ export default function Kassa() {
 
         return;
       }
-      
+
       const { name, stock } = e.detail;
       const message = `Omborda yetarli emas! "${name}" - faqat ${stock} ta mavjud`;
 
-      
+
       try {
         toast.error(message);
 
@@ -281,10 +281,10 @@ export default function Kassa() {
 
       }
     };
-    
-    const handleRefundLimitExceeded = (e: CustomEvent<{ 
-      name: string; 
-      maxReturn: number; 
+
+    const handleRefundLimitExceeded = (e: CustomEvent<{
+      name: string;
+      maxReturn: number;
       requested: number;
       soldQuantity: number;
       defectiveCount: number;
@@ -292,20 +292,20 @@ export default function Kassa() {
     }>) => {
 
 
-      
+
       // Faqat qaytarish rejimida bu xabarni ko'rsatish
       if (!isRefundMode) {
 
         return;
       }
-      
+
       const { name, maxReturn, soldQuantity, defectiveCount, initialStock } = e.detail;
       const message = `"${name}" - boshlang'ich ${initialStock} ta, ${soldQuantity} ta sotilgan, ${defectiveCount > 0 ? `${defectiveCount} ta yaroqsiz qaytarilgan, ` : ''}${maxReturn} tadan ortiq qaytara olmaysiz!`;
-      
 
-      
+
+
       try {
-        toast.error(message, { 
+        toast.error(message, {
           duration: 15000,
           position: 'top-center',
           style: {
@@ -320,12 +320,12 @@ export default function Kassa() {
 
       }
     };
-    
 
-    
+
+
     window.addEventListener('stock-exceeded', handleStockExceeded as EventListener);
     window.addEventListener('refund-limit-exceeded', handleRefundLimitExceeded as EventListener);
-    
+
     return () => {
 
       window.removeEventListener('stock-exceeded', handleStockExceeded as EventListener);
@@ -339,7 +339,7 @@ export default function Kassa() {
     if (!isRefundMode) {
       return checkItems.some(item => item.quantity > (item.stock ?? 0));
     }
-    
+
     // Qaytarish rejimida: sotilgan miqdordan ortiq qaytarib bo'lmaydi
     // Sotilgan miqdor = initialStock - stock (boshlang'ich - hozirgi)
     // Maksimal qaytarish = sotilgan miqdor
@@ -366,7 +366,7 @@ export default function Kassa() {
     if (!isRefundMode) {
       return checkItems.filter(item => item.quantity > (item.stock ?? 0));
     }
-    
+
     // Qaytarish rejimida: sotilgan miqdordan ortiq qaytarib bo'lmaydi
     return checkItems.filter(item => {
       const currentStock = item.stock ?? 0;
@@ -406,10 +406,10 @@ export default function Kassa() {
       try {
         const printerList = await listPrinters();
         setPrinters(printerList);
-        
+
         // Saqlangan sozlamalarni yuklash
         const settings = getPrinterSettings();
-        
+
         // Chek printer
         const receiptId = settings.receiptPrinterId;
         if (receiptId && printerList.some(p => p.id === receiptId)) {
@@ -417,7 +417,7 @@ export default function Kassa() {
         } else if (printerList.length > 0) {
           setSelectedPrinter(printerList[0].id);
         }
-        
+
         // Chek qog'oz kengligi
         setReceiptPaperWidth(settings.receiptPaperWidth);
       } catch (e) {
@@ -430,29 +430,29 @@ export default function Kassa() {
   // Load pending checks and sales history
   useEffect(() => {
     if (!userId) return;
-    
+
     // Initialize sync manager
     syncManager.initialize(userId).catch(err => {
       console.error('[Kassa] Failed to initialize sync manager:', err);
     });
-    
+
     const loadLocalData = async () => {
       try {
         // 1. AVVAL serverdan tarixni olish (MongoDB)
         try {
-          const apiBase = window.location.protocol === 'file:' 
-            ? 'http://127.0.0.1:5174' 
+          const apiBase = window.location.protocol === 'file:'
+            ? 'http://127.0.0.1:5174'
             : (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '');
-          
 
-          
+
+
           const response = await fetch(`${apiBase}/api/sales/offline?userId=${encodeURIComponent(userId)}&limit=1000`);
-          
+
           if (response.ok) {
             const data = await response.json();
             if (data.success && Array.isArray(data.sales)) {
 
-              
+
               // Server dan kelgan tarixni formatlash
               const serverHistory = data.sales.map((s: any) => ({
                 id: s._id || s.offlineId || s.id,
@@ -471,14 +471,14 @@ export default function Kassa() {
                 type: s.saleType || 'sale',
                 synced: true, // Server dan kelgan - sinxronlangan
               }));
-              
+
               // 2. IndexedDB dan sinxronlanmagan savdolarni qo'shish
               const localSales = await offlineDB.offlineSales
                 .where("userId").equals(userId)
                 .filter(s => s.synced === false)
                 .reverse()
                 .sortBy("createdAt");
-              
+
               const localHistory = localSales.map((s) => ({
                 id: s.id,
                 items: s.items.map((item) => ({
@@ -496,15 +496,15 @@ export default function Kassa() {
                 type: s.saleType,
                 synced: false, // Hali sinxronlanmagan
               }));
-              
 
-              
+
+
               // Birlashtirilgan tarix (local + server)
               const combinedHistory = [...localHistory, ...serverHistory];
-              
+
               // Sanasi bo'yicha tartiblash (eng yangi birinchi)
               combinedHistory.sort((a, b) => b.date.getTime() - a.date.getTime());
-              
+
               setSalesHistory(combinedHistory.slice(0, 1000));
               return;
             }
@@ -512,7 +512,7 @@ export default function Kassa() {
         } catch (serverError) {
 
         }
-        
+
         // 3. Server xato bersa, faqat IndexedDB dan olish (fallback)
         const sales = await offlineDB.offlineSales.where("userId").equals(userId).reverse().sortBy("createdAt");
         setSalesHistory(
@@ -577,11 +577,11 @@ export default function Kassa() {
       // MUHIM: Barcha foydalanuvchilar uchun mahsulot ma'lumotlarini yangilash
       // Qaytarish cheklovi uchun to'g'ri hisoblash kerak
       let freshProduct = product;
-      
+
       // MUHIM: Har doim serverdan mahsulot ma'lumotlarini olish (initialStock uchun)
       // Qaytarish rejimida initialStock kerak bo'ladi
       freshProduct = await getProduct(product.id) || product;
-      
+
       if (variantIndex !== undefined && freshProduct.variantSummaries?.[variantIndex]) {
         const variant = freshProduct.variantSummaries[variantIndex];
         const variantStock = variant.stock ?? 0;
@@ -600,6 +600,7 @@ export default function Kassa() {
           stock: variantStock,
           initialStock: variantInitialStock,
           productId: freshProduct.id,
+          customId: variant.customId, // ✅ YANGI: Variant Custom ID
           imageUrl: variant.imageUrl || freshProduct.imageUrl
         };
 
@@ -607,8 +608,8 @@ export default function Kassa() {
       } else {
         const productInitialStock = freshProduct.initialStock ?? freshProduct.stock ?? 0;
 
-        addToCart({ 
-          ...freshProduct, 
+        addToCart({
+          ...freshProduct,
           initialStock: productInitialStock,
           productId: freshProduct.id
         }, isRefundMode);
@@ -623,21 +624,21 @@ export default function Kassa() {
   const addProductBySku = useCallback(
     async (sku: string): Promise<boolean> => {
 
-      
+
       try {
         // Variant va asosiy mahsulot SKU ni qidirish
         const result = await searchBySkuWithVariant(sku);
 
-        
+
         if (!result) {
 
           return false;
         }
-        
+
         // Variant yoki asosiy mahsulotni qo'shish
 
         await addProduct(result.product, result.variantIndex);
-        
+
         return true;
       } catch (error) {
 
@@ -650,11 +651,11 @@ export default function Kassa() {
   // Barcode scanner
   const handleBarcodeScan = useCallback(async (barcode: string) => {
     setLastScanResult(barcode);
-    
+
     try {
       // Variant va asosiy mahsulot SKU/barcode ni qidirish
       const result = await searchBySkuWithVariant(barcode);
-      
+
       if (result) {
         await addProduct(result.product, result.variantIndex);
         setTimeout(() => setLastScanResult(null), 2000);
@@ -684,7 +685,7 @@ export default function Kassa() {
    */
   const numpadValueRef = useRef(numpadValue);
   numpadValueRef.current = numpadValue;
-  
+
   const handleNumpadPress = useCallback(
     (key: string) => {
       if (key === "C") {
@@ -696,7 +697,7 @@ export default function Kassa() {
         }
         return;
       }
-      
+
       if (key === "⌫") {
         // Orqaga o'chirish
         if (activeInput === "code") {
@@ -715,14 +716,14 @@ export default function Kassa() {
         }
         return;
       }
-      
+
       if (key === "OK") {
         if (activeInput === "code") {
           // KOD qismida: Mahsulot qo'shish
           const currentValue = numpadValueRef.current;
           if (currentValue && currentValue.trim()) {
             // Fire-and-forget - asinxron qilish
-            addProductBySku(currentValue).catch(() => {});
+            addProductBySku(currentValue).catch(() => { });
           }
           setNumpadValue("");
         } else if (activeInput === "quantity" && selectedItemIndex !== null) {
@@ -730,12 +731,12 @@ export default function Kassa() {
           const input = quantityInputRefs.current[selectedItemIndex];
           const qty = parseInt(input?.value || "0") || 0;
 
-          
+
           if (qty > 0) {
             // Quantity allaqachon updateQuantity orqali yangilangan
 
           }
-          
+
           // KOD qismiga qaytish
           setActiveInput("code");
           setSelectedItemIndex(null);
@@ -743,7 +744,7 @@ export default function Kassa() {
         }
         return;
       }
-      
+
       // Raqamlar va "00"
       if (key === "00") {
         if (activeInput === "code") {
@@ -763,7 +764,7 @@ export default function Kassa() {
         }
         return;
       }
-      
+
       if (/^\d$/.test(key)) {
         if (activeInput === "code") {
           setNumpadValue((prev) => prev + key);
@@ -790,7 +791,7 @@ export default function Kassa() {
   const scannerBufferRef = useRef<string>('');
   const lastKeyTimeRef = useRef<number>(0);
   const scannerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
+
   // Keyboard handler - scanner va numpad ni ajratish
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -798,10 +799,10 @@ export default function Kassa() {
       if (e.key === "F3") { e.preventDefault(); setSearchOpen(true); return; }
       if (e.key === "Escape") { setSearchOpen(false); return; }
       if (searchOpen || paymentOpen || mixedPaymentOpen || historyOpen || isInputFocused) return;
-      
+
       const now = Date.now();
       const timeSinceLastKey = now - lastKeyTimeRef.current;
-      
+
       // Raqam kiritilganda
       if (/^[0-9]$/.test(e.key)) {
         // Agar tez kiritilayotgan bo'lsa (50ms ichida) - bu scanner
@@ -809,7 +810,7 @@ export default function Kassa() {
           // Scanner - numpad ga yubormaslik
           scannerBufferRef.current += e.key;
           lastKeyTimeRef.current = now;
-          
+
           // Timeout ni yangilash
           if (scannerTimeoutRef.current) {
             clearTimeout(scannerTimeoutRef.current);
@@ -819,11 +820,11 @@ export default function Kassa() {
           }, 500);
           return; // Numpad ga yubormaslik!
         }
-        
+
         // Birinchi raqam - bufferni boshlash
         scannerBufferRef.current = e.key;
         lastKeyTimeRef.current = now;
-        
+
         // Timeout - agar keyingi raqam tez kelmasa, numpad ga yuborish
         if (scannerTimeoutRef.current) {
           clearTimeout(scannerTimeoutRef.current);
@@ -838,11 +839,11 @@ export default function Kassa() {
           }
           scannerBufferRef.current = '';
         }, 100);
-        
+
         e.preventDefault();
         return;
       }
-      
+
       // Enter - agar scanner buffer bo'sh bo'lsa, numpad OK
       if (e.key === "Enter" || e.key === "+" || e.key === "Add") {
         // Agar scanner buffer da raqamlar bo'lsa - bu scanner, useBarcodeScanner handle qiladi
@@ -854,7 +855,7 @@ export default function Kassa() {
         handleNumpadPress("OK");
         return;
       }
-      
+
       if (e.key === "." || e.key === "Decimal") { e.preventDefault(); handleNumpadPress("."); return; }
       if (e.key === "Backspace") { e.preventDefault(); handleNumpadPress("⌫"); return; }
       if (e.key === "Delete" || (e.key.toLowerCase() === "c" && !e.ctrlKey)) { e.preventDefault(); handleNumpadPress("C"); return; }
@@ -872,10 +873,10 @@ export default function Kassa() {
 
   // Do'kon ma'lumotlari (chek uchun)
   const storeInfo = {
-    storeName: user?.role === 'admin' 
+    storeName: user?.role === 'admin'
       ? `${user?.name || 'Admin'} do'koni`
-      : user?.name 
-        ? `AVTOFIX - ${user.name}` 
+      : user?.name
+        ? `AVTOFIX - ${user.name}`
         : "AVTOFIX - Avto ehtiyot qismlari do'koni",
     storeAddress: user?.address || "",
     storePhone: user?.phone || "",
@@ -887,196 +888,196 @@ export default function Kassa() {
       // Ikki marta bosishni oldini olish
       if (isProcessingPayment) return;
       setIsProcessingPayment(true);
-      
+
       try {
-      // Agar yaroqsiz qaytarish bo'lsa - stock o'zgarmaydi, faqat defectiveProducts ga qo'shiladi
-      // MUHIM: initialStock oshiriladi (qaytarish cheklovi uchun)
-      if (isRefundMode && isDefective) {
-        // Yaroqsiz mahsulotlarni saqlash
-        const refundId = generateUUID();
-        const receiptNumber = `DEF-${Date.now().toString(36).toUpperCase()}`;
-        
-        for (const item of checkItems) {
-          const defective: DefectiveProduct = {
-            id: generateUUID(),
-            productId: item.productId,
-            productName: item.name,
-            sku: item.sku,
-            quantity: item.quantity,
-            price: item.price,
-            refundId,
-            createdAt: Date.now(),
-            userId,
-          };
-          await saveDefectiveProduct(defective);
-        }
-        
-        // Tarixga qo'shish - har bir mahsulot alohida entry sifatida
-        const historyEntries = checkItems.map((item) => ({
-          id: generateUUID(),
-          items: [{
-            id: generateUUID(), 
-            productId: item.productId, 
-            name: item.name, 
-            sku: item.sku,
-            quantity: item.quantity, 
-            price: item.price, 
-            discount: item.discount,
-          }],
-          total: item.quantity * item.price - item.discount, 
-          date: new Date(), 
-          paymentType,
-          type: "refund" as "sale" | "refund", 
-          synced: false,
-        }));
-        
-        setSalesHistory((prev) => [...historyEntries, ...prev]);
-        
-        // Chek chiqarish - yaroqsiz qaytarish uchun ham
-        setIsPrinting(true);
-        try {
-          const receiptData: ReceiptData = {
-            type: "defectiveRefund",
-            items: checkItems.map((item) => ({ name: item.name, sku: item.sku, quantity: item.quantity, price: item.price, discount: item.discount })),
-            total, 
-            discount: 0, 
-            paymentType, 
-            cashier: user?.name,
-            date: new Date(), 
-            receiptNumber,
-            storeName: storeInfo.storeName,
-            storeAddress: storeInfo.storeAddress,
-            storePhone: storeInfo.storePhone,
-            userRole: user?.role as 'admin' | 'xodim' | 'ega',
-          };
-          await printReceipt(selectedPrinter, receiptData);
-        } catch (e) { 
+        // Agar yaroqsiz qaytarish bo'lsa - stock o'zgarmaydi, faqat defectiveProducts ga qo'shiladi
+        // MUHIM: initialStock oshiriladi (qaytarish cheklovi uchun)
+        if (isRefundMode && isDefective) {
+          // Yaroqsiz mahsulotlarni saqlash
+          const refundId = generateUUID();
+          const receiptNumber = `DEF-${Date.now().toString(36).toUpperCase()}`;
 
-        } finally { 
-          setIsPrinting(false); 
-        }
-        
-        // Yaroqsiz qaytarilgan sonlarni yangilash (barcha foydalanuvchilar uchun)
-        const newCounts = new Map(defectiveCounts);
-        for (const item of checkItems) {
-          // MUHIM: Variantlar uchun variantId, asosiy mahsulot uchun productId
-          const key = item.id.includes('-v') ? item.id : item.productId; // Agar variant bo'lsa, o'zini ID sini ishlat
-          const current = newCounts.get(key) || 0;
-          newCounts.set(key, current + item.quantity);
-
-        }
-        setDefectiveCounts(newCounts);
-        
-        // Yaroqsiz qaytarilgan sonlarni qayta yuklash (database dan)
-        getAllDefectiveCounts(userId).then(counts => {
-          setDefectiveCounts(counts);
-
-        });
-        
-        toast.success("Yaroqsiz mahsulotlar qayd etildi");
-        clearCart();
-        setPaymentOpen(false);
-        setIsRefundMode(false);
-        setIsDefective(false);
-        return;
-      }
-      
-      // Oddiy sotuv yoki yaroqli qaytarish
-      if (checkItems.length === 0) {
-        toast.error("Kassada mahsulot yo'q");
-        setIsProcessingPayment(false);
-        return;
-      }
-      
-      const sale = await completeSale(paymentType, isRefundMode ? "refund" : "sale");
-      if (sale) {
-        // Tarixga qo'shish - butun chekni bitta yozuv sifatida
-        const historyEntry: SaleHistory = {
-          id: sale.id,
-          items: sale.items.map((item) => ({
-            id: generateUUID(),
-            productId: item.productId,
-            name: item.name,
-            sku: item.sku,
-            quantity: item.quantity,
-            price: item.price,
-            discount: item.discount,
-          })),
-          total: sale.total,
-          date: new Date(sale.createdAt),
-          paymentType: sale.paymentType,
-          type: sale.saleType as "sale" | "refund",
-          synced: sale.synced,
-        };
-        
-        setSalesHistory((prev) => [historyEntry, ...prev]);
-        
-        // Reload history from IndexedDB to ensure persistence
-        setTimeout(async () => {
-          try {
-            console.log('[Kassa] Reloading history from IndexedDB for userId:', userId);
-            
-            const localSales = await offlineDB.offlineSales
-              .where("userId").equals(userId)
-              .reverse()
-              .sortBy("createdAt");
-            
-            console.log('[Kassa] Found sales in IndexedDB:', localSales.length);
-            
-            const localHistory = localSales.map((s) => ({
-              id: s.id,
-              items: s.items.map((item) => ({
-                id: generateUUID(),
-                productId: item.productId,
-                name: item.name,
-                sku: item.sku,
-                quantity: item.quantity,
-                price: item.price,
-                discount: item.discount,
-              })),
-              total: s.total,
-              date: new Date(s.createdAt),
-              paymentType: s.paymentType,
-              type: s.saleType,
-              synced: s.synced,
-            }));
-            
-            setSalesHistory(localHistory.slice(0, 1000));
-            console.log('[Kassa] History reloaded from IndexedDB:', localHistory.length, 'items');
-          } catch (err) {
-            console.error('[Kassa] Failed to reload history:', err);
+          for (const item of checkItems) {
+            const defective: DefectiveProduct = {
+              id: generateUUID(),
+              productId: item.productId,
+              productName: item.name,
+              sku: item.sku,
+              quantity: item.quantity,
+              price: item.price,
+              refundId,
+              createdAt: Date.now(),
+              userId,
+            };
+            await saveDefectiveProduct(defective);
           }
-        }, 1000);
-        
-        setIsPrinting(true);
-        try {
-          const receiptData: ReceiptData = {
-            type: isRefundMode ? "refund" : "sale",
-            items: sale.items.map((item) => ({ name: item.name, sku: item.sku, quantity: item.quantity, price: item.price, discount: item.discount })),
-            total: sale.total, 
-            discount: sale.discount, 
-            paymentType, 
-            cashier: user?.name,
-            date: new Date(sale.createdAt), 
-            receiptNumber: sale.recipientNumber,
-            // Do'kon ma'lumotlari
-            storeName: storeInfo.storeName,
-            storeAddress: storeInfo.storeAddress,
-            storePhone: storeInfo.storePhone,
-            userRole: user?.role as 'admin' | 'xodim' | 'ega',
-          };
-          await printReceipt(selectedPrinter, receiptData);
-        } catch (e) { 
-          // Print error
-        } finally { 
-          setIsPrinting(false); 
-        }
-        setPaymentOpen(false);
-        if (isRefundMode) {
+
+          // Tarixga qo'shish - har bir mahsulot alohida entry sifatida
+          const historyEntries = checkItems.map((item) => ({
+            id: generateUUID(),
+            items: [{
+              id: generateUUID(),
+              productId: item.productId,
+              name: item.name,
+              sku: item.sku,
+              quantity: item.quantity,
+              price: item.price,
+              discount: item.discount,
+            }],
+            total: item.quantity * item.price - item.discount,
+            date: new Date(),
+            paymentType,
+            type: "refund" as "sale" | "refund",
+            synced: false,
+          }));
+
+          setSalesHistory((prev) => [...historyEntries, ...prev]);
+
+          // Chek chiqarish - yaroqsiz qaytarish uchun ham
+          setIsPrinting(true);
+          try {
+            const receiptData: ReceiptData = {
+              type: "defectiveRefund",
+              items: checkItems.map((item) => ({ name: item.name, sku: item.sku, quantity: item.quantity, price: item.price, discount: item.discount })),
+              total,
+              discount: 0,
+              paymentType,
+              cashier: user?.name,
+              date: new Date(),
+              receiptNumber,
+              storeName: storeInfo.storeName,
+              storeAddress: storeInfo.storeAddress,
+              storePhone: storeInfo.storePhone,
+              userRole: user?.role as 'admin' | 'xodim' | 'ega',
+            };
+            await printReceipt(selectedPrinter, receiptData);
+          } catch (e) {
+
+          } finally {
+            setIsPrinting(false);
+          }
+
+          // Yaroqsiz qaytarilgan sonlarni yangilash (barcha foydalanuvchilar uchun)
+          const newCounts = new Map(defectiveCounts);
+          for (const item of checkItems) {
+            // MUHIM: Variantlar uchun variantId, asosiy mahsulot uchun productId
+            const key = item.id.includes('-v') ? item.id : item.productId; // Agar variant bo'lsa, o'zini ID sini ishlat
+            const current = newCounts.get(key) || 0;
+            newCounts.set(key, current + item.quantity);
+
+          }
+          setDefectiveCounts(newCounts);
+
+          // Yaroqsiz qaytarilgan sonlarni qayta yuklash (database dan)
+          getAllDefectiveCounts(userId).then(counts => {
+            setDefectiveCounts(counts);
+
+          });
+
+          toast.success("Yaroqsiz mahsulotlar qayd etildi");
+          clearCart();
+          setPaymentOpen(false);
           setIsRefundMode(false);
           setIsDefective(false);
+          return;
         }
-      }
+
+        // Oddiy sotuv yoki yaroqli qaytarish
+        if (checkItems.length === 0) {
+          toast.error("Kassada mahsulot yo'q");
+          setIsProcessingPayment(false);
+          return;
+        }
+
+        const sale = await completeSale(paymentType, isRefundMode ? "refund" : "sale");
+        if (sale) {
+          // Tarixga qo'shish - butun chekni bitta yozuv sifatida
+          const historyEntry: SaleHistory = {
+            id: sale.id,
+            items: sale.items.map((item) => ({
+              id: generateUUID(),
+              productId: item.productId,
+              name: item.name,
+              sku: item.sku,
+              quantity: item.quantity,
+              price: item.price,
+              discount: item.discount,
+            })),
+            total: sale.total,
+            date: new Date(sale.createdAt),
+            paymentType: sale.paymentType,
+            type: sale.saleType as "sale" | "refund",
+            synced: sale.synced,
+          };
+
+          setSalesHistory((prev) => [historyEntry, ...prev]);
+
+          // Reload history from IndexedDB to ensure persistence
+          setTimeout(async () => {
+            try {
+              console.log('[Kassa] Reloading history from IndexedDB for userId:', userId);
+
+              const localSales = await offlineDB.offlineSales
+                .where("userId").equals(userId)
+                .reverse()
+                .sortBy("createdAt");
+
+              console.log('[Kassa] Found sales in IndexedDB:', localSales.length);
+
+              const localHistory = localSales.map((s) => ({
+                id: s.id,
+                items: s.items.map((item) => ({
+                  id: generateUUID(),
+                  productId: item.productId,
+                  name: item.name,
+                  sku: item.sku,
+                  quantity: item.quantity,
+                  price: item.price,
+                  discount: item.discount,
+                })),
+                total: s.total,
+                date: new Date(s.createdAt),
+                paymentType: s.paymentType,
+                type: s.saleType,
+                synced: s.synced,
+              }));
+
+              setSalesHistory(localHistory.slice(0, 1000));
+              console.log('[Kassa] History reloaded from IndexedDB:', localHistory.length, 'items');
+            } catch (err) {
+              console.error('[Kassa] Failed to reload history:', err);
+            }
+          }, 1000);
+
+          setIsPrinting(true);
+          try {
+            const receiptData: ReceiptData = {
+              type: isRefundMode ? "refund" : "sale",
+              items: sale.items.map((item) => ({ name: item.name, sku: item.sku, quantity: item.quantity, price: item.price, discount: item.discount })),
+              total: sale.total,
+              discount: sale.discount,
+              paymentType,
+              cashier: user?.name,
+              date: new Date(sale.createdAt),
+              receiptNumber: sale.recipientNumber,
+              // Do'kon ma'lumotlari
+              storeName: storeInfo.storeName,
+              storeAddress: storeInfo.storeAddress,
+              storePhone: storeInfo.storePhone,
+              userRole: user?.role as 'admin' | 'xodim' | 'ega',
+            };
+            await printReceipt(selectedPrinter, receiptData);
+          } catch (e) {
+            // Print error
+          } finally {
+            setIsPrinting(false);
+          }
+          setPaymentOpen(false);
+          if (isRefundMode) {
+            setIsRefundMode(false);
+            setIsDefective(false);
+          }
+        }
       } catch (error) {
         toast.error("To'lov xatosi yuz berdi");
       } finally {
@@ -1095,11 +1096,11 @@ export default function Kassa() {
         // Clear local state immediately
         setSalesHistory([]);
         setHistoryOpen(false);
-        
+
         console.log("[clearHistory] Showing success toast");
         // Show success toast
         toast.success("Tarix tozalandi");
-        
+
         console.log("[clearHistory] Starting background IndexedDB clear");
         // Clear IndexedDB in background (fire and forget)
         offlineDB.offlineSales
@@ -1108,16 +1109,16 @@ export default function Kassa() {
           .delete()
           .then(() => console.log("[clearHistory] IndexedDB cleared successfully"))
           .catch(err => console.error("[clearHistory] Failed to clear IndexedDB:", err));
-        
+
         console.log("[clearHistory] Starting background server clear");
         // Try to clear server-side history (fire and forget)
         try {
-          const apiBase = window.location.protocol === 'file:' 
-            ? 'http://127.0.0.1:5174' 
+          const apiBase = window.location.protocol === 'file:'
+            ? 'http://127.0.0.1:5174'
             : (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '');
-          
+
           console.log("[clearHistory] API base:", apiBase);
-          
+
           fetch(`${apiBase}/api/sales/clear-history?userId=${encodeURIComponent(userId)}`, {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' }
@@ -1127,7 +1128,7 @@ export default function Kassa() {
         } catch (serverError) {
           console.error("[clearHistory] Server error:", serverError);
         }
-        
+
         console.log("[clearHistory] Clear history process completed");
       } catch (error) {
         console.error("[clearHistory] Error:", error);
@@ -1195,7 +1196,7 @@ export default function Kassa() {
         {/* ===== MAIN POS LAYOUT ===== */}
         <main className="p-2 sm:p-3 md:p-4 lg:p-5 xl:p-6 h-[calc(100vh-4rem)] overflow-hidden">
           <div className="h-full flex flex-col gap-2 sm:gap-3 md:gap-4">
-            
+
             {/* TOTAL CARD - Responsive Design */}
             <div className={`rounded-lg p-3 sm:p-4 lg:p-5 border flex-shrink-0 ${isRefundMode ? "bg-gradient-to-br from-slate-900 via-blue-950/30 to-slate-900 border-orange-600" : "bg-gradient-to-br from-slate-900 via-blue-950/30 to-slate-900 border-red-600"}`}>
               <div className="flex items-center justify-between gap-2">
@@ -1216,11 +1217,11 @@ export default function Kassa() {
 
             {/* Middle Section: Table + Numpad - More space for table */}
             <div className="flex-1 flex flex-col lg:flex-row gap-1 sm:gap-2 md:gap-2 min-h-0 overflow-auto lg:overflow-hidden">
-              
+
               {/* TABLE CONTAINER - Responsive - Extended on mobile */}
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden order-2 lg:order-1 lg:max-h-none">
                 <div className={`flex-1 bg-gradient-to-br from-slate-900 via-blue-950/30 to-slate-900 rounded-lg border overflow-hidden flex flex-col ${isRefundMode ? "border-orange-600/50" : "border-gray-700"}`}>
-                  
+
                   {/* Table Header - Responsive */}
                   <div className="bg-gray-800 border-b border-gray-700 flex-shrink-0 overflow-x-auto">
                     <div className="grid grid-cols-[28px_45px_1fr_55px_75px_85px_95px_75px] sm:grid-cols-[28px_50px_1fr_60px_80px_100px_110px_80px] lg:grid-cols-[32px_60px_1fr_70px_90px_110px_130px_90px] gap-1 sm:gap-2 lg:gap-3 px-3 sm:px-3 lg:px-4 py-3 sm:py-3 lg:py-4 text-xs sm:text-xs font-bold text-slate-400 uppercase tracking-wider min-w-[600px]">
@@ -1261,15 +1262,15 @@ export default function Kassa() {
                       <div className="min-w-[500px]">
                         {checkItems.map((item, index) => {
                           const itemTotal = item.quantity * item.price;
-                          
+
                           // Ombor ustuni: refund mode da stock + quantity, sale mode da stock - quantity
-                          const calculatedStock = isRefundMode 
+                          const calculatedStock = isRefundMode
                             ? (item.stock || 0) + item.quantity  // Qaytarish: stock ko'payadi
                             : (item.stock || 0) - item.quantity; // Sotish: stock kamayadi
-                          
+
                           const currentStock = Math.max(0, calculatedStock);
                           const stockColor = currentStock <= 0 ? "text-red-400" : currentStock <= 5 ? "text-yellow-400" : "text-emerald-400";
-                          
+
                           return (
                             <div
                               key={item.id}
@@ -1356,14 +1357,14 @@ export default function Kassa() {
                                 {formatNum(itemTotal)}
                               </div>
                               <div className="flex justify-center self-center gap-1">
-                                <button 
+                                <button
                                   onMouseDown={(e) => {
                                     e.stopPropagation();
                                   }}
-                                  onClick={(e) => { 
-                                    e.stopPropagation(); 
-                                    removeItem(index); 
-                                  }} 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeItem(index);
+                                  }}
                                   className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 rounded-lg sm:rounded-xl bg-red-500/20 hover:bg-red-500/40 text-red-400 flex items-center justify-center transition-all"
                                 >
                                   <Trash2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 lg:w-4 lg:h-4" />
@@ -1412,16 +1413,15 @@ export default function Kassa() {
               <div className="w-full h-96 sm:h-[28rem] lg:w-[240px] lg:h-auto xl:w-[280px] 2xl:w-[320px] flex-shrink-0 order-1 lg:order-2">
                 {/* NUMPAD CARD - Very small */}
                 <div className={`bg-gradient-to-br from-slate-900 via-blue-950/30 to-slate-900 rounded-xl border overflow-hidden flex flex-col h-full p-3 sm:p-4 lg:p-5 pb-6 sm:pb-7 lg:pb-8 ${isRefundMode ? "border-orange-600/50" : "border-gray-700"}`}>
-                  
+
                   {/* KOD/SON Toggle Buttons */}
                   <div className="flex gap-3 mb-3 sm:mb-4 lg:mb-5">
                     <button
                       onClick={() => setActiveInput("code")}
-                      className={`flex-1 py-3 sm:py-4 lg:py-4 px-4 rounded-lg font-bold text-base sm:text-lg lg:text-xl transition-all ${
-                        activeInput === "code"
+                      className={`flex-1 py-3 sm:py-4 lg:py-4 px-4 rounded-lg font-bold text-base sm:text-lg lg:text-xl transition-all ${activeInput === "code"
                           ? "bg-blue-600 text-white border border-blue-500"
                           : "bg-slate-700 text-gray-300 border border-slate-600 hover:bg-slate-600"
-                      }`}
+                        }`}
                     >
                       KOD
                     </button>
@@ -1433,13 +1433,12 @@ export default function Kassa() {
                         }
                       }}
                       disabled={checkItems.length === 0}
-                      className={`flex-1 py-3 sm:py-4 lg:py-4 px-4 rounded-lg font-bold text-base sm:text-lg lg:text-xl transition-all ${
-                        activeInput === "quantity"
+                      className={`flex-1 py-3 sm:py-4 lg:py-4 px-4 rounded-lg font-bold text-base sm:text-lg lg:text-xl transition-all ${activeInput === "quantity"
                           ? "bg-blue-600 text-white border border-blue-500"
                           : checkItems.length === 0
-                          ? "bg-slate-700 text-gray-500 border border-slate-600 cursor-not-allowed opacity-50"
-                          : "bg-slate-700 text-gray-300 border border-slate-600 hover:bg-slate-600"
-                      }`}
+                            ? "bg-slate-700 text-gray-500 border border-slate-600 cursor-not-allowed opacity-50"
+                            : "bg-slate-700 text-gray-300 border border-slate-600 hover:bg-slate-600"
+                        }`}
                     >
                       SON
                     </button>
@@ -1525,9 +1524,9 @@ export default function Kassa() {
                         {key}
                       </button>
                     ))}
-                    <button 
+                    <button
                       type="button"
-                      onClick={() => handleNumpadPress("OK")} 
+                      onClick={() => handleNumpadPress("OK")}
                       className="row-span-2 h-[7.5rem] sm:h-[8.5rem] lg:h-[9.5rem] rounded-lg text-lg sm:text-xl lg:text-2xl font-bold bg-emerald-500 text-white hover:bg-emerald-400 active:bg-emerald-600 active:scale-95 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition-all flex items-center justify-center touch-manipulation shadow-lg shadow-emerald-500/30"
                     >
                       +
@@ -1554,8 +1553,8 @@ export default function Kassa() {
             {/* ACTION BUTTONS - Footer - Hidden on mobile, shown on desktop */}
             <div className="hidden md:flex items-center gap-1.5 sm:gap-2 lg:gap-3 flex-shrink-0 flex-wrap">
               {/* Search Button */}
-              <button 
-                onClick={() => setSearchOpen(true)} 
+              <button
+                onClick={() => setSearchOpen(true)}
                 className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:px-4 sm:py-2.5 rounded-lg bg-red-500 hover:bg-red-600 text-white font-semibold text-sm sm:text-sm transition-all active:scale-95 shadow-md shadow-red-500/20 flex-1 sm:flex-initial min-w-[100px]"
               >
                 <Search className="w-4 h-4 sm:w-4 sm:h-4" />
@@ -1565,15 +1564,15 @@ export default function Kassa() {
               {/* Qaytarish tugmasi */}
               {!isRefundMode ? (
                 // Oddiy holat - Qaytarish tugmasi
-                <button 
+                <button
                   onClick={() => {
                     setIsRefundMode(true);
                     refreshCache(); // Cache ni tozalash
 
-                    
+
                     // Test notification
                     toast.success('Qaytarish rejimiga o\'tildi! Validation ishlaydi.', { duration: 3000 });
-                  }} 
+                  }}
                   className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:px-4 sm:py-2.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-semibold text-sm sm:text-sm transition-all active:scale-95 shadow-md shadow-orange-500/20 flex-1 sm:flex-initial min-w-[100px]"
                 >
                   <RotateCcw className="w-4 h-4 sm:w-4 sm:h-4" />
@@ -1581,12 +1580,12 @@ export default function Kassa() {
                 </button>
               ) : (
                 // Qaytarish rejimi faol
-                <button 
+                <button
                   onClick={() => {
                     setIsRefundMode(false);
                     setIsDefective(false);
                     setSelectedItems(new Set());
-                  }} 
+                  }}
                   className="flex items-center justify-center gap-1.5 px-3 py-2.5 sm:px-4 sm:py-2.5 rounded-lg bg-orange-500 text-white font-semibold text-sm sm:text-sm transition-all active:scale-95 shadow-md shadow-orange-500/20 ring-2 ring-orange-400 flex-1 sm:flex-initial min-w-[100px]"
                 >
                   <RotateCcw className="w-4 h-4 sm:w-4 sm:h-4" />
@@ -1619,13 +1618,12 @@ export default function Kassa() {
                   setPaymentOpen(true);
                 }}
                 disabled={checkItems.length === 0 || hasStockError}
-                className={`flex items-center justify-center gap-1.5 px-3 py-2.5 sm:px-4 sm:py-2.5 rounded-lg font-semibold text-sm sm:text-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex-1 sm:flex-initial min-w-[100px] ${
-                  hasStockError
+                className={`flex items-center justify-center gap-1.5 px-3 py-2.5 sm:px-4 sm:py-2.5 rounded-lg font-semibold text-sm sm:text-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex-1 sm:flex-initial min-w-[100px] ${hasStockError
                     ? "bg-red-500 text-white shadow-red-500/20"
-                    : isRefundMode 
-                      ? "bg-orange-500 hover:bg-orange-600 text-white shadow-orange-500/20" 
+                    : isRefundMode
+                      ? "bg-orange-500 hover:bg-orange-600 text-white shadow-orange-500/20"
                       : "bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20"
-                }`}
+                  }`}
                 title={hasStockError ? (isRefundMode ? 'Sotilgan miqdordan ortiq qaytara olmaysiz' : `Omborda yetarli emas: ${stockErrorItems.map(i => i.name).join(', ')}`) : ''}
               >
                 <CreditCard className="w-4 h-4 sm:w-4 sm:h-4" />
@@ -1650,7 +1648,7 @@ export default function Kassa() {
             </div>
             <span className="text-xs font-medium">Qidirish</span>
           </button>
-          
+
           {/* Return Button */}
           {!isRefundMode ? (
             <button
@@ -1683,7 +1681,7 @@ export default function Kassa() {
               <span className="text-xs font-medium">Qaytarish</span>
             </button>
           )}
-          
+
           {/* Payment Button */}
           <button
             onClick={() => {
@@ -1708,22 +1706,20 @@ export default function Kassa() {
               setPaymentOpen(true);
             }}
             disabled={checkItems.length === 0 || hasStockError}
-            className={`flex flex-col items-center justify-center gap-1 p-3 rounded-xl border transition-all duration-200 shadow-lg min-w-[60px] ${
-              hasStockError
+            className={`flex flex-col items-center justify-center gap-1 p-3 rounded-xl border transition-all duration-200 shadow-lg min-w-[60px] ${hasStockError
                 ? "bg-red-600/20 border-red-500/30 text-red-400 opacity-50"
-                : isRefundMode 
-                  ? "bg-orange-600/20 hover:bg-orange-600/30 border-orange-500/30 text-orange-400 hover:text-orange-300" 
+                : isRefundMode
+                  ? "bg-orange-600/20 hover:bg-orange-600/30 border-orange-500/30 text-orange-400 hover:text-orange-300"
                   : "bg-emerald-600/20 hover:bg-emerald-600/30 border-emerald-500/30 text-emerald-400 hover:text-emerald-300"
-            }`}
+              }`}
             title={hasStockError ? (isRefundMode ? 'Sotilgan miqdordan ortiq qaytara olmaysiz' : 'Omborda yetarli emas') : (isRefundMode ? 'Qaytarish' : 'To\'lov')}
           >
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-              hasStockError
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center ${hasStockError
                 ? "bg-gradient-to-r from-red-400 to-red-600"
-                : isRefundMode 
-                  ? "bg-gradient-to-r from-orange-400 to-orange-600" 
+                : isRefundMode
+                  ? "bg-gradient-to-r from-orange-400 to-orange-600"
                   : "bg-gradient-to-r from-emerald-400 to-emerald-600"
-            }`}>
+              }`}>
               <CreditCard className="w-4 h-4 text-white" />
             </div>
             <span className="text-xs font-medium">
@@ -1756,7 +1752,7 @@ export default function Kassa() {
                 </div>
               </div>
             </div>
-            
+
             {/* Search Input */}
             <div className="mt-3 sm:mt-4">
               <Input
@@ -1793,19 +1789,19 @@ export default function Kassa() {
                   const parentName = result.parentProductName;
                   const displaySku = result.displaySku;
                   const isOutOfStock = displayStock <= 0;
-                  
+
                   // Highlight funksiyasi - qidiruv so'zini ajratib ko'rsatish
                   const highlightText = (text: string, query: string) => {
                     if (!query || !text) return text;
-                    
+
                     // Regex maxsus belgilarini escape qilish
                     const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                    
+
                     try {
                       const parts = text.split(new RegExp(`(${escapedQuery})`, 'gi'));
                       return (
                         <>
-                          {parts.map((part, i) => 
+                          {parts.map((part, i) =>
                             part.toLowerCase() === query.toLowerCase() ? (
                               <mark key={i} className="bg-yellow-400 text-black px-1 rounded font-bold">
                                 {part}
@@ -1821,17 +1817,16 @@ export default function Kassa() {
                       return text;
                     }
                   };
-                  
+
                   return (
                     <div
                       key={isVariantResult ? `${result.product.id}-v${result.variantIndex}` : result.product.id}
-                      className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${
-                        isOutOfStock 
-                          ? "border-red-500/30 bg-red-900/10 opacity-60" 
-                          : isVariantResult 
-                            ? "border-purple-500/50 bg-purple-900/20 hover:bg-purple-900/30 hover:border-purple-500/70" 
+                      className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${isOutOfStock
+                          ? "border-red-500/30 bg-red-900/10 opacity-60"
+                          : isVariantResult
+                            ? "border-purple-500/50 bg-purple-900/20 hover:bg-purple-900/30 hover:border-purple-500/70"
                             : "border-slate-700 bg-slate-800/50 hover:bg-slate-800 hover:border-slate-600"
-                      }`}
+                        }`}
                       onClick={() => {
                         if (!isOutOfStock || isRefundMode) {
                           if (isVariantResult && result.variantIndex !== undefined) {
@@ -1855,13 +1850,12 @@ export default function Kassa() {
                               <span className="text-purple-500/50">→</span>
                             </div>
                           )}
-                          
+
                           {/* Product Name */}
                           <div className="flex items-center gap-2 mb-2">
-                            <h3 className={`text-lg font-bold truncate ${
-                              isOutOfStock ? "text-slate-500" : 
-                              isVariantResult ? "text-purple-300" : "text-white"
-                            }`}>
+                            <h3 className={`text-lg font-bold truncate ${isOutOfStock ? "text-slate-500" :
+                                isVariantResult ? "text-purple-300" : "text-white"
+                              }`}>
                               {displayName ? highlightText(displayName, searchQuery) : `Kod: ${displaySku || result.product.id.slice(-6)}`}
                             </h3>
                             {isVariantResult && (
@@ -1873,29 +1867,26 @@ export default function Kassa() {
                               <span className="text-red-400">🚫</span>
                             )}
                           </div>
-                          
+
                           {/* Meta Info */}
                           <div className="flex items-center gap-2 flex-wrap">
                             {displaySku && (
-                              <span className={`px-2 py-1 text-xs font-semibold rounded ${
-                                isVariantResult ? "bg-purple-500/20 text-purple-300" : "bg-slate-700 text-slate-300"
-                              }`}>
+                              <span className={`px-2 py-1 text-xs font-semibold rounded ${isVariantResult ? "bg-purple-500/20 text-purple-300" : "bg-slate-700 text-slate-300"
+                                }`}>
                                 Kod: {highlightText(displaySku, searchQuery)}
                               </span>
                             )}
-                            <span className={`px-2 py-1 text-xs font-semibold rounded ${
-                              isOutOfStock ? "bg-red-500/20 text-red-400 border border-red-500/50" : "bg-green-500/20 text-green-400"
-                            }`}>
+                            <span className={`px-2 py-1 text-xs font-semibold rounded ${isOutOfStock ? "bg-red-500/20 text-red-400 border border-red-500/50" : "bg-green-500/20 text-green-400"
+                              }`}>
                               {isOutOfStock ? "TUGAGAN" : `${displayStock} dona`}
                             </span>
                           </div>
                         </div>
-                        
+
                         {/* Right: Price */}
-                        <div className={`text-2xl font-bold ${
-                          isOutOfStock ? "text-slate-500" : 
-                          isVariantResult ? "text-purple-300" : "text-green-400"
-                        }`}>
+                        <div className={`text-2xl font-bold ${isOutOfStock ? "text-slate-500" :
+                            isVariantResult ? "text-purple-300" : "text-green-400"
+                          }`}>
                           ${formatNum(displayPrice)}
                         </div>
                       </div>
@@ -1931,7 +1922,7 @@ export default function Kassa() {
               </button>
             )}
           </DialogHeader>
-          
+
           {/* Search Input */}
           <div className="mb-6">
             <div className="relative">
@@ -1951,7 +1942,7 @@ export default function Kassa() {
                   const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'];
                   const isNumber = /^[0-9]$/.test(e.key);
                   const isDash = e.key === '-';
-                  
+
                   if (!isNumber && !isDash && !allowedKeys.includes(e.key)) {
                     e.preventDefault();
                   }
@@ -1960,100 +1951,98 @@ export default function Kassa() {
               />
             </div>
           </div>
-          
+
           {/* Bugun / O'tgan Switch */}
           <div className="flex gap-3 mb-6">
             <button
               type="button"
               onClick={() => setHistoryFilter("today")}
-              className={`flex-1 py-3 rounded-xl text-base font-bold transition-all ${
-                historyFilter === "today"
+              className={`flex-1 py-3 rounded-xl text-base font-bold transition-all ${historyFilter === "today"
                   ? "bg-emerald-600 text-white shadow-lg shadow-emerald-500/30"
                   : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-              }`}
+                }`}
             >
               Bugun
             </button>
             <button
               type="button"
               onClick={() => setHistoryFilter("past")}
-              className={`flex-1 py-3 rounded-xl text-base font-bold transition-all ${
-                historyFilter === "past"
+              className={`flex-1 py-3 rounded-xl text-base font-bold transition-all ${historyFilter === "past"
                   ? "bg-purple-600 text-white shadow-lg shadow-purple-500/30"
                   : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-              }`}
+                }`}
             >
               O'tgan kunlar
             </button>
           </div>
-          
+
           <div className="max-h-[65vh] overflow-auto space-y-6 pr-2">
             {(() => {
               // Bugungi sanani olish
               const today = new Date();
               today.setHours(0, 0, 0, 0);
-              
+
               // Sana qidiruv filtri
               // Sana qidiruv filtri - yyyy-mm-dd format (soddalashtirilgan)
               const matchesSearchDate = (saleDate: Date, searchText: string) => {
                 if (!searchText.trim()) return true;
-                
+
                 // Sale sanasini yyyy-mm-dd formatga o'tkazish
                 const year = saleDate.getFullYear();
                 const month = String(saleDate.getMonth() + 1).padStart(2, '0');
                 const day = String(saleDate.getDate()).padStart(2, '0');
                 const saleDateStr = `${year}-${month}-${day}`;
-                
+
                 const searchTrimmed = searchText.trim();
-                
+
                 // Debug logging
                 console.log('[History Search] Sale date:', saleDateStr, 'Search:', searchTrimmed);
-                
+
                 // To'liq mos kelish
                 if (saleDateStr === searchTrimmed) {
                   console.log('[History Search] Exact match found!');
                   return true;
                 }
-                
+
                 // Qisman mos kelish - boshidan
                 if (saleDateStr.startsWith(searchTrimmed)) {
                   console.log('[History Search] Partial match found!');
                   return true;
                 }
-                
+
                 console.log('[History Search] No match found');
                 return false;
               };
-              
+
               // Filtrlangan tarix
               const filteredHistory = salesHistory.filter((sale) => {
                 const saleDate = new Date(sale.date);
                 saleDate.setHours(0, 0, 0, 0);
-                
+
                 console.log('[History Filter] Processing sale:', sale.id, 'Date:', saleDate, 'Search query:', searchQuery);
-                
+
                 // Sana qidiruv filtri
                 if (searchQuery && !matchesSearchDate(saleDate, searchQuery)) {
                   console.log('[History Filter] Sale filtered out by date search');
                   return false;
                 }
-                
+
                 // Tarix dialogida BARCHA sotuvlar va qaytarishlar ko'rsatiladi
                 // Qaytarish rejimida faqat refund turini ko'rsatish
                 if (isRefundMode && sale.type !== "refund") {
                   console.log('[History Filter] Sale filtered out by refund mode');
                   return false;
                 }
-                
+
                 // Agar qidiruv bo'lsa, bugun/o'tgan filtrini e'tiborsiz qoldirish
                 if (searchQuery) {
                   console.log('[History Filter] Sale passed search filter');
                   return true;
                 }
-                
+
                 // Sotish rejimida BARCHA turlarni ko'rsatish (sale va refund)
                 // Faqat sana filtri qo'llaniladi
-                
+
                 if (historyFilter === "today") {
                   const today = new Date();
                   today.setHours(0, 0, 0, 0);
@@ -2068,9 +2057,9 @@ export default function Kassa() {
                   return result;
                 }
               });
-              
+
               console.log('[History Filter] Total sales:', salesHistory.length, 'Filtered:', filteredHistory.length);
-              
+
               if (filteredHistory.length === 0) {
                 return (
                   <div className="text-center text-slate-500 py-16">
@@ -2084,7 +2073,7 @@ export default function Kassa() {
                   </div>
                 );
               }
-              
+
               // Sanalar bo'yicha guruhlash
               const grouped: Record<string, SaleHistory[]> = {};
               filteredHistory.forEach((sale) => {
@@ -2093,11 +2082,11 @@ export default function Kassa() {
                 const month = String(saleDate.getMonth() + 1).padStart(2, '0');
                 const day = String(saleDate.getDate()).padStart(2, '0');
                 const dateKey = `${year}-${month}-${day}`;
-                
+
                 if (!grouped[dateKey]) grouped[dateKey] = [];
                 grouped[dateKey].push(sale);
               });
-              
+
               return Object.entries(grouped).map(([dateKey, sales]) => (
                 <div key={dateKey} className="bg-slate-800/30 rounded-2xl p-6 border border-slate-700/50">
                   <div className="flex items-center gap-4 mb-6">
@@ -2115,15 +2104,14 @@ export default function Kassa() {
                       const productNames = sale.items.map(item => item.name);
                       const displayNames = productNames.slice(0, 2).join(", ");
                       const moreCount = productNames.length > 2 ? productNames.length - 2 : 0;
-                      
+
                       return (
                         <div
                           key={sale.id}
-                          className={`p-4 border rounded-xl cursor-pointer transition-all hover:scale-[1.02] ${
-                            isRefund 
-                              ? "border-red-500/40 bg-red-900/20 hover:bg-red-800/30 hover:border-red-400/60" 
+                          className={`p-4 border rounded-xl cursor-pointer transition-all hover:scale-[1.02] ${isRefund
+                              ? "border-red-500/40 bg-red-900/20 hover:bg-red-800/30 hover:border-red-400/60"
                               : "border-slate-600/50 bg-slate-700/30 hover:bg-slate-600/50 hover:border-slate-500/60"
-                          }`}
+                            }`}
                           onClick={() => setSelectedSale(sale)}
                         >
                           <div className="flex items-center gap-4">
@@ -2131,7 +2119,7 @@ export default function Kassa() {
                             <div className={`p-3 rounded-xl flex-shrink-0 ${isRefund ? "bg-red-500/20" : "bg-emerald-500/20"}`}>
                               <Truck className={`w-6 h-6 ${isRefund ? "text-red-400" : "text-emerald-400"}`} />
                             </div>
-                            
+
                             {/* Ma'lumotlar */}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-2">
@@ -2145,14 +2133,14 @@ export default function Kassa() {
                                 <PaymentIcon className={`w-4 h-4 ${isRefund ? "text-red-400" : "text-slate-400"}`} />
                                 {!sale.synced && <CloudOff className="w-4 h-4 text-amber-500" title="Sinxronlanmagan" />}
                               </div>
-                              
+
                               {/* Mahsulot nomlari */}
                               <div className={`text-sm font-medium truncate ${isRefund ? "text-red-300" : "text-slate-300"}`}>
                                 {displayNames}
                                 {moreCount > 0 && <span className="text-slate-500 ml-1">+{moreCount} ta</span>}
                               </div>
                             </div>
-                            
+
                             {/* Summa */}
                             <div className="flex-shrink-0">
                               <span className={`text-xl font-black ${isRefund ? "text-red-500" : "text-emerald-500"}`}>
@@ -2224,7 +2212,7 @@ export default function Kassa() {
                       <div className="text-right">Summa</div>
                     </div>
                   </div>
-                  
+
                   {/* Table Body */}
                   <div className="divide-y divide-slate-700/50">
                     {selectedSale.items.map((item, i) => {
@@ -2252,7 +2240,7 @@ export default function Kassa() {
                       );
                     })}
                   </div>
-                  
+
                   {/* Total */}
                   <div className="bg-slate-800 px-6 py-5 border-t-2 border-slate-700">
                     <div className="flex justify-between items-center">
@@ -2279,12 +2267,12 @@ export default function Kassa() {
                 try {
                   const receiptData: ReceiptData = {
                     type: selectedSale!.type || "sale",
-                    items: selectedSale!.items.map((item: any) => ({ 
-                      name: item.name, 
+                    items: selectedSale!.items.map((item: any) => ({
+                      name: item.name,
                       sku: item.sku,
-                      quantity: item.quantity, 
-                      price: item.price, 
-                      discount: item.discount 
+                      quantity: item.quantity,
+                      price: item.price,
+                      discount: item.discount
                     })),
                     total: selectedSale!.total,
                     paymentType: selectedSale!.paymentType || "Naqd",
@@ -2297,10 +2285,10 @@ export default function Kassa() {
                     userRole: user?.role as 'admin' | 'xodim' | 'ega',
                   };
                   await printReceipt(selectedPrinter, receiptData);
-                } catch (e) { 
+                } catch (e) {
                   console.error('Print error:', e);
-                } finally { 
-                  setIsPrinting(false); 
+                } finally {
+                  setIsPrinting(false);
                 }
               }}
               disabled={isPrinting}
@@ -2340,7 +2328,7 @@ export default function Kassa() {
               </div>
               {!isOnline && <div className="text-xs text-amber-400 mt-3 font-medium">⚡ Offline rejimda saqlanadi</div>}
             </div>
-            
+
             {/* Yaroqli/Yaroqsiz switch - faqat qaytarish rejimida */}
             {isRefundMode && (
               <div className="flex items-center justify-between p-4 rounded-2xl border border-slate-700/50 bg-slate-800/50">
@@ -2364,7 +2352,7 @@ export default function Kassa() {
                 </div>
               </div>
             )}
-            
+
             <div className="grid grid-cols-2 gap-4">
               {[
                 { type: "Naqd", icon: Banknote, color: isRefundMode ? "from-orange-600 to-orange-700 hover:from-orange-500 hover:to-orange-600 shadow-orange-500/30" : "from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 shadow-emerald-500/30" },
@@ -2458,7 +2446,7 @@ export default function Kassa() {
                     {selectedPaymentType}
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-400">Summa kiriting:</label>
                   <Input
@@ -2572,7 +2560,7 @@ export default function Kassa() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-5">
-            
+
             {/* CHEK PRINTER */}
             <div className="p-4 bg-slate-800/50 rounded-2xl border border-slate-700/50 space-y-3">
               <div className="flex items-center gap-2 text-emerald-400 font-semibold">
@@ -2612,7 +2600,7 @@ export default function Kassa() {
                 </Select>
               </div>
               {selectedPrinter && (
-                <Button 
+                <Button
                   onClick={async () => {
                     setIsPrinting(true);
                     try {

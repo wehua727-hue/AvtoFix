@@ -57,6 +57,7 @@ export interface ProductVariant {
 export interface VariantSummary {
   name: string;
   sku?: string;
+  customId?: string; // ✅ YANGI: Qo'lda kiritilgan ID
   basePrice?: number;
   priceMultiplier?: number;
   price?: number;

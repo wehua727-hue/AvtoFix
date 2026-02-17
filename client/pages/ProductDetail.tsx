@@ -36,6 +36,7 @@ interface Product {
   name: string;
   code?: string; // Excel dan kelgan kod
   catalogNumber?: string; // Excel dan kelgan katalog
+  customId?: string; // ✅ YANGI: Qo'lda kiritilgan ID
   stock: number;
   price: number;
   basePrice?: number;
@@ -866,7 +867,8 @@ export default function ProductDetail() {
                               sku: variant.sku || product.code || '',
                               stock: variant.stock ?? product.stock ?? 0,
                               productId: `${product.id}-v${idx}`,
-                              code: variantCode // 5 talik kod qo'shamiz
+                              code: variantCode, // 5 talik kod qo'shamiz
+                              customId: (variant as any).customId || undefined // ✅ YANGI: Xil uchun Custom ID
                             } as any);
                             setLabelQuantity(null);
                             setLabelSize('large');
@@ -1135,10 +1137,13 @@ export default function ProductDetail() {
                         
                         // 5 talik kod olish - MUHIM: code -> catalogNumber -> sku tartibida
                         let displayCode = '';
+                        let displayCustomId = '';
                         if (selectedVariant) {
                           displayCode = (selectedVariant as any).code || (selectedVariant as any).catalogNumber || selectedVariant.sku || '';
+                          displayCustomId = (selectedVariant as any).customId || ''; // ✅ YANGI: Xil uchun Custom ID
                         } else {
                           displayCode = (product as any).code || (product as any).catalogNumber || product.sku || '';
+                          displayCustomId = (product as any).customId || ''; // ✅ YANGI: Mahsulot uchun Custom ID
                         }
                         
                         // Agar xil tanlangan bo'lsa, uning indexini topamiz
@@ -1158,7 +1163,8 @@ export default function ProductDetail() {
                           sku: displaySku,
                           stock: displayStock,
                           productId: displayId,
-                          code: displayCode // 5 talik kod qo'shamiz
+                          code: displayCode, // 5 talik kod qo'shamiz
+                          customId: displayCustomId || undefined // ✅ YANGI: Custom ID
                         } as any);
                         setLabelQuantity(null);
                         setLabelSize('large');
@@ -2058,20 +2064,29 @@ export default function ProductDetail() {
                   
                   setIsLabelPrinting(true);
                   try {
-                    // Barcode ID - Kassa bilan bir xil format
-                    const productIdString = typeof labelDialogProduct.productId === 'string' ? labelDialogProduct.productId : labelDialogProduct.productId.toString();
-                    let barcodeId = productIdString.slice(-8).toUpperCase();
+                    // ✅ YANGI: Avval customId ni tekshirish, keyin MongoDB ID
+                    let barcode: string;
+                    let barcodeId: string; // Barcode ostida ko'rsatiladigan ID
                     
-                    // Agar xil bo'lsa (productId da "-v" bor), chiziqchasiz format
-                    if (labelDialogProduct.productId.includes('-v')) {
-                      const parts = labelDialogProduct.productId.split('-v');
-                      const productIdShort = parts[0].slice(-8).toUpperCase();
-                      const variantIndex = parts[1];
-                      barcodeId = `${productIdShort}V${variantIndex}`;
+                    if ((labelDialogProduct as any).customId) {
+                      // Custom ID mavjud - uni ishlatamiz
+                      barcode = (labelDialogProduct as any).customId.toUpperCase();
+                      barcodeId = barcode; // Barcode ostida ham customId ko'rsatiladi
+                    } else {
+                      // Custom ID yo'q - MongoDB ID dan barcode yaratamiz
+                      const productIdString = typeof labelDialogProduct.productId === 'string' ? labelDialogProduct.productId : labelDialogProduct.productId.toString();
+                      barcodeId = productIdString.slice(-8).toUpperCase();
+                      
+                      // Agar xil bo'lsa (productId da "-v" bor), chiziqchasiz format
+                      if (labelDialogProduct.productId.includes('-v')) {
+                        const parts = labelDialogProduct.productId.split('-v');
+                        const productIdShort = parts[0].slice(-8).toUpperCase();
+                        const variantIndex = parts[1];
+                        barcodeId = `${productIdShort}V${variantIndex}`;
+                      }
+                      
+                      barcode = barcodeId;
                     }
-                    
-                    // Barcode qiymati - ID (scanner uchun, Kassa bilan bir xil)
-                    const barcode = barcodeId;
                     
                     const labelPrinter = selectedLabelPrinter;
                     const paperWidth = useCustomSize ? customLabelWidth : LABEL_SIZE_CONFIGS[labelSize].width;

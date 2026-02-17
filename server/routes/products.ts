@@ -172,6 +172,8 @@ export const handleProductsGet: RequestHandler = async (req, res) => {
             // MUHIM: Xil uchun initialStock - faqat serverdan kelgan qiymat
             initialStock: v.initialStock, // Fallback yo'q
             currency: v.currency || productCurrency,
+            // ✅ CRITICAL: Explicitly include customId
+            customId: v.customId,
           };
         });
       }
@@ -262,6 +264,8 @@ export const handleProductGetById: RequestHandler = async (req, res) => {
           // MUHIM: Xil uchun initialStock - faqat serverdan kelgan qiymat
           initialStock: v.initialStock, // Fallback yo'q
           currency: v.currency || productCurrency,
+          // ✅ CRITICAL: Explicitly include customId
+          customId: v.customId,
         };
       });
     }
@@ -305,6 +309,7 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
       markupPercent, // Marketplace field nomi
       currency = "UZS",
       sku,
+      customId, // ✅ YANGI: Qo'lda kiritilgan ID
       categoryId,
       stock,
       stockCount, // Marketplace field nomi
@@ -347,6 +352,7 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
     console.log('[Products POST] Received:', { 
       name, 
       sku, 
+      customId, // ✅ DEBUG: CustomId ni log qilish
       stock: finalStock, 
       basePrice: finalBasePrice, 
       priceMultiplier: finalPriceMultiplier, 
@@ -450,6 +456,24 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
       }
     }
 
+    // ✅ YANGI: CustomId duplikat tekshiruvi
+    if (customId && customId.trim()) {
+      const customIdUpper = customId.trim().toUpperCase();
+      
+      const existingByCustomId = await collection.findOne({
+        customId: customIdUpper,
+        userId: finalUserId
+      });
+      
+      if (existingByCustomId) {
+        console.log('[Products POST] CustomId duplicate found:', { customId: customIdUpper, existingProduct: existingByCustomId.name });
+        return res.status(400).json({ 
+          success: false, 
+          error: `"${customIdUpper}" ID allaqachon mavjud: "${existingByCustomId.name}"` 
+        });
+      }
+    }
+
     // ✅ YANGI LOGIKA: SKU duplikat tekshiruvdan keyin yangi mahsulot qo'shish
     // Agar xil bo'lsa - variantSummaries ga qo'shish
     // Eski mahsulotga zarar yetmasligi uchun
@@ -519,6 +543,7 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
       stockCount: finalStock || 0,
       currency,
       sku: sku || undefined,
+      customId: customId ? customId.trim().toUpperCase() : undefined, // ✅ YANGI: Custom ID
       categoryId: categoryId || undefined,
       categoryName: categoryName || undefined, // Marketplace uchun kategoriya nomi
       stock: finalStock || 0,
@@ -530,18 +555,29 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
       imageUrl: imageUrl || "",
       imagePaths: Array.isArray(imagePaths) ? imagePaths : [],
       // Xillar uchun initialStock qo'shish (variants yoki variantSummaries)
-      variantSummaries: Array.isArray(finalVariantSummaries) ? finalVariantSummaries.map((v: any) => ({
-        ...v,
-        // Standart field nomlari
-        basePrice: v.basePrice ?? v.originalPrice ?? undefined,
-        priceMultiplier: v.priceMultiplier ?? v.markupPercent ?? undefined,
-        stock: v.stock ?? v.stockCount ?? 0,
-        initialStock: v.initialStock, // MUHIM: Faqat serverdan kelgan qiymat, fallback yo'q
-        // Marketplace uchun field nomlari
-        originalPrice: v.basePrice ?? v.originalPrice ?? undefined,
-        markupPercent: v.priceMultiplier ?? v.markupPercent ?? undefined,
-        stockCount: v.stock ?? v.stockCount ?? 0,
-      })) : [],
+      variantSummaries: Array.isArray(finalVariantSummaries) ? finalVariantSummaries.map((v: any, idx: number) => {
+        const mapped = {
+          ...v,
+          // ✅ YANGI: Xil uchun Custom ID
+          customId: v.customId ? v.customId.trim().toUpperCase() : undefined,
+          // Standart field nomlari
+          basePrice: v.basePrice ?? v.originalPrice ?? undefined,
+          priceMultiplier: v.priceMultiplier ?? v.markupPercent ?? undefined,
+          stock: v.stock ?? v.stockCount ?? 0,
+          initialStock: v.initialStock, // MUHIM: Faqat serverdan kelgan qiymat, fallback yo'q
+          // Marketplace uchun field nomlari
+          originalPrice: v.basePrice ?? v.originalPrice ?? undefined,
+          markupPercent: v.priceMultiplier ?? v.markupPercent ?? undefined,
+          stockCount: v.stock ?? v.stockCount ?? 0,
+        };
+        console.log(`[Products POST] Variant ${idx} mapping:`, {
+          name: v.name,
+          inputCustomId: v.customId,
+          outputCustomId: mapped.customId,
+          hasCustomId: !!mapped.customId
+        });
+        return mapped;
+      }) : [],
       // Ota-bola mahsulot tizimi
       parentProductId: parentProductId || undefined,
       childProducts: Array.isArray(childProducts) ? childProducts : [],
@@ -598,6 +634,7 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
     }
 
     console.log("[api/products POST] Creating product with variantSummaries:", newProduct.variantSummaries?.length || 0);
+    console.log("[api/products POST] Product customId:", newProduct.customId); // ✅ DEBUG
 
     const result = await collection.insertOne(newProduct);
 
@@ -754,6 +791,45 @@ export const handleProductUpdate: RequestHandler = async (req, res) => {
     }
     if (currency !== undefined) updateData.currency = currency;
     if (sku !== undefined) updateData.sku = sku;
+    
+    // ✅ YANGI: CustomId yangilash
+    const { customId } = req.body;
+    console.log('[Products PUT] CustomId from request:', customId); // ✅ DEBUG
+    
+    // MUHIM: Faqat xil qo'shish rejimida mahsulotning customId sini yangilamaslik
+    // Oddiy tahrirlashda (variantSummaries bilan) mahsulotning customId sini yangilash mumkin
+    if (customId !== undefined && !addVariantMode) {
+      if (customId && customId.trim()) {
+        const customIdUpper = customId.trim().toUpperCase();
+        
+        // Duplikat tekshiruvi (o'zidan boshqa mahsulotlarda)
+        const existingByCustomId = await collection.findOne({
+          customId: customIdUpper,
+          userId: existingProduct.userId,
+          _id: { $ne: new ObjectId(id) } // O'zidan boshqa mahsulotlar
+        });
+        
+        if (existingByCustomId) {
+          console.log('[Products PUT] CustomId duplicate found:', { customId: customIdUpper, existingProduct: existingByCustomId.name });
+          return res.status(400).json({ 
+            success: false, 
+            error: `"${customIdUpper}" ID allaqachon mavjud: "${existingByCustomId.name}"` 
+          });
+        }
+        
+        updateData.customId = customIdUpper;
+        console.log('[Products PUT] CustomId will be updated to:', customIdUpper); // ✅ DEBUG
+      } else {
+        // Bo'sh qiymat - customId ni o'chirish
+        updateData.customId = undefined;
+        console.log('[Products PUT] CustomId will be cleared'); // ✅ DEBUG
+      }
+    } else if (addVariantMode) {
+      console.log('[Products PUT] Skipping product customId update (addVariantMode)'); // ✅ DEBUG
+    } else {
+      console.log('[Products PUT] CustomId not provided in request'); // ✅ DEBUG
+    }
+    
     if (categoryId !== undefined) updateData.categoryId = categoryId;
     if (stock !== undefined && !addVariantMode) {
       // addVariantMode da stock yuqorida yangilanadi
@@ -815,11 +891,12 @@ export const handleProductUpdate: RequestHandler = async (req, res) => {
         console.log('[api/products PUT] addVariantMode: merging variants');
         
         // Yangi xillarni formatlash
-        const newVariants = variantSummaries.map((v: any) => {
+        const newVariants = variantSummaries.map((v: any, idx: number) => {
           const computedStock = v.stock ?? v.stockCount ?? 0;
           const computedInitial = v.initialStock ?? computedStock;
-          return {
+          const mapped = {
             ...v,
+            customId: v.customId ? v.customId.trim().toUpperCase() : undefined, // ✅ YANGI: Xil uchun Custom ID
             basePrice: v.basePrice ?? v.originalPrice ?? undefined,
             priceMultiplier: v.priceMultiplier ?? v.markupPercent ?? undefined,
             stock: computedStock,
@@ -829,6 +906,13 @@ export const handleProductUpdate: RequestHandler = async (req, res) => {
             markupPercent: v.priceMultiplier ?? v.markupPercent ?? undefined,
             stockCount: computedStock
           };
+          console.log(`[Products PUT addVariantMode] Variant ${idx} mapping:`, {
+            name: v.name,
+            inputCustomId: v.customId,
+            outputCustomId: mapped.customId,
+            hasCustomId: !!mapped.customId
+          });
+          return mapped;
         });
         
         // Mavjud xillar bilan birlashtirish (SKU yoki nom bo'yicha tekshirish)
@@ -906,8 +990,9 @@ export const handleProductUpdate: RequestHandler = async (req, res) => {
             newInitialStock = newStock;
           }
           
-          return {
+          const mapped = {
             ...v,
+            customId: v.customId ? v.customId.trim().toUpperCase() : undefined, // ✅ YANGI: Xil uchun Custom ID
             initialStock: newInitialStock,
             // Marketplace alias maydonlari
             basePrice: v.basePrice ?? v.originalPrice ?? oldVariant?.basePrice ?? oldVariant?.originalPrice ?? undefined,
@@ -917,6 +1002,15 @@ export const handleProductUpdate: RequestHandler = async (req, res) => {
             stock: newStock,
             stockCount: newStock
           };
+          
+          console.log(`[Products PUT regular] Variant ${index} mapping:`, {
+            name: v.name,
+            inputCustomId: v.customId,
+            outputCustomId: mapped.customId,
+            hasCustomId: !!mapped.customId
+          });
+          
+          return mapped;
         }) : [];
         console.log("[api/products PUT] Updating variantSummaries:", updateData.variantSummaries.length);
       }
@@ -926,6 +1020,9 @@ export const handleProductUpdate: RequestHandler = async (req, res) => {
     if (parentProductId !== undefined) updateData.parentProductId = parentProductId;
     if (childProducts !== undefined) updateData.childProducts = Array.isArray(childProducts) ? childProducts : [];
     if (isHidden !== undefined) updateData.isHidden = isHidden;
+
+    // DEBUG: Log what we're about to save
+    console.log('[Products PUT] About to save variantSummaries to MongoDB:', JSON.stringify(updateData.variantSummaries, null, 2));
 
     const result = await collection.findOneAndUpdate(
       { _id: new ObjectId(id) },
@@ -937,6 +1034,9 @@ export const handleProductUpdate: RequestHandler = async (req, res) => {
       return res.status(404).json({ success: false, error: "Product not found" });
     }
 
+    // DEBUG: Log what MongoDB returned
+    console.log('[Products PUT] MongoDB returned variantSummaries:', JSON.stringify((result as any).variantSummaries, null, 2));
+
     // Format response with proper initialStock fallback (same as GET endpoint)
     const productCurrency = (result as any).currency || 'UZS';
     const responseStock = (result as any).stock ?? 0;
@@ -944,13 +1044,20 @@ export const handleProductUpdate: RequestHandler = async (req, res) => {
     
     let responseVariantSummaries = (result as any).variantSummaries ?? (result as any).variants ?? [];
     if (Array.isArray(responseVariantSummaries)) {
-      responseVariantSummaries = responseVariantSummaries.map((v: any) => ({
-        ...v,
-        stock: v.stock ?? 0,
-        initialStock: v.initialStock, // No fallback for variants
-        currency: v.currency || productCurrency,
-      }));
+      responseVariantSummaries = responseVariantSummaries.map((v: any, idx: number) => {
+        console.log(`[Products PUT] Response variant ${idx} - input customId:`, v.customId, 'has customId:', !!v.customId);
+        return {
+          ...v,
+          stock: v.stock ?? 0,
+          initialStock: v.initialStock, // No fallback for variants
+          currency: v.currency || productCurrency,
+          // ✅ CRITICAL: Explicitly include customId in response
+          customId: v.customId,
+        };
+      });
     }
+    
+    console.log('[Products PUT] Final response variantSummaries:', JSON.stringify(responseVariantSummaries, null, 2));
     
     const updatedProduct = {
       ...result,

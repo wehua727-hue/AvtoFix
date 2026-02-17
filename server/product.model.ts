@@ -15,6 +15,7 @@ export interface IVariantSummary {
   name: string;
   sku?: string;
   code?: string; // Excel dan kelgan kod
+  customId?: string; // ✅ YANGI: Custom ID (Barcode scan qilinganda)
   catalogNumber?: string; // Excel dan kelgan katalog raqami
   basePrice?: number;
   priceMultiplier?: number;
@@ -48,6 +49,7 @@ export interface IProduct extends Document {
   currency?: string;
   sku?: string; // Nomerofka (1, 2, 3...)
   code?: string; // Excel dan kelgan kod
+  customId?: string; // ✅ YANGI: Custom ID (Barcode scan qilinganda)
   catalogNumber?: string; // Excel dan kelgan katalog raqami
   categoryId?: string;
   stock?: number;
@@ -86,6 +88,7 @@ const VariantSummarySchema = new Schema<IVariantSummary>(
     name: { type: String, required: true, trim: true },
     sku: { type: String, trim: true },
     code: { type: String, trim: true }, // Excel dan kelgan kod
+    customId: { type: String, trim: true, index: true }, // ✅ YANGI: Custom ID
     catalogNumber: { type: String, trim: true }, // Excel dan kelgan katalog
     basePrice: { type: Number },
     priceMultiplier: { type: Number },
@@ -125,6 +128,7 @@ const ProductSchema = new Schema<IProduct>(
     currency: { type: String, required: true, default: 'UZS' },
     sku: { type: String }, // Nomerofka (1, 2, 3...)
     code: { type: String, trim: true }, // Excel dan kelgan kod
+    customId: { type: String, trim: true, index: true }, // ✅ YANGI: Custom ID
     catalogNumber: { type: String, trim: true }, // Excel dan kelgan katalog
     categoryId: { type: String },
     stock: { type: Number },

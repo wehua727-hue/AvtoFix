@@ -19,6 +19,7 @@ import Dexie, { Table } from 'dexie';
 export interface OfflineVariant {
   name: string;
   sku?: string;
+  customId?: string; // ✅ YANGI: Qo'lda kiritilgan ID
   barcode?: string;
   price: number;
   costPrice?: number;     // Asl narx (tan narxi) - sof foyda hisoblash uchun
@@ -41,6 +42,7 @@ export interface OfflineProduct {
   normalizedName: string; // Qidiruv uchun
   keywords: string[];     // Tokenized keywords
   sku?: string;
+  customId?: string;      // ✅ YANGI: Qo'lda kiritilgan ID
   barcode?: string;
   price: number;
   costPrice?: number;     // Asl narx (tan narxi) - sof foyda hisoblash uchun
@@ -87,6 +89,7 @@ export interface OfflineSaleItem {
   productId: string;
   name: string;
   sku?: string;
+  customId?: string; // ✅ YANGI: Custom ID
   quantity: number;
   price: number;
   costPrice?: number; // Asl narx - sof foyda hisoblash uchun
@@ -140,19 +143,19 @@ export class OfflineKassaDB extends Dexie {
     this.version(2).stores({
       // Products - tez qidiruv uchun indekslar
       products: 'id, sku, barcode, categoryId, normalizedName, updatedAt, userId',
-      
+
       // Categories
       categories: 'id, parentId, updatedAt, userId',
-      
+
       // Offline Sales - synced bo'yicha filter
       offlineSales: 'id, recipientNumber, synced, createdAt, userId',
-      
+
       // Sync metadata
       syncMeta: 'id, key',
-      
+
       // Search index metadata
       searchIndex: 'id',
-      
+
       // Yaroqsiz mahsulotlar
       defectiveProducts: 'id, productId, userId, createdAt'
     });
@@ -305,20 +308,20 @@ export async function generateAndSaveBarcode(productId: string): Promise<string>
   if (!product) {
     throw new Error(`Mahsulot topilmadi: ${productId}`);
   }
-  
+
   // Agar barcode allaqachon bor bo'lsa, uni qaytarish
   if (product.barcode) {
     return product.barcode;
   }
-  
+
   // Yangi barcode generatsiya qilish
   const barcode = generateEAN13Barcode();
-  
+
   // Mahsulotni yangilash
   await offlineDB.products.update(productId, { barcode });
-  
+
   console.log(`[offlineDB] Generated barcode for ${product.name}: ${barcode}`);
-  
+
   return barcode;
 }
 
@@ -334,29 +337,29 @@ export async function generateAndSaveVariantBarcode(productId: string, variantIn
   if (!product) {
     throw new Error(`Mahsulot topilmadi: ${productId}`);
   }
-  
+
   if (!product.variantSummaries || !product.variantSummaries[variantIndex]) {
     throw new Error(`Variant topilmadi: ${productId}[${variantIndex}]`);
   }
-  
+
   const variant = product.variantSummaries[variantIndex];
-  
+
   // Agar barcode allaqachon bor bo'lsa, uni qaytarish
   if (variant.barcode) {
     return variant.barcode;
   }
-  
+
   // Yangi barcode generatsiya qilish
   const barcode = generateEAN13Barcode();
-  
+
   // Variantni yangilash
   const updatedVariants = [...product.variantSummaries];
   updatedVariants[variantIndex] = { ...variant, barcode };
-  
+
   await offlineDB.products.update(productId, { variantSummaries: updatedVariants });
-  
+
   console.log(`[offlineDB] Generated barcode for variant ${variant.name}: ${barcode}`);
-  
+
   return barcode;
 }
 
@@ -394,7 +397,7 @@ export async function reloadProducts(): Promise<void> {
 export async function showVariants(): Promise<void> {
   const products = await offlineDB.products.toArray();
   console.log(`[offlineDB] Total products: ${products.length}`);
-  
+
   let variantCount = 0;
   for (const p of products) {
     if (p.variantSummaries && p.variantSummaries.length > 0) {
@@ -405,7 +408,7 @@ export async function showVariants(): Promise<void> {
       });
     }
   }
-  
+
   console.log(`[offlineDB] Total variants: ${variantCount}`);
   if (variantCount === 0) {
     console.log('[offlineDB] ⚠️ No variants found! Run window.reloadProducts() and refresh the page.');
@@ -432,16 +435,16 @@ export async function getAllProducts(): Promise<OfflineProduct[]> {
     console.log('[OfflineDB] getAllProducts: No currentUserId, returning empty');
     return [];
   }
-  
+
   try {
     const allProducts = await offlineDB.products.toArray();
     console.log('[OfflineDB] getAllProducts: Found', allProducts.length, 'products in IndexedDB');
     const isAdmin = isAdminUser();
-    
+
     const filtered = allProducts.filter(p => {
       // Yashirin mahsulotlarni ko'rsatmaslik (ota mahsulot tugamaguncha)
       if (p.isHidden) return false;
-      
+
       // Свои товары - всегда показываем
       if (p.userId === currentUserId) return true;
       // Товары без userId - только админу
@@ -449,7 +452,7 @@ export async function getAllProducts(): Promise<OfflineProduct[]> {
       // Остальное не показываем
       return false;
     });
-    
+
     console.log('[OfflineDB] getAllProducts: Filtered to', filtered.length, 'products for user', currentUserId);
     return filtered;
   } catch (error: any) {
@@ -466,10 +469,10 @@ export async function getAllProductsIncludingHidden(): Promise<OfflineProduct[]>
   if (!currentUserId) {
     return [];
   }
-  
+
   const allProducts = await offlineDB.products.toArray();
   const isAdmin = isAdminUser();
-  
+
   return allProducts.filter(p => {
     // Свои товары - всегда показываем
     if (p.userId === currentUserId) return true;
@@ -504,10 +507,10 @@ export async function getAllCategories(): Promise<OfflineCategory[]> {
   if (!currentUserId) {
     return [];
   }
-  
+
   const allCategories = await offlineDB.categories.toArray();
   const isAdmin = isAdminUser();
-  
+
   return allCategories.filter(c => {
     // Свои категории - всегда показываем
     if (c.userId === currentUserId) return true;
@@ -551,16 +554,16 @@ export async function markSaleAsSynced(id: string): Promise<void> {
 export async function getLastSyncTime(): Promise<number> {
   const meta = await offlineDB.syncMeta.get('lastSync');
   if (!meta) return 0;
-  
+
   const timestamp = Number(meta.value);
   const now = Date.now();
-  
+
   // Agar timestamp noto'g'ri bo'lsa (kelajakda yoki manfiy), 0 qaytarish
   if (isNaN(timestamp) || timestamp < 0 || timestamp > now) {
     console.warn('[OfflineDB] Invalid lastSyncTime detected, resetting to 0');
     return 0;
   }
-  
+
   return timestamp;
 }
 
@@ -569,10 +572,10 @@ export async function getLastSyncTime(): Promise<number> {
  */
 export async function setLastSyncTime(timestamp: number): Promise<void> {
   const now = Date.now();
-  
+
   // Timestamp validatsiya - faqat to'g'ri qiymatlarni saqlash
   const validTimestamp = (timestamp > 0 && timestamp <= now) ? timestamp : now;
-  
+
   await offlineDB.syncMeta.put({
     id: 'lastSync',
     key: 'lastSync',
@@ -594,7 +597,7 @@ export async function updateProductStock(
 ): Promise<void> {
   try {
     console.log(`[offlineDB] updateProductStock called: productId=${productId}, change=${quantityChange}, variantIndex=${variantIndex}`);
-    
+
     const product = await offlineDB.products.get(productId);
     if (!product) {
       console.error(`[offlineDB] Product not found: ${productId}`);
@@ -608,20 +611,20 @@ export async function updateProductStock(
         console.error(`[offlineDB] Variant not found: ${productId}[${variantIndex}]`);
         throw new Error(`Variant not found: ${productId}[${variantIndex}]`);
       }
-      
+
       const currentStock = variant.stock || 0;
       const currentInitialStock = variant.initialStock; // MUHIM: Faqat serverdan kelgan qiymat
       const newStock = Math.max(0, currentStock + quantityChange);
-      
+
       // MUHIM: Qaytarishda (quantityChange > 0) initialStock ham oshadi
       let newInitialStock = currentInitialStock || 0;
       if (quantityChange > 0) {
         newInitialStock = (currentInitialStock || 0) + quantityChange;
         console.log(`[offlineDB] Variant refund detected: initialStock ${currentInitialStock} -> ${newInitialStock}`);
       }
-      
+
       console.log(`[offlineDB] Variant stock: ${currentStock} -> ${newStock} (change: ${quantityChange}), initialStock: ${currentInitialStock} -> ${newInitialStock}`);
-      
+
       // Yangi variantSummaries massivini yaratish (mutatsiya qilmaslik uchun)
       const updatedVariantSummaries = [...product.variantSummaries];
       updatedVariantSummaries[variantIndex] = {
@@ -629,13 +632,13 @@ export async function updateProductStock(
         stock: newStock,
         initialStock: newInitialStock
       };
-      
+
       // Mahsulotni yangilash
       await offlineDB.products.update(productId, {
         variantSummaries: updatedVariantSummaries,
         updatedAt: Date.now()
       });
-      
+
       console.log(`[offlineDB] Variant stock updated successfully: ${productId}[${variantIndex}] = ${newStock}, initialStock = ${newInitialStock}`);
       return;
     }
@@ -644,7 +647,7 @@ export async function updateProductStock(
     const currentStock = product.stock || 0;
     const currentInitialStock = product.initialStock; // MUHIM: Faqat serverdan kelgan qiymat
     const newStock = Math.max(0, currentStock + quantityChange);
-    
+
     // MUHIM: Qaytarishda (quantityChange > 0) initialStock ham oshadi
     // Bu qaytarish cheklovini to'g'ri ishlashi uchun kerak
     // Sotilgan miqdor = initialStock - stock
@@ -656,15 +659,15 @@ export async function updateProductStock(
       newInitialStock = (currentInitialStock || 0) + quantityChange;
       console.log(`[offlineDB] Refund detected: initialStock ${currentInitialStock} -> ${newInitialStock}`);
     }
-    
+
     console.log(`[offlineDB] Product stock: ${currentStock} -> ${newStock} (change: ${quantityChange}), initialStock: ${currentInitialStock} -> ${newInitialStock}`);
-    
+
     await offlineDB.products.update(productId, {
       stock: newStock,
       initialStock: newInitialStock,
       updatedAt: Date.now()
     });
-    
+
     console.log(`[offlineDB] Product stock updated successfully: ${productId} = ${newStock}, initialStock = ${newInitialStock}`);
   } catch (error) {
     console.error(`[offlineDB] Failed to update stock for ${productId}:`, error);
@@ -686,38 +689,38 @@ export async function updateInitialStockOnly(
 ): Promise<void> {
   try {
     console.log(`[offlineDB] updateInitialStockOnly: productId=${productId}, quantity=${quantity}`);
-    
+
     // Variant tekshirish
     const variantMatch = productId.match(/^(.+)-v(\d+)$/);
-    
+
     if (variantMatch) {
       // Variant
       const originalProductId = variantMatch[1];
       const variantIndex = parseInt(variantMatch[2], 10);
-      
+
       const product = await offlineDB.products.get(originalProductId);
       if (!product || !product.variantSummaries) {
         console.error(`[offlineDB] Product or variant not found: ${productId}`);
         return;
       }
-      
+
       const variant = product.variantSummaries[variantIndex];
       if (!variant) {
         console.error(`[offlineDB] Variant not found: ${productId}[${variantIndex}]`);
         return;
       }
-      
+
       const currentInitialStock = variant.initialStock || 0; // MUHIM: Faqat serverdan kelgan qiymat
       const newInitialStock = currentInitialStock + quantity;
-      
+
       console.log(`[offlineDB] Variant initialStock: ${currentInitialStock} -> ${newInitialStock}`);
-      
+
       const updatedVariantSummaries = [...product.variantSummaries];
       updatedVariantSummaries[variantIndex] = {
         ...variant,
         initialStock: newInitialStock
       };
-      
+
       await offlineDB.products.update(originalProductId, {
         variantSummaries: updatedVariantSummaries,
         updatedAt: Date.now()
@@ -729,18 +732,18 @@ export async function updateInitialStockOnly(
         console.error(`[offlineDB] Product not found: ${productId}`);
         return;
       }
-      
+
       const currentInitialStock = product.initialStock || 0; // MUHIM: Faqat serverdan kelgan qiymat
       const newInitialStock = currentInitialStock + quantity;
-      
+
       console.log(`[offlineDB] Product initialStock: ${currentInitialStock} -> ${newInitialStock}`);
-      
+
       await offlineDB.products.update(productId, {
         initialStock: newInitialStock,
         updatedAt: Date.now()
       });
     }
-    
+
     console.log(`[offlineDB] initialStock updated successfully: ${productId}`);
   } catch (error) {
     console.error(`[offlineDB] Failed to update initialStock for ${productId}:`, error);
@@ -763,24 +766,24 @@ export async function clearDatabase(): Promise<void> {
  */
 export async function clearLocalStats(userId: string): Promise<void> {
   console.log('[offlineDB] Clearing local stats for user:', userId);
-  
+
   // Foydalanuvchining barcha sotuvlarini o'chirish
   const userSales = await offlineDB.offlineSales
     .where('userId')
     .equals(userId)
     .toArray();
-  
+
   const idsToDelete = userSales.map(s => s.id).filter((id): id is string => id !== undefined) as string[];
-  
+
   if (idsToDelete.length > 0) {
     await offlineDB.offlineSales.bulkDelete(idsToDelete);
     console.log('[offlineDB] Deleted', idsToDelete.length, 'sales records');
   }
-  
+
   // localStorage dan ham tozalash
   const today = new Date().toISOString().slice(0, 10);
   localStorage.removeItem(`productSales:${today}`);
-  
+
   console.log('[offlineDB] Local stats cleared successfully');
 }
 
@@ -791,44 +794,44 @@ export async function clearLocalStats(userId: string): Promise<void> {
  */
 export async function clearOtherUsersData(currentUserId: string): Promise<void> {
   console.log('[OfflineDB] Clearing other users data, keeping userId:', currentUserId);
-  
+
   // Проверяем несинхронизированные продажи других пользователей
   const allSales = await offlineDB.offlineSales.toArray();
-  const otherUsersUnsyncedSales = allSales.filter(s => 
-    s.userId && 
-    s.userId !== currentUserId && 
+  const otherUsersUnsyncedSales = allSales.filter(s =>
+    s.userId &&
+    s.userId !== currentUserId &&
     s.synced === false
   );
-  
+
   if (otherUsersUnsyncedSales.length > 0) {
     console.error(`[OfflineDB] ОШИБКА: Найдено ${otherUsersUnsyncedSales.length} несинхронизированных продаж других пользователей!`);
     console.error('[OfflineDB] Очистка отменена для безопасности данных');
     throw new Error('Cannot clear data: unsynced sales exist');
   }
-  
+
   // Boshqa foydalanuvchilarning mahsulotlarini o'chirish
   const allProducts = await offlineDB.products.toArray();
   const otherUsersProducts = allProducts.filter(p => p.userId && p.userId !== currentUserId);
-  
+
   if (otherUsersProducts.length > 0) {
     const idsToDelete = otherUsersProducts.map(p => p.id);
     await offlineDB.products.bulkDelete(idsToDelete);
     console.log(`[OfflineDB] Deleted ${idsToDelete.length} products from other users`);
   }
-  
+
   // Boshqa foydalanuvchilarning синхронизированных sotuvlarini o'chirish
-  const otherUsersSyncedSales = allSales.filter(s => 
-    s.userId && 
-    s.userId !== currentUserId && 
+  const otherUsersSyncedSales = allSales.filter(s =>
+    s.userId &&
+    s.userId !== currentUserId &&
     s.synced === true
   );
-  
+
   if (otherUsersSyncedSales.length > 0) {
     const saleIdsToDelete = otherUsersSyncedSales.map(s => s.id);
     await offlineDB.offlineSales.bulkDelete(saleIdsToDelete);
     console.log(`[OfflineDB] Deleted ${saleIdsToDelete.length} synced sales from other users`);
   }
-  
+
   console.log('[OfflineDB] Cleanup completed successfully');
 }
 
@@ -855,7 +858,7 @@ export async function getDatabaseStats(): Promise<{
     getUnsyncedSales(),
     getLastSyncTime()
   ]);
-  
+
   return {
     productsCount,
     categoriesCount,
@@ -1016,15 +1019,15 @@ export async function updateProductStockWithChildActivation(
   productId: string,
   quantityChange: number,
   variantIndex?: number
-): Promise<{ 
-  newStock: number; 
+): Promise<{
+  newStock: number;
   activatedChildren: number;
   promoted?: boolean;
   newProductId?: string;
 }> {
   // Avval stock ni yangilash
   await updateProductStock(productId, quantityChange, variantIndex);
-  
+
   // Yangilangan mahsulotni olish
   const product = await offlineDB.products.get(productId);
   if (!product) {
@@ -1041,7 +1044,7 @@ export async function updateProductStockWithChildActivation(
   // Stock 0 bo'lsa ham mahsulot o'z joyida qoladi
   // Variant promotion yoki child activation QILINMAYDI
   // Mahsulot shunchaki "Tugagan" deb ko'rsatiladi (qizil rangda)
-  
+
   return { newStock, activatedChildren: 0 };
 }
 
@@ -1086,7 +1089,7 @@ export async function getLocalDailyStats(userId: string): Promise<LocalDailyStat
   // Barcha mahsulotlarni olish (costPrice ni topish uchun)
   const allProducts = await offlineDB.products.toArray();
   const productCostMap = new Map<string, number>();
-  
+
   // Mahsulotlar va variantlarning costPrice ni map qilish
   // Barcha mahsulotlarni olamiz - xodim egasining mahsulotlarini ko'radi
   for (const product of allProducts) {
@@ -1103,7 +1106,7 @@ export async function getLocalDailyStats(userId: string): Promise<LocalDailyStat
       }
     }
   }
-  
+
   console.log('[Stats] ProductCostMap size:', productCostMap.size, 'for userId:', userId);
   console.log('[Stats] TodaySales count:', todaySales.length);
 
@@ -1117,7 +1120,7 @@ export async function getLocalDailyStats(userId: string): Promise<LocalDailyStat
     totalRevenue += sale.total;
     for (const item of sale.items) {
       totalSales += item.quantity;
-      
+
       // Sof foyda hisoblash: (sotish narxi - asl narx) * soni
       // Agar item.costPrice yo'q bo'lsa, mahsulotning hozirgi costPrice ni ishlatamiz
       let costPrice = item.costPrice || 0;
@@ -1129,10 +1132,10 @@ export async function getLocalDailyStats(userId: string): Promise<LocalDailyStat
       if (costPrice === 0 && item.price > 0) {
         costPrice = Math.round(item.price * 0.7);
       }
-      
+
       const itemProfit = (item.price - costPrice) * item.quantity;
       totalProfit += itemProfit;
-      
+
       const existing = productMap.get(item.name) || { name: item.name, sales: 0, revenue: 0, profit: 0 };
       existing.sales += item.quantity;
       existing.revenue += item.quantity * item.price;
@@ -1161,7 +1164,7 @@ export async function getLocalDailyStats(userId: string): Promise<LocalDailyStat
 export async function getLocalWeeklyStats(userId: string): Promise<LocalWeeklyStats> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
+
   const weekStart = new Date(today);
   weekStart.setDate(weekStart.getDate() - 6);
   const weekStartTimestamp = weekStart.getTime();
@@ -1192,7 +1195,7 @@ export async function getLocalWeeklyStats(userId: string): Promise<LocalWeeklySt
   for (const sale of weeklySales) {
     const saleDate = new Date(sale.createdAt);
     const dateStr = saleDate.toISOString().slice(0, 10);
-    
+
     const dayData = dailyMap.get(dateStr);
     if (dayData) {
       dayData.orders += 1;
@@ -1211,7 +1214,7 @@ export async function getLocalWeeklyStats(userId: string): Promise<LocalWeeklySt
     const dateStr = d.toISOString().slice(0, 10);
     const dayName = weekDaysShort[d.getDay()];
     const data = dailyMap.get(dateStr) || { sales: 0, revenue: 0, orders: 0 };
-    
+
     dailyData.push({
       day: dayName,
       sales: data.sales,
@@ -1277,7 +1280,7 @@ export async function clearDefectiveProducts(userId: string): Promise<void> {
     .where('userId')
     .equals(userId)
     .toArray();
-  
+
   const ids = items.map(i => i.id);
   if (ids.length > 0) {
     await offlineDB.defectiveProducts.bulkDelete(ids);
@@ -1297,7 +1300,7 @@ export async function getDefectiveCountByProduct(productId: string, userId: stri
     .equals(productId)
     .filter(item => item.userId === userId)
     .toArray();
-  
+
   return items.reduce((sum, item) => sum + item.quantity, 0);
 }
 
@@ -1311,12 +1314,12 @@ export async function getAllDefectiveCounts(userId: string): Promise<Map<string,
     .where('userId')
     .equals(userId)
     .toArray();
-  
+
   const counts = new Map<string, number>();
   for (const item of items) {
     const current = counts.get(item.productId) || 0;
     counts.set(item.productId, current + item.quantity);
   }
-  
+
   return counts;
 }

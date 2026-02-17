@@ -282,6 +282,7 @@ class SyncManager {
       variantSummaries: Array.isArray(p.variantSummaries) ? p.variantSummaries.map((v: any) => ({
         name: v.name,
         sku: v.sku !== undefined && v.sku !== null ? String(v.sku) : undefined,
+        customId: v.customId, // ✅ CRITICAL: Include customId for variants
         barcode: v.barcode !== undefined && v.barcode !== null ? String(v.barcode) : undefined,
         price: v.price || v.basePrice || p.price || 0,
         stock: v.stock ?? v.quantity ?? 0, // Используем stock с сервера
@@ -355,6 +356,7 @@ class SyncManager {
       variantSummaries: Array.isArray(p.variantSummaries) ? p.variantSummaries.map((v: any) => ({
         name: v.name,
         sku: v.sku !== undefined && v.sku !== null ? String(v.sku) : undefined,
+        customId: v.customId, // ✅ CRITICAL: Include customId for variants
         barcode: v.barcode !== undefined && v.barcode !== null ? String(v.barcode) : undefined,
         price: v.price || v.basePrice || p.price || 0,
         stock: v.stock ?? v.quantity ?? 0,
