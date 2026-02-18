@@ -664,6 +664,14 @@ export default function Products() {
   const [emptyCodesDialogOpen, setEmptyCodesDialogOpen] = useState(false);
   const [emptyCodes, setEmptyCodes] = useState<number[]>([]);
 
+  // 🆕 Bulk kategoriya yangilash state'lari
+  const [bulkCategoryDialogOpen, setBulkCategoryDialogOpen] = useState(false);
+  const [bulkCategoryMinSku, setBulkCategoryMinSku] = useState<string>('');
+  const [bulkCategoryMaxSku, setBulkCategoryMaxSku] = useState<string>('');
+  const [bulkCategoryId, setBulkCategoryId] = useState<string>('');
+  const [bulkMarkupPercentage, setBulkMarkupPercentage] = useState<string>('');
+  const [isBulkCategoryUpdating, setIsBulkCategoryUpdating] = useState(false);
+
   // Confirmation modal states
   const [confirmModal, setConfirmModal] = useState<{
     open: boolean;
@@ -1648,46 +1656,48 @@ export default function Products() {
     }
   }, [productHistory, user?.id]);
 
-  useEffect(() => {
+  // Mahsulotlarni yuklash funksiyasi - useEffect tashqarisida
+  const loadProducts = useCallback(() => {
     if (!user?.id) return;
 
-    // Mahsulotlarni yuklash funksiyasi
-    const loadProducts = () => {
-      const params = new URLSearchParams({ userId: user.id });
-      if (user.phone) {
-        params.append("userPhone", user.phone);
-      }
-      const url = `${API_BASE_URL}/api/products?${params}`;
+    const params = new URLSearchParams({ userId: user.id });
+    if (user.phone) {
+      params.append("userPhone", user.phone);
+    }
+    const url = `${API_BASE_URL}/api/products?${params}`;
 
-      setIsLoadingProducts(true);
-      fetch(url)
-        .then(async (res) => {
-          if (!res.ok) return;
-          const data = await res.json();
-          console.log('[Products] Loaded products:', data);
-          // Backend returns array directly, not wrapped in {products: [...]}
-          let productsArray: any[] = [];
-          if (Array.isArray(data)) {
-            productsArray = data;
-          } else if (Array.isArray(data?.products)) {
-            productsArray = data.products;
-          }
+    setIsLoadingProducts(true);
+    fetch(url)
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = await res.json();
+        console.log('[Products] Loaded products:', data);
+        // Backend returns array directly, not wrapped in {products: [...]}
+        let productsArray: any[] = [];
+        if (Array.isArray(data)) {
+          productsArray = data;
+        } else if (Array.isArray(data?.products)) {
+          productsArray = data.products;
+        }
 
-          // Map _id to id for frontend compatibility
-          const mappedProducts = productsArray.map((p: any) => ({
-            ...p,
-            id: p.id || p._id,
-          }));
+        // Map _id to id for frontend compatibility
+        const mappedProducts = productsArray.map((p: any) => ({
+          ...p,
+          id: p.id || p._id,
+        }));
 
-          setProducts(sortProductsBySku(mappedProducts as Product[]));
-        })
-        .catch((err) => {
-          console.error('Failed to load products from API:', err);
-        })
-        .finally(() => {
-          setIsLoadingProducts(false);
-        });
-    };
+        setProducts(sortProductsBySku(mappedProducts as Product[]));
+      })
+      .catch((err) => {
+        console.error('Failed to load products from API:', err);
+      })
+      .finally(() => {
+        setIsLoadingProducts(false);
+      });
+  }, [user?.id, user?.phone]);
+
+  useEffect(() => {
+    if (!user?.id) return;
 
     // Dastlab mahsulotlarni yuklash
     loadProducts();
@@ -2792,6 +2802,70 @@ export default function Products() {
     }
   };
 
+  // 🆕 Bulk kategoriya yangilash funksiyasi
+  const handleBulkCategoryUpdate = async () => {
+    if (!bulkCategoryMinSku || !bulkCategoryMaxSku) {
+      toast.error('Min va Max SKU kiritilishi kerak');
+      return;
+    }
+
+    if (!bulkCategoryId) {
+      toast.error('Kategoriya tanlanishi kerak');
+      return;
+    }
+
+    if (!bulkMarkupPercentage || isNaN(parseFloat(bulkMarkupPercentage))) {
+      toast.error('Ustama foizi kiritilishi kerak');
+      return;
+    }
+
+    setIsBulkCategoryUpdating(true);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/products/bulk-category-update`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          minSku: bulkCategoryMinSku,
+          maxSku: bulkCategoryMaxSku,
+          categoryId: bulkCategoryId,
+          markupPercentage: parseFloat(bulkMarkupPercentage),
+          userId: user?.id,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Yangilashda xatolik');
+      }
+
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Yangilashda xatolik');
+      }
+
+      toast.success(`${data.updatedCount} ta mahsulot yangilandi`);
+
+      // Mahsulotlarni qayta yuklash
+      loadProducts();
+
+      // Dialogni yopish
+      setBulkCategoryDialogOpen(false);
+      setBulkCategoryMinSku('');
+      setBulkCategoryMaxSku('');
+      setBulkCategoryId('');
+      setBulkMarkupPercentage('');
+    } catch (err) {
+      console.error('Error updating bulk category:', err);
+      toast.error(err instanceof Error ? err.message : 'Yangilashda xatolik');
+    } finally {
+      setIsBulkCategoryUpdating(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
       <Sidebar
@@ -2962,6 +3036,16 @@ export default function Products() {
             >
               <Tag className="w-4 h-4" />
               <span className="font-medium">Ommaviy senik</span>
+            </button>
+            <span className="text-gray-600">|</span>
+            {/* 🆕 Bulk kategoriya yangilash tugmasi */}
+            <button
+              type="button"
+              onClick={() => setBulkCategoryDialogOpen(true)}
+              className="flex items-center gap-1.5 text-orange-400 hover:text-orange-300 transition"
+            >
+              <Tag className="w-4 h-4" />
+              <span className="font-medium">Kategoriya o'zgartirish</span>
             </button>
             <span className="text-gray-600">|</span>
             {/* 🆕 Bo'sh kodlar tugmasi */}
@@ -7334,6 +7418,123 @@ export default function Products() {
         </DialogContent>
       </Dialog>
 
+      {/* 🆕 Bulk Kategoriya Yangilash Dialog */}
+      <Dialog open={bulkCategoryDialogOpen} onOpenChange={setBulkCategoryDialogOpen}>
+        <DialogContent className="max-w-2xl bg-slate-900/95 border-slate-700/50 backdrop-blur-xl rounded-3xl p-6">
+          <DialogHeader className="mb-2">
+            <DialogTitle className="text-2xl font-bold text-slate-100">
+              Kategoriya va Foiz Yangilash
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* SKU Oralig'i */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Min SKU
+                </label>
+                <input
+                  type="text"
+                  value={bulkCategoryMinSku}
+                  onChange={(e) => setBulkCategoryMinSku(e.target.value)}
+                  placeholder="1"
+                  className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600/50 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Max SKU
+                </label>
+                <input
+                  type="text"
+                  value={bulkCategoryMaxSku}
+                  onChange={(e) => setBulkCategoryMaxSku(e.target.value)}
+                  placeholder="100"
+                  className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600/50 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+                />
+              </div>
+            </div>
+
+            {/* Kategoriya Tanlash */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Kategoriya
+              </label>
+              <Select value={bulkCategoryId} onValueChange={setBulkCategoryId}>
+                <SelectTrigger className="w-full bg-slate-800/50 border-slate-600/50 text-slate-100">
+                  <SelectValue placeholder="Kategoriya tanlang" />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-800 border-slate-700">
+                  {sortedCategories.map((cat) => (
+                    <SelectItem
+                      key={cat.id}
+                      value={cat.id}
+                      className="text-slate-100 hover:bg-slate-700"
+                    >
+                      {'  '.repeat(cat.level)}{cat.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Ustama Foizi */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Ustama Foizi (%)
+              </label>
+              <input
+                type="number"
+                value={bulkMarkupPercentage}
+                onChange={(e) => setBulkMarkupPercentage(e.target.value)}
+                placeholder="20"
+                step="0.1"
+                className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600/50 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+              />
+            </div>
+
+            {/* Tushuntirish */}
+            <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4">
+              <p className="text-sm text-orange-300">
+                <strong>Eslatma:</strong> {bulkCategoryMinSku || '1'} dan {bulkCategoryMaxSku || '100'} gacha SKU oralig'idagi barcha mahsulotlar (xillari bilan birga) tanlangan kategoriyaga o'tkaziladi va ustama foizi yangilanadi.
+              </p>
+            </div>
+
+            {/* Tugmalar */}
+            <div className="flex gap-3 pt-4">
+              <Button
+                onClick={handleBulkCategoryUpdate}
+                disabled={isBulkCategoryUpdating || !bulkCategoryMinSku || !bulkCategoryMaxSku || !bulkCategoryId || !bulkMarkupPercentage}
+                className="flex-1 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white font-semibold py-3 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isBulkCategoryUpdating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Yangilanmoqda...
+                  </>
+                ) : (
+                  'Yangilash'
+                )}
+              </Button>
+              <Button
+                onClick={() => {
+                  setBulkCategoryDialogOpen(false);
+                  setBulkCategoryMinSku('');
+                  setBulkCategoryMaxSku('');
+                  setBulkCategoryId('');
+                  setBulkMarkupPercentage('');
+                }}
+                disabled={isBulkCategoryUpdating}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-600"
+              >
+                Bekor qilish
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Confirmation Modal */}
       <AlertDialog open={confirmModal.open} onOpenChange={(open) => !open && closeConfirmModal()}>
         <AlertDialogContent className="z-[10010]">
@@ -7476,6 +7677,18 @@ export default function Products() {
               <History className="w-4 h-4 text-white" />
             </div>
             <span className="text-xs font-medium">Tarix</span>
+          </button>
+
+          {/* Bulk Category Update Button */}
+          <button
+            onClick={() => setBulkCategoryDialogOpen(true)}
+            className="flex flex-col items-center justify-center gap-1 p-3 rounded-xl bg-orange-600/20 hover:bg-orange-600/30 border border-orange-500/30 text-orange-400 hover:text-orange-300 transition-all duration-200 shadow-lg min-w-[60px]"
+            title="Kategoriya o'zgartirish"
+          >
+            <div className="w-6 h-6 rounded-full bg-gradient-to-r from-orange-400 to-orange-600 flex items-center justify-center">
+              <Tag className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-xs font-medium">Kategoriya</span>
           </button>
         </div>
       </div>

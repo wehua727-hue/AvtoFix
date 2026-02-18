@@ -1923,3 +1923,218 @@ export const handleProductImageUpload: RequestHandler = async (req, res) => {
     return res.status(500).json({ success: false, error: "Failed to upload image" });
   }
 };
+
+/**
+ * POST /api/products/bulk-category-update
+ * Bulk kategoriya va foiz yangilash
+ */
+export const handleBulkCategoryUpdate: RequestHandler = async (req, res) => {
+  try {
+    const conn = await connectMongo();
+    if (!conn || !conn.db) {
+      return res.status(500).json({ success: false, error: "Database not available" });
+    }
+    const db = conn.db;
+
+    const { minSku, maxSku, categoryId, markupPercentage, userId } = req.body;
+
+    console.log('[Bulk Category Update] Request:', { minSku, maxSku, categoryId, markupPercentage, userId });
+
+    // Validatsiya
+    if (!minSku || !maxSku) {
+      return res.status(400).json({ success: false, error: "Min va Max SKU kiritilishi kerak" });
+    }
+
+    if (!categoryId) {
+      return res.status(400).json({ success: false, error: "Kategoriya tanlanishi kerak" });
+    }
+
+    if (markupPercentage === undefined || markupPercentage === null) {
+      return res.status(400).json({ success: false, error: "Ustama foizi kiritilishi kerak" });
+    }
+
+    if (!userId) {
+      return res.status(400).json({ success: false, error: "User ID topilmadi" });
+    }
+
+    const collection = db.collection(PRODUCTS_COLLECTION);
+    const categoriesCollection = db.collection(CATEGORIES_COLLECTION);
+
+    // Kategoriya nomini olish
+    let categoryName = '';
+    try {
+      let catObjectId;
+      try {
+        catObjectId = new ObjectId(categoryId);
+      } catch {
+        catObjectId = categoryId;
+      }
+      const category = await categoriesCollection.findOne({
+        $or: [
+          { _id: catObjectId },
+          { _id: categoryId }
+        ]
+      });
+      if (category) {
+        categoryName = category.name || '';
+      }
+    } catch (catErr) {
+      console.error('[Bulk Category Update] Error finding category:', catErr);
+    }
+
+    // SKU oralig'idagi mahsulotlarni topish
+    const minSkuLower = minSku.toLowerCase().trim();
+    const maxSkuLower = maxSku.toLowerCase().trim();
+
+    // Foydalanuvchining barcha mahsulotlarini olish
+    const allProducts = await collection.find({ userId }).toArray();
+
+    // SKU bo'yicha filtrlash (raqamli va matnli SKU'larni qo'llab-quvvatlash)
+    const filteredProducts = allProducts.filter((p: any) => {
+      const sku = (p.sku || '').toLowerCase().trim();
+      if (!sku) return false;
+
+      // Raqamli SKU'lar uchun
+      const isNumericMin = /^\d+$/.test(minSkuLower);
+      const isNumericMax = /^\d+$/.test(maxSkuLower);
+      const isNumericSku = /^\d+$/.test(sku);
+
+      if (isNumericMin && isNumericMax && isNumericSku) {
+        const skuNum = parseInt(sku, 10);
+        const minNum = parseInt(minSkuLower, 10);
+        const maxNum = parseInt(maxSkuLower, 10);
+        return skuNum >= minNum && skuNum <= maxNum;
+      }
+
+      // Matnli SKU'lar uchun
+      return sku >= minSkuLower && sku <= maxSkuLower;
+    });
+
+    if (filteredProducts.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        error: `${minSku} dan ${maxSku} gacha SKU oralig'ida mahsulot topilmadi` 
+      });
+    }
+
+    console.log('[Bulk Category Update] Found products:', filteredProducts.length);
+
+    // Har bir mahsulotni yangilash
+    let updatedCount = 0;
+    const historyCollection = db.collection(PRODUCT_HISTORY_COLLECTION);
+
+    for (const product of filteredProducts) {
+      const productId = product._id;
+      const oldCategoryId = product.categoryId;
+      const oldMarkupPercentage = product.markupPercentage || product.priceMultiplier || 0;
+
+      // Yangilash ma'lumotlari
+      const updateData: any = {
+        categoryId,
+        categoryName,
+        markupPercentage,
+        priceMultiplier: markupPercentage, // Alias
+        markupPercent: markupPercentage, // Marketplace alias
+        updatedAt: new Date(),
+      };
+
+      // Narxni qayta hisoblash
+      if (product.basePrice) {
+        // Agar basePrice mavjud bo'lsa, undan hisoblash
+        const newPrice = product.basePrice * (1 + markupPercentage / 100);
+        updateData.price = Math.round(newPrice);
+      } else if (product.price) {
+        // Agar basePrice yo'q bo'lsa, lekin price mavjud bo'lsa
+        // Hozirgi narxni basePrice sifatida ishlatib, yangi narx hisoblash
+        const currentPrice = product.price;
+        const newPrice = currentPrice * (1 + markupPercentage / 100);
+        updateData.price = Math.round(newPrice);
+        // basePrice ni ham saqlash (keyingi yangilanishlar uchun)
+        updateData.basePrice = currentPrice;
+      }
+
+      // Xillar uchun ham yangilash
+      if (Array.isArray(product.variantSummaries) && product.variantSummaries.length > 0) {
+        updateData.variantSummaries = product.variantSummaries.map((v: any) => {
+          const updatedVariant = {
+            ...v,
+            // Xil uchun ham kategoriya yangilash
+            categoryId,
+          };
+
+          if (v.basePrice) {
+            // Agar variant basePrice mavjud bo'lsa, undan hisoblash
+            const newVariantPrice = v.basePrice * (1 + markupPercentage / 100);
+            updatedVariant.price = Math.round(newVariantPrice);
+            updatedVariant.priceMultiplier = markupPercentage;
+            updatedVariant.markupPercentage = markupPercentage;
+            updatedVariant.markupPercent = markupPercentage;
+          } else if (v.price) {
+            // Agar basePrice yo'q bo'lsa, lekin price mavjud bo'lsa
+            const currentVariantPrice = v.price;
+            const newVariantPrice = currentVariantPrice * (1 + markupPercentage / 100);
+            updatedVariant.price = Math.round(newVariantPrice);
+            updatedVariant.priceMultiplier = markupPercentage;
+            updatedVariant.markupPercentage = markupPercentage;
+            updatedVariant.markupPercent = markupPercentage;
+            // basePrice ni ham saqlash (keyingi yangilanishlar uchun)
+            updatedVariant.basePrice = currentVariantPrice;
+          }
+
+          return updatedVariant;
+        });
+      }
+
+      // Mahsulotni yangilash
+      await collection.updateOne(
+        { _id: productId },
+        { $set: updateData }
+      );
+
+      updatedCount++;
+
+      // Tarixga yozish
+      try {
+        await historyCollection.insertOne({
+          userId,
+          type: 'bulk_category_update',
+          productId: productId.toString(),
+          productName: product.name,
+          sku: product.sku || '',
+          oldCategoryId,
+          newCategoryId: categoryId,
+          oldMarkupPercentage,
+          newMarkupPercentage: markupPercentage,
+          message: `Kategoriya va foiz yangilandi: ${categoryName} (${markupPercentage}%)`,
+          timestamp: new Date(),
+          createdAt: new Date(),
+        });
+      } catch (histErr) {
+        console.error('[Bulk Category Update] Failed to save history:', histErr);
+      }
+    }
+
+    console.log('[Bulk Category Update] Updated products:', updatedCount);
+
+    // WebSocket orqali xabar yuborish
+    if (userId) {
+      wsManager.broadcastToUser(userId, {
+        type: 'bulk-category-updated',
+        count: updatedCount,
+        categoryId,
+        categoryName,
+        markupPercentage,
+        timestamp: Date.now(),
+      });
+    }
+
+    return res.json({
+      success: true,
+      updatedCount,
+      message: `${updatedCount} ta mahsulot yangilandi`,
+    });
+  } catch (error) {
+    console.error("[api/products/bulk-category-update POST] Error:", error);
+    return res.status(500).json({ success: false, error: "Failed to update products" });
+  }
+};

@@ -5,7 +5,7 @@ import multer from "multer";
 import QRCode from "qrcode";
 import mongoose from "mongoose";
 import { ObjectId } from "mongodb";
-import { handleProductsGet, handleProductsCreate, handleProductGetById, handleProductUpdate, handleProductDelete, handleProductsClearAll, handleProductStockUpdate, handleProductHistoryGet, handleProductHistoryCreate, handleProductHistoryDelete, handleProductHistoryClear, handleProductImageUpload } from "./routes/products";
+import { handleProductsGet, handleProductsCreate, handleProductGetById, handleProductUpdate, handleProductDelete, handleProductsClearAll, handleProductStockUpdate, handleProductHistoryGet, handleProductHistoryCreate, handleProductHistoryDelete, handleProductHistoryClear, handleProductImageUpload, handleBulkCategoryUpdate } from "./routes/products";
 import { dbConnectionMiddleware, validateSkuMiddleware } from "./middleware/sku-validation";
 import { handleCategoriesGet, handleCategoriesCreate, handleCategoryUpdate, handleCategoryDelete, handleCategoryMarkupUpdate } from "./routes/categories";
 import { handleStoresGet, handleStoresCreate, handleStoreDelete } from "./routes/stores";
@@ -114,6 +114,7 @@ export async function createServer() {
   // Порядок важен: сначала все конкретные роуты, потом параметрические
   app.post("/api/products", dbConnectionMiddleware, validateSkuMiddleware, handleProductsCreate);
   app.post("/api/products/upload-image", upload.single('image'), handleProductImageUpload);
+  app.post("/api/products/bulk-category-update", handleBulkCategoryUpdate); // ✅ YANGI: Bulk kategoriya yangilash
   app.get("/api/products", handleProductsGet);
   // Все "словарные" GET роуты должны быть выше /api/products/:id
   app.get("/api/products/all", handleGetAllProducts);
