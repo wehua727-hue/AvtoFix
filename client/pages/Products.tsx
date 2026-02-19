@@ -1168,7 +1168,7 @@ export default function Products() {
       console.log('[handleExportToExcel] Kategoriya:', categoryName);
       console.log('[handleExportToExcel] Total products:', productsToExport.length);
 
-      // Excel uchun ma'lumotlarni tayyorlash
+      // Excel uchun ma'lumotlarni tayyorlash - BARCHA MA'LUMOTLAR BILAN
       const excelData: any[] = [];
       let rowNumber = 1;
 
@@ -1176,40 +1176,45 @@ export default function Products() {
       productsToExport.forEach((product) => {
         const price = product.price || 0;
         const stock = product.stock || 0;
-        const summa = price * stock;
+        const basePrice = product.basePrice || 0;
+        const priceMultiplier = product.priceMultiplier || 0;
+        const summa = basePrice * stock; // Asl narx bilan summa
+        const categoryName = categories.find(c => c.id === product.categoryId)?.name || '';
 
-        // 1. Ota mahsulotni qo'shish
+        // 1. Ota mahsulotni qo'shish - BARCHA MA'LUMOTLAR BILAN
         excelData.push({
           '№': rowNumber++,
-          'Код': (product as any).code || '',
+          'Код': (product as any).code || '', // Faqat code, SKU emas
           'Наименование': product.name,
-          '№ по каталогу': (product as any).catalogNumber || '',
-          'Ед': 'шт',
+          '№ по каталогу': (product as any).catalogNumber || product.customId || '',
+          'Категория': categoryName,
           'Кол-во': stock,
-          'Цена': price,
+          'Цена': basePrice, // Asl narx
+          'Фоиз (%)': priceMultiplier,
           'Сумма': summa,
-          'Вес': '',
-          'Итого': ''
+          'Валюта': product.currency || 'USD',
         });
 
-        // 2. Xillarni qo'shish
+        // 2. Xillarni qo'shish - BARCHA MA'LUMOTLAR BILAN
         if (product.variantSummaries && product.variantSummaries.length > 0) {
           product.variantSummaries.forEach((variant) => {
             const variantPrice = variant.price || product.price || 0;
             const variantStock = variant.stock || 0;
-            const variantSumma = variantPrice * variantStock;
+            const variantBasePrice = variant.basePrice || product.basePrice || 0;
+            const variantMultiplier = variant.priceMultiplier || product.priceMultiplier || 0;
+            const variantSumma = variantBasePrice * variantStock; // Asl narx bilan summa
 
             excelData.push({
               '№': rowNumber++,
-              'Код': (variant as any).code || (product as any).code || '',
+              'Код': (variant as any).code || '', // Faqat code, SKU emas
               'Наименование': variant.name || product.name,
-              '№ по каталогу': (variant as any).catalogNumber || (product as any).catalogNumber || '',
-              'Ед': 'шт',
+              '№ по каталогу': (variant as any).catalogNumber || variant.customId || (product as any).catalogNumber || product.customId || '',
+              'Категория': categoryName,
               'Кол-во': variantStock,
-              'Цена': variantPrice,
+              'Цена': variantBasePrice, // Asl narx
+              'Фоиз (%)': variantMultiplier,
               'Сумма': variantSumma,
-              'Вес': '',
-              'Итого': ''
+              'Валюта': variant.currency || product.currency || 'USD',
             });
           });
         }
@@ -1220,18 +1225,18 @@ export default function Products() {
       // Worksheet yaratish
       const worksheet = XLSX.utils.json_to_sheet(excelData);
 
-      // Ustun kengliklarini o'rnatish
+      // Ustun kengliklarini o'rnatish - YANGI USTUNLAR BILAN
       worksheet['!cols'] = [
         { wch: 5 },   // №
         { wch: 12 },  // Код
         { wch: 50 },  // Наименование
         { wch: 18 },  // № по каталогу
-        { wch: 5 },   // Ед
+        { wch: 20 },  // Категория
         { wch: 8 },   // Кол-во
-        { wch: 10 },  // Цена
+        { wch: 12 },  // Цена
+        { wch: 10 },  // Фоиз (%)
         { wch: 12 },  // Сумма
-        { wch: 8 },   // Вес
-        { wch: 12 },  // Итого
+        { wch: 8 },   // Валюта
       ];
 
       // Range olish
@@ -1326,25 +1331,19 @@ export default function Products() {
             // Ustun bo'yicha style tanlash
             switch (C) {
               case 0: // № - markaz
-                worksheet[cellAddress].s = centerStyle;
-                break;
               case 1: // Код - markaz
+              case 3: // № по каталогу - markaz
+              case 9: // Валюта - markaz
                 worksheet[cellAddress].s = centerStyle;
                 break;
               case 2: // Наименование - chap
+              case 4: // Категория - chap
                 worksheet[cellAddress].s = dataStyle;
-                break;
-              case 3: // № по каталогу - markaz
-                worksheet[cellAddress].s = centerStyle;
-                break;
-              case 4: // Ед - markaz
-                worksheet[cellAddress].s = centerStyle;
                 break;
               case 5: // Кол-во - o'ng
               case 6: // Цена - o'ng
-              case 7: // Сумма - o'ng
-              case 8: // Вес - o'ng
-              case 9: // Итого - o'ng
+              case 7: // Фоиз (%) - o'ng
+              case 8: // Сумма - o'ng
                 worksheet[cellAddress].s = numberStyle;
                 break;
               default:
@@ -1372,7 +1371,7 @@ export default function Products() {
       const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
       const fileName = selectedCategoryId
         ? `mahsulotlar_${categoryName}_${dateStr}.xlsx`
-        : `mahsulotlar_${dateStr}.xlsx`;
+        : `mahsulotlar_barcha_${dateStr}.xlsx`;
 
       // Faylni yuklab olish
       XLSX.writeFile(workbook, fileName);
@@ -7278,7 +7277,7 @@ export default function Products() {
 
       {/* 🆕 Excel Export - Kategoriya Tanlash Dialog */}
       <Dialog open={showExportCategoryDialog} onOpenChange={setShowExportCategoryDialog}>
-        <DialogContent className="max-w-md bg-slate-900/95 border-slate-700/50 backdrop-blur-xl rounded-3xl p-6">
+        <DialogContent className="max-w-2xl bg-slate-900/95 border-slate-700/50 backdrop-blur-xl rounded-3xl p-6">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold text-slate-100">
               📊 Excel ga Yuklash
@@ -7291,9 +7290,78 @@ export default function Products() {
           <div className="space-y-4 mt-4">
             {/* Kategoriya tanlash */}
             <div>
-              <label className="text-sm font-medium text-slate-300 mb-2 block">
-                Kategoriya
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-slate-300">
+                  Kategoriya
+                </label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setIsCreatingCategory(true);
+                    setNewCategoryName('');
+                    setCreateCategoryError(null);
+                  }}
+                  className="h-7 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-600"
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Yangi kategoriya
+                </Button>
+              </div>
+              
+              {/* Yangi kategoriya qo'shish formasi */}
+              {isCreatingCategory && (
+                <div className="mb-3 p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 space-y-2">
+                  <input
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => {
+                      setNewCategoryName(e.target.value);
+                      setCreateCategoryError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleCreateCategory();
+                      }
+                    }}
+                    placeholder="Kategoriya nomi"
+                    className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={createCategoryLoading}
+                    autoFocus
+                  />
+                  {createCategoryError && (
+                    <p className="text-xs text-red-400">{createCategoryError}</p>
+                  )}
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setIsCreatingCategory(false);
+                        setNewCategoryName('');
+                        setCreateCategoryError(null);
+                      }}
+                      className="h-7 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-600"
+                      disabled={createCategoryLoading}
+                    >
+                      Bekor qilish
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleCreateCategory}
+                      className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                      disabled={createCategoryLoading || !newCategoryName.trim()}
+                    >
+                      {createCategoryLoading ? 'Saqlanmoqda...' : 'Saqlash'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
               <Select
                 value={selectedExportCategory}
                 onValueChange={setSelectedExportCategory}
@@ -7320,27 +7388,33 @@ export default function Products() {
               </Select>
             </div>
 
-            {/* Statistika */}
-            {selectedExportCategory && (
-              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-                <p className="text-slate-400 text-sm">
-                  {selectedExportCategory === 'all' ? (
-                    <>
-                      <span className="text-blue-400 font-bold">{products.length}</span> ta mahsulot yuklanadi
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-blue-400 font-bold">
-                        {products.filter(p => p.categoryId === selectedExportCategory).length}
-                      </span> ta mahsulot yuklanadi
-                    </>
-                  )}
-                </p>
-              </div>
-            )}
+            {/* Statistika - XILLAR BILAN */}
+            {selectedExportCategory && (() => {
+              const filteredProducts = selectedExportCategory === 'all' 
+                ? products 
+                : products.filter(p => p.categoryId === selectedExportCategory);
+              
+              // Mahsulotlar va xillar sonini hisoblash
+              let totalRows = 0;
+              filteredProducts.forEach(p => {
+                totalRows++; // Ota mahsulot
+                if (p.variantSummaries && p.variantSummaries.length > 0) {
+                  totalRows += p.variantSummaries.length; // Xillar
+                }
+              });
+              
+              return (
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                  <p className="text-slate-400 text-sm">
+                    <span className="text-blue-400 font-bold">{filteredProducts.length}</span> ta mahsulot, 
+                    jami <span className="text-emerald-400 font-bold">{totalRows}</span> ta qator (xillar bilan)
+                  </p>
+                </div>
+              );
+            })()}
           </div>
 
-          <div className="flex justify-end gap-3 mt-6">
+          <div className="flex justify-between gap-3 mt-6">
             <Button
               variant="outline"
               onClick={() => {
@@ -7351,23 +7425,38 @@ export default function Products() {
             >
               Bekor qilish
             </Button>
-            <Button
-              onClick={() => {
-                if (!selectedExportCategory) {
-                  toast.error('Kategoriya tanlang');
-                  return;
-                }
-                handleExportToExcel(
-                  selectedExportCategory === 'all' ? undefined : selectedExportCategory
-                );
-                setShowExportCategoryDialog(false);
-                setSelectedExportCategory('');
-              }}
-              disabled={!selectedExportCategory}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              📥 Yuklash
-            </Button>
+            
+            <div className="flex gap-2">
+              {/* ✨ YANGI: Hammasini yuklash tugmasi */}
+              <Button
+                onClick={() => {
+                  handleExportToExcel(undefined);
+                  setShowExportCategoryDialog(false);
+                  setSelectedExportCategory('');
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                📥 Hammasini yuklash
+              </Button>
+              
+              <Button
+                onClick={() => {
+                  if (!selectedExportCategory) {
+                    toast.error('Kategoriya tanlang');
+                    return;
+                  }
+                  handleExportToExcel(
+                    selectedExportCategory === 'all' ? undefined : selectedExportCategory
+                  );
+                  setShowExportCategoryDialog(false);
+                  setSelectedExportCategory('');
+                }}
+                disabled={!selectedExportCategory}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                📥 Yuklash
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -7560,6 +7649,10 @@ export default function Products() {
         onClose={() => setShowExcelImport(false)}
         categories={categories}
         userId={user?.id || ''}
+        onCategoryCreated={(newCategory) => {
+          // Yangi kategoriyani ro'yxatga qo'shish
+          setCategories((prev) => [...prev, { ...newCategory, level: 0, parentId: null }].sort((a, b) => a.level - b.level));
+        }}
         onImportComplete={async () => {
           // Fix endpoint ni chaqirish - isHidden va userId ni tuzatish
           try {

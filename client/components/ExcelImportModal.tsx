@@ -11,6 +11,7 @@ interface ExcelImportModalProps {
   categories: Array<{ id: string; name: string }>;
   userId: string;
   onImportComplete: () => void;
+  onCategoryCreated?: (category: { id: string; name: string }) => void; // Yangi kategoriya yaratilganda
 }
 
 interface ColumnMapping {
@@ -69,7 +70,8 @@ export function ExcelImportModal({
   onClose, 
   categories, 
   userId,
-  onImportComplete 
+  onImportComplete,
+  onCategoryCreated
 }: ExcelImportModalProps) {
   const [step, setStep] = useState<'upload' | 'mapping' | 'settings' | 'importing' | 'result'>('upload');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -98,6 +100,12 @@ export function ExcelImportModal({
   // Settings
   const [categoryId, setCategoryId] = useState<string>('');
   const [defaultStock, setDefaultStock] = useState<number>(5);
+  
+  // Kategoriya qo'shish uchun
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [createCategoryLoading, setCreateCategoryLoading] = useState(false);
+  const [createCategoryError, setCreateCategoryError] = useState<string | null>(null);
   const [defaultMultiplier, setDefaultMultiplier] = useState<number | ''>('');
   
   // Tahrirlash uchun state
@@ -163,6 +171,67 @@ export function ExcelImportModal({
     if (hasCyrillic) return 'cyrillic';
     
     return 'unknown';
+  };
+
+  const handleCreateCategory = async () => {
+    const name = newCategoryName.trim();
+    if (!name) {
+      setCreateCategoryError('Kategoriya nomi kiritilishi shart');
+      return;
+    }
+
+    setCreateCategoryLoading(true);
+    setCreateCategoryError(null);
+
+    try {
+      const payload: any = {
+        name,
+        userId: userId,
+        parentId: null,
+        level: 0,
+      };
+
+      const res = await fetch(`${API_BASE_URL}/api/categories`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Kategoriya yaratishda xatolik');
+      }
+
+      const data = await res.json();
+      if (!data?.success || !data.category) {
+        throw new Error('Kategoriya yaratilmadi');
+      }
+
+      // Yangi kategoriyani parent komponentga yuborish
+      const newCategory = {
+        id: data.category.id,
+        name: data.category.name,
+      };
+      
+      if (onCategoryCreated) {
+        onCategoryCreated(newCategory);
+      }
+
+      // Yangi kategoriyani darhol tanlaymiz
+      setCategoryId(newCategory.id);
+
+      // Formani tozalaymiz
+      setIsCreatingCategory(false);
+      setNewCategoryName('');
+      setCreateCategoryError(null);
+    } catch (err) {
+      console.error('Error creating category:', err);
+      setCreateCategoryError(err instanceof Error ? err.message : 'Kategoriya yaratishda xatolik');
+    } finally {
+      setCreateCategoryLoading(false);
+    }
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -854,9 +923,73 @@ export function ExcelImportModal({
                 </div>
 
                 <div>
-                  <label className="block text-base font-medium text-foreground mb-3">
-                    Kategoriya
-                  </label>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-base font-medium text-foreground">
+                      Kategoriya
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCreatingCategory(true);
+                        setNewCategoryName('');
+                        setCreateCategoryError(null);
+                      }}
+                      className="px-3 py-1.5 text-sm rounded-lg bg-muted hover:bg-muted/80 text-foreground border border-border transition-colors flex items-center gap-1.5"
+                    >
+                      <span className="text-lg">+</span>
+                      Yangi kategoriya
+                    </button>
+                  </div>
+                  
+                  {/* Yangi kategoriya qo'shish formasi */}
+                  {isCreatingCategory && (
+                    <div className="mb-3 p-3 bg-muted/50 rounded-lg border border-border space-y-2">
+                      <input
+                        type="text"
+                        value={newCategoryName}
+                        onChange={(e) => {
+                          setNewCategoryName(e.target.value);
+                          setCreateCategoryError(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleCreateCategory();
+                          }
+                        }}
+                        placeholder="Kategoriya nomi"
+                        className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                        disabled={createCategoryLoading}
+                        autoFocus
+                      />
+                      {createCategoryError && (
+                        <p className="text-xs text-red-500">{createCategoryError}</p>
+                      )}
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsCreatingCategory(false);
+                            setNewCategoryName('');
+                            setCreateCategoryError(null);
+                          }}
+                          className="px-3 py-1.5 text-sm rounded-lg bg-muted hover:bg-muted/80 text-foreground border border-border transition-colors"
+                          disabled={createCategoryLoading}
+                        >
+                          Bekor qilish
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCreateCategory}
+                          className="px-3 py-1.5 text-sm rounded-lg bg-green-600 hover:bg-green-500 text-white transition-colors"
+                          disabled={createCategoryLoading || !newCategoryName.trim()}
+                        >
+                          {createCategoryLoading ? 'Saqlanmoqda...' : 'Saqlash'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  
                   <select
                     value={categoryId}
                     onChange={(e) => setCategoryId(e.target.value)}
