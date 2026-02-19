@@ -56,6 +56,7 @@ interface VariantSummary {
   name: string;
   sku?: string;
   customId?: string; // ✅ YANGI: Xil uchun Custom ID
+  barcodeId?: string; // ✅ YANGI: Excel dan kelgan barcode ID
   basePrice?: number;
   priceMultiplier?: number;
   price?: number;
@@ -75,6 +76,7 @@ interface Product {
   currency?: Currency;
   sku: string;
   customId?: string; // ✅ YANGI: Custom ID
+  barcodeId?: string; // ✅ YANGI: Excel dan kelgan barcode ID
   categoryId?: string | null;
   stock?: number | null;
   sizes?: string[];
@@ -1150,18 +1152,73 @@ export default function Products() {
       // Dinamik import - faqat kerak bo'lganda yuklanadi
       const XLSX = await import('xlsx');
 
-      // Kategoriya bo'yicha filtrlash
-      const productsToExport = selectedCategoryId
-        ? products.filter(p => p.categoryId === selectedCategoryId)
-        : products;
+      // Kategoriya bo'yicha filtrlash - SERVERDAN TO'G'RIDAN-TO'G'RI OLISH
+      let productsToExport: Product[] = [];
+      
+      if (selectedCategoryId) {
+        // Kategoriya tanlangan bo'lsa - serverdan faqat shu kategoriya mahsulotlarini olish
+        const params = new URLSearchParams({ 
+          userId: user!.id,
+          categoryId: selectedCategoryId 
+        });
+        if (user?.phone) {
+          params.append("userPhone", user.phone);
+        }
+        
+        const response = await fetch(`${API_BASE_URL}/api/products?${params}`);
+        if (!response.ok) {
+          toast.error('Mahsulotlarni yuklashda xatolik');
+          return;
+        }
+        
+        const data = await response.json();
+        let productsArray: any[] = [];
+        if (Array.isArray(data)) {
+          productsArray = data;
+        } else if (Array.isArray(data?.products)) {
+          productsArray = data.products;
+        }
+        
+        // Map _id to id for frontend compatibility
+        productsToExport = productsArray.map((p: any) => ({
+          ...p,
+          id: p.id || p._id,
+        }));
+      } else {
+        // Barcha mahsulotlar - serverdan barcha mahsulotlarni olish
+        const params = new URLSearchParams({ userId: user!.id });
+        if (user?.phone) {
+          params.append("userPhone", user.phone);
+        }
+        
+        const response = await fetch(`${API_BASE_URL}/api/products?${params}`);
+        if (!response.ok) {
+          toast.error('Mahsulotlarni yuklashda xatolik');
+          return;
+        }
+        
+        const data = await response.json();
+        let productsArray: any[] = [];
+        if (Array.isArray(data)) {
+          productsArray = data;
+        } else if (Array.isArray(data?.products)) {
+          productsArray = data.products;
+        }
+        
+        // Map _id to id for frontend compatibility
+        productsToExport = productsArray.map((p: any) => ({
+          ...p,
+          id: p.id || p._id,
+        }));
+      }
 
       if (productsToExport.length === 0) {
         toast.error('Bu kategoriyada mahsulotlar yo\'q');
         return;
       }
 
-      // MUHIM: Mahsulotlarni qanday ko'rsatilgan bo'lsa shunday export qilish
-      // sortProductsBySku ishlatmaymiz - products massivi allaqachon to'g'ri tartibda
+      // MUHIM: Mahsulotlarni SKU bo'yicha tartiblash - saytda qanday ko'rsatilgan bo'lsa shunday
+      productsToExport = sortProductsBySku(productsToExport);
 
       const categoryName = selectedCategoryId
         ? categories.find(c => c.id === selectedCategoryId)?.name || 'Noma\'lum'
@@ -1170,6 +1227,13 @@ export default function Products() {
       console.log('[handleExportToExcel] ========== EXPORT BOSHLANDI ==========');
       console.log('[handleExportToExcel] Kategoriya:', categoryName);
       console.log('[handleExportToExcel] Total products:', productsToExport.length);
+      
+      // DEBUG: Birinchi mahsulotni to'liq ko'rish
+      if (productsToExport.length > 0) {
+        console.log('[handleExportToExcel] First product FULL DATA:', productsToExport[0]);
+        console.log('[handleExportToExcel] First product customId:', productsToExport[0].customId);
+        console.log('[handleExportToExcel] First product barcodeId:', productsToExport[0].barcodeId);
+      }
 
       // Excel uchun ma'lumotlarni tayyorlash - BARCHA MA'LUMOTLAR BILAN
       const excelData: any[] = [];
@@ -1184,9 +1248,11 @@ export default function Products() {
         const summa = basePrice * stock; // Asl narx bilan summa
         const categoryName = categories.find(c => c.id === product.categoryId)?.name || '';
         
-        // Barcode ID - mahsulot ID ning oxirgi 8 belgisi
+        // Barcode ID - PRIORITY: Excel barcodeId → MongoDB ID (oxirgi 8 belgi)
         const productIdString = String(product.id);
-        const barcodeId = productIdString.slice(-8).toUpperCase();
+        const barcodeId = product.barcodeId || productIdString.slice(-8).toUpperCase();
+        
+        console.log('[Excel Export] Product:', product.name, '- barcodeId:', product.barcodeId, '- MongoDB ID:', productIdString, '- Final barcodeId:', barcodeId);
 
         // 1. Ota mahsulotni qo'shish - BARCHA MA'LUMOTLAR BILAN
         excelData.push({
@@ -1212,9 +1278,11 @@ export default function Products() {
             const variantMultiplier = variant.priceMultiplier || product.priceMultiplier || 0;
             const variantSumma = variantBasePrice * variantStock; // Asl narx bilan summa
             
-            // Xil uchun barcode ID - mahsulot ID + variant index
+            // Xil uchun barcode ID - PRIORITY: Excel barcodeId → MongoDB ID (oxirgi 8 belgi)
             const variantProductId = `${product.id}-v${variantIndex}`;
-            const variantBarcodeId = variantProductId.slice(-8).toUpperCase();
+            const variantBarcodeId = variant.barcodeId || variantProductId.slice(-8).toUpperCase();
+            
+            console.log('[Excel Export] Variant:', variant.name, '- barcodeId:', variant.barcodeId, '- MongoDB ID:', variantProductId, '- Final barcodeId:', variantBarcodeId);
 
             excelData.push({
               '№': rowNumber++,
@@ -7495,37 +7563,28 @@ export default function Products() {
               Bekor qilish
             </Button>
             
-            <div className="flex gap-2">
-              {/* ✨ YANGI: Hammasini yuklash tugmasi */}
-              <Button
-                onClick={() => {
-                  handleExportToExcel(undefined);
-                  setShowExportCategoryDialog(false);
-                  setSelectedExportCategory('');
-                }}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
-              >
-                📥 Hammasini yuklash
-              </Button>
-              
-              <Button
-                onClick={() => {
-                  if (!selectedExportCategory) {
-                    toast.error('Kategoriya tanlang');
-                    return;
-                  }
-                  handleExportToExcel(
-                    selectedExportCategory === 'all' ? undefined : selectedExportCategory
-                  );
-                  setShowExportCategoryDialog(false);
-                  setSelectedExportCategory('');
-                }}
-                disabled={!selectedExportCategory}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                📥 Yuklash
-              </Button>
-            </div>
+            <Button
+              onClick={() => {
+                if (!selectedExportCategory) {
+                  toast.error('Kategoriya tanlang');
+                  return;
+                }
+                
+                console.log('[Export Dialog] selectedExportCategory:', selectedExportCategory);
+                console.log('[Export Dialog] Is "all"?', selectedExportCategory === 'all');
+                
+                const categoryIdToExport = selectedExportCategory === 'all' ? undefined : selectedExportCategory;
+                console.log('[Export Dialog] categoryIdToExport:', categoryIdToExport);
+                
+                handleExportToExcel(categoryIdToExport);
+                setShowExportCategoryDialog(false);
+                setSelectedExportCategory('');
+              }}
+              disabled={!selectedExportCategory}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              📥 {selectedExportCategory === 'all' ? 'Hammasini yuklash' : 'Tanlangan kategoriyani yuklash'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

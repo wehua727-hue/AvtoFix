@@ -33,6 +33,7 @@ export const handleProductsGet: RequestHandler = async (req, res) => {
     // Фильтрация по userId если передан
     const userId = req.query.userId as string | undefined;
     const userPhone = req.query.userPhone as string | undefined;
+    const categoryId = req.query.categoryId as string | undefined; // ✅ YANGI: Kategoriya filtri
     // includeHidden=true bo'lsa, yashirin mahsulotlarni ham ko'rsatish (admin panel uchun)
     const includeHidden = req.query.includeHidden === 'true';
     
@@ -42,6 +43,7 @@ export const handleProductsGet: RequestHandler = async (req, res) => {
     
     console.log("[products] userId:", userId);
     console.log("[products] userPhone:", userPhone);
+    console.log("[products] categoryId:", categoryId); // ✅ YANGI
     console.log("[products] normalized:", normalizedUserPhone);
     console.log("[products] ADMIN_PHONE:", ADMIN_PHONE);
     console.log("[products] isAdmin:", isAdminPhone);
@@ -66,6 +68,23 @@ export const handleProductsGet: RequestHandler = async (req, res) => {
       // Обычные пользователи видят ТОЛЬКО свои товары
       console.log("[products] Regular user - showing only own products");
       filter = { userId: userId };
+    }
+    
+    // ✅ YANGI: Kategoriya bo'yicha filtrlash
+    if (categoryId) {
+      console.log("[products] Filtering by categoryId:", categoryId);
+      if (filter.$and) {
+        filter.$and.push({ categoryId: categoryId });
+      } else if (filter.$or) {
+        filter = {
+          $and: [
+            { $or: filter.$or },
+            { categoryId: categoryId }
+          ]
+        };
+      } else {
+        filter.categoryId = categoryId;
+      }
     }
     
     // Yashirin mahsulotlarni filtrlash (agar includeHidden=false bo'lsa)

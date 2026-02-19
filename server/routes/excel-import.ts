@@ -564,7 +564,8 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
             const variantCatalog = row.catalogNumber ? String(row.catalogNumber).trim() : '';
             
             // Variant uchun barcode ID
-            const variantBarcodeId = row.barcodeId || variantSku.slice(-8).toUpperCase();
+            // MUHIM: variantSku ishlatmaslik, chunki u qisqa raqamlar
+            const variantBarcodeId = row.barcodeId || ''; // Agar Excelda bo'lmasa, bo'sh qoldirish
             console.log('[Excel Import] Adding variant to existing product - Variant:', row.name, '- Excel barcodeId:', row.barcodeId, '- Final barcodeId:', variantBarcodeId);
             
             // Variant uchun kategoriya
@@ -670,7 +671,8 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
         const productCatalogNumber = mainRow.catalogNumber ? String(mainRow.catalogNumber).trim() : '';
         
         // Barcode ID - agar Excelda bo'lsa, ishlatish
-        const productBarcodeId = mainRow.barcodeId || productSku.slice(-8).toUpperCase();
+        // MUHIM: productSku ishlatmaslik, chunki u 1, 2, 3 kabi qisqa raqamlar
+        const productBarcodeId = mainRow.barcodeId || ''; // Agar Excelda bo'lmasa, bo'sh qoldirish
         console.log('[Excel Import] Product barcodeId:', productName, '- Excel barcodeId:', mainRow.barcodeId, '- Final barcodeId:', productBarcodeId);
         
         // Foiz - agar Excelda bo'lsa, ishlatish
@@ -750,7 +752,8 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
             const variantCatalogNumber = variantRow.catalogNumber ? String(variantRow.catalogNumber).trim() : '';
             
             // Variant uchun barcode ID
-            const variantBarcodeId = variantRow.barcodeId || variantSku.slice(-8).toUpperCase();
+            // MUHIM: variantSku ishlatmaslik, chunki u qisqa raqamlar
+            const variantBarcodeId = variantRow.barcodeId || ''; // Agar Excelda bo'lmasa, bo'sh qoldirish
             console.log('[Excel Import] Variant barcodeId:', variantRow.name, '- Excel barcodeId:', variantRow.barcodeId, '- Final barcodeId:', variantBarcodeId);
             
             // Variant uchun kategoriya
