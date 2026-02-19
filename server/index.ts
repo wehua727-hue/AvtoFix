@@ -15,6 +15,7 @@ import { handleCurrencyUsd, handleCurrencyRub, handleCurrencyCny, handleCurrency
 import { handleLogin, handleVerifyToken, handleLoginAs } from "./routes/auth";
 import { handleUsersGet, handleUserCreate, handleUserUpdate, handleUserDelete } from "./routes/users";
 import { handleCustomersGet, handleCustomerCreate, handleCustomerUpdate, handleCustomerDelete, handleBirthdayNotifications, handleTopCustomers } from "./routes/customers";
+import { handleCustomerDataGet, handleCustomerDataCreate, handleCustomerDataUpdate, handleCustomerDataDelete } from "./routes/customer-data";
 import { handleOrdersGet, handleOrderCreate, handleFrequentCustomers, handleAutoPromoteCustomers } from "./routes/orders";
 import { handleDebtsGet, handleDebtCreate, handleDebtUpdate, handleDebtMarkAsPaid, handleDebtMarkAsUnpaid, handleDebtAdjust, handleDebtDelete, handleDebtHistoryGet, handleBlacklistGet, handleBlacklistCheck } from "./routes/debts";
 import { handleCashRegisterGet, handleCurrentCheckGet, handleCurrentCheckSave, handlePendingCheckCreate, handleCheckComplete, handlePendingCheckRestore, handleCheckDelete } from "./routes/cash-register";
@@ -55,7 +56,7 @@ export async function createServer() {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-user-id'],
     optionsSuccessStatus: 200
   };
 
@@ -159,6 +160,12 @@ export async function createServer() {
   app.delete("/api/customers/:id", handleCustomerDelete);
   app.get("/api/customers/birthdays/notifications", handleBirthdayNotifications);
   app.get("/api/customers/top", handleTopCustomers);
+
+  // CUSTOMER DATA ENDPOINTS (Mijoz Datalari)
+  app.get("/api/customer-data", handleCustomerDataGet);
+  app.post("/api/customer-data", handleCustomerDataCreate);
+  app.put("/api/customer-data/:id", handleCustomerDataUpdate);
+  app.delete("/api/customer-data/:id", handleCustomerDataDelete);
 
   // ORDERS ENDPOINTS
   app.get("/api/orders", handleOrdersGet);

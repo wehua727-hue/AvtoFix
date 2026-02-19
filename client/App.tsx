@@ -30,6 +30,7 @@ import Users from "./pages/Users";
 import Xodimlar from "./pages/Xodimlar";
 import Debts from "./pages/Debts";
 import Customers from "./pages/Customers";
+import CustomerData from "./pages/CustomerData";
 import OfflineProducts from "./pages/OfflineProducts";
 import TelegramSetup from "./pages/TelegramSetup";
 import Kassa from "./pages/Kassa";
@@ -92,6 +93,7 @@ const AppWithAuth = () => {
                 <Route path="/xodimlar" element={<ProtectedRoute><Xodimlar /></ProtectedRoute>} />
                 <Route path="/debts" element={<ProtectedRoute><Debts /></ProtectedRoute>} />
                 <Route path="/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
+                <Route path="/customer-data" element={<ProtectedRoute><CustomerData /></ProtectedRoute>} />
                 <Route path="/offline-products" element={<ProtectedRoute><OfflineProducts /></ProtectedRoute>} />
                 <Route path="/kassa" element={<ProtectedRoute><Kassa /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />

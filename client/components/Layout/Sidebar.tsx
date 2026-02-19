@@ -54,6 +54,7 @@ export default function Sidebar({
   const isXodimlarActive = pathname.startsWith('/xodimlar');
   const isDebtsActive = pathname.startsWith('/debts');
   const isCustomersActive = pathname.startsWith('/customers');
+  const isCustomerDataActive = pathname.startsWith('/customer-data'); // Yangi
   const isCashRegisterActive = pathname === '/' || pathname.startsWith('/kassa');
 
   // notify parent on mount and whenever collapsed changes
@@ -321,6 +322,34 @@ export default function Sidebar({
             {!collapsed && (
               <span className="font-semibold text-sm sm:text-base whitespace-nowrap">
                 Mijozlar
+              </span>
+            )}
+          </button>
+
+          {/* Customer Data Button - YANGI */}
+          <button
+            onClick={() => {
+              navigate('/customer-data');
+              if (!collapsed) onClose();
+            }}
+            className={`flex items-center gap-3 px-3 sm:px-4 py-3 sm:py-4 rounded-lg transition-all group ${
+              collapsed ? 'justify-center px-2 sm:px-3' : ''
+            } ${
+              isCustomerDataActive
+                ? 'bg-red-600 text-white shadow-lg shadow-red-900/30'
+                : 'bg-gray-900/30 hover:bg-gray-900/50 text-gray-300 hover:text-white border border-transparent hover:border-gray-700/50'
+            }`}
+            title="Mijoz Datalari"
+          >
+            <svg className={`w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0 transition ${isCustomerDataActive ? 'text-white' : 'text-gray-400 group-hover:text-white'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+            {!collapsed && (
+              <span className="font-semibold text-sm sm:text-base whitespace-nowrap">
+                Mijoz Datalari
               </span>
             )}
           </button>

@@ -20,6 +20,7 @@ const pageNames: Record<string, string> = {
   '/users': 'Foydalanuvchilar',
   '/debts': 'Qarzlar',
   '/customers': 'Mijozlar',
+  '/customer-data': 'Mijoz Datalari',
   '/stores': 'Magazinlar',
   '/kassa': 'Kassa',
 };

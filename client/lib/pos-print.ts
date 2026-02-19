@@ -1163,6 +1163,13 @@ export interface LabelData {
  * Build ESC/POS label data for Xprinter and similar thermal label printers
  * Qog'oz o'lchamiga moslashtirilgan
  * Senik razmeri (katta/kichik) qo'llab-quvvatlanadi
+ * 
+ * STANDARD FONT SIZES:
+ * - Barcha senik chiqarish usullari uchun bir xil shrift o'lchamlari ishlatiladi
+ * - Ommaviy senik, product card va product detail dan chiqarilgan seniklar bir xil ko'rinishda bo'ladi
+ * - Font: ESC ! 0x00 (normal size) - STANDARD
+ * - Barcode height: 50 (STANDARD)
+ * - Barcode width: 2 (STANDARD)
  */
 function buildLabelData(label: LabelData): Uint8Array {
   const encoder = new TextEncoder();
@@ -1206,7 +1213,13 @@ function buildLabelData(label: LabelData): Uint8Array {
   // Center alignment
   addBytes(ESCPOS.ALIGN_CENTER);
 
-  // Product name with price - bold and smaller font
+  // Font size - STANDARD for all labels (medium size)
+  // ESC ! n - where n controls font size
+  // 0x00 = normal, 0x10 = double height, 0x20 = double width, 0x30 = double size
+  // We use 0x00 (normal) for consistent font across all label printing methods
+  addBytes([ESC, 0x21, 0x00]); // Normal font size - STANDARD
+
+  // Product name with price - bold
   addBytes(ESCPOS.BOLD_ON);
   
   // Mahsulot nomi va narxini bir qatorda ko'rsatish (qavs ichida)
@@ -1226,12 +1239,12 @@ function buildLabelData(label: LabelData): Uint8Array {
 
   // Barcode
   if (label.barcode) {
-    // Barcode balandligi - razmerga qarab
-    const barcodeHeight = sizeConfig?.barcodeHeight || (isLarge ? 50 : isMedium ? 40 : 30);
+    // Barcode balandligi - STANDARD (50 for consistency)
+    const barcodeHeight = sizeConfig?.barcodeHeight || 50;
     addBytes([GS, 0x68, barcodeHeight]);
     
-    // Barcode kengligi - razmerga qarab
-    const barcodeWidth = sizeConfig?.barcodeWidth || (isLarge ? 2 : 1);
+    // Barcode kengligi - STANDARD (2 for consistency)
+    const barcodeWidth = sizeConfig?.barcodeWidth || 2;
     addBytes([GS, 0x77, barcodeWidth]);
     
     // Print barcode text below
@@ -1263,6 +1276,8 @@ function buildLabelData(label: LabelData): Uint8Array {
 
   // SKU/Kod - har doim ko'rsatish (agar mavjud bo'lsa)
   if (label.sku) {
+    // Normal font size for SKU
+    addBytes([ESC, 0x21, 0x00]); // STANDARD font
     addBytes(ESCPOS.BOLD_ON);
     addText('Kod: ');
     addBytes(ESCPOS.BOLD_OFF);
@@ -1271,6 +1286,8 @@ function buildLabelData(label: LabelData): Uint8Array {
   
   // Ombordagi soni - har doim ko'rsatish (agar mavjud bo'lsa)
   if (label.stock !== undefined) {
+    // Normal font size for stock
+    addBytes([ESC, 0x21, 0x00]); // STANDARD font
     addLine(`Ombor: ${label.stock} dona`);
   }
 
@@ -1429,14 +1446,15 @@ export function printLabelViaBrowser(label: LabelData): boolean {
   const paperWidth = label.paperWidth || (label.labelSize ? LABEL_SIZE_CONFIGS[label.labelSize].width : 60);
   const paperHeight = label.paperHeight || (label.labelSize ? LABEL_SIZE_CONFIGS[label.labelSize].height : 40);
   
-  // Font o'lchamlari - ommaviy senik kabi kattaroq
-  const nameFontSize = paperWidth >= 60 ? '14px' : paperWidth >= 50 ? '12px' : '11px';
-  const priceFontSize = paperWidth >= 60 ? '16px' : paperWidth >= 50 ? '14px' : '13px';
-  const smallFontSize = paperWidth >= 60 ? '10px' : '9px';
+  // STANDARD font o'lchamlari - barcha senik chiqarish usullari uchun bir xil
+  // Bu o'lchamlar ommaviy senik, product card va product detail dan chiqarilgan seniklar uchun bir xil
+  const nameFontSize = '14px';  // STANDARD - mahsulot nomi
+  const priceFontSize = '16px'; // STANDARD - narx
+  const smallFontSize = '10px'; // STANDARD - SKU va kod
   
-  // Barcode o'lchamlari - kattaroq, scanner o'qishi oson
-  const barcodeHeight = paperWidth >= 60 ? 55 : paperWidth >= 50 ? 50 : 45;
-  const barcodeWidth = paperWidth >= 60 ? 1.2 : paperWidth >= 50 ? 1.0 : 0.8;
+  // STANDARD barcode o'lchamlari - barcha usullar uchun bir xil
+  const barcodeHeight = 55;
+  const barcodeWidth = 1.2;
   
   // Barcode qiymati - to'g'ridan-to'g'ri barcode yoki SKU
   // CODE128 format har qanday belgilarni qo'llab-quvvatlaydi
@@ -1624,9 +1642,9 @@ export function printBulkLabelsViaBrowser(labels: LabelData[]): boolean {
   const paperWidth = firstLabel.paperWidth || (firstLabel.labelSize ? LABEL_SIZE_CONFIGS[firstLabel.labelSize].width : 60);
   const paperHeight = firstLabel.paperHeight || (firstLabel.labelSize ? LABEL_SIZE_CONFIGS[firstLabel.labelSize].height : 40);
   
-  // Font o'lchamlari (kichikroq)
-  const nameFontSize = paperWidth >= 60 ? '10px' : paperWidth >= 50 ? '9px' : '8px';
-  const priceFontSize = paperWidth >= 60 ? '14px' : paperWidth >= 50 ? '12px' : '11px';
+  // STANDARD font o'lchamlari - barcha senik chiqarish usullari uchun bir xil
+  const nameFontSize = '14px';  // STANDARD - mahsulot nomi
+  const priceFontSize = '16px'; // STANDARD - narx
   
   // Har bir label uchun HTML yaratish
   const labelsHtml = labels.map((label, index) => {
