@@ -3049,7 +3049,7 @@ export default function Products() {
               <Search className="w-4 h-4" />
               <span className="font-medium">Bo'sh kodlar</span>
             </button>
-            {/* Hammasini o'chirish - faqat ega uchun */}
+            {/* Hammasini o'chirish - faqat ega va admin uchun (xodim uchun emas) */}
             {(user?.role === 'egasi' || user?.role === 'owner' || user?.role === 'admin') && products.length > 0 && (
               <>
                 <span className="text-gray-600">|</span>

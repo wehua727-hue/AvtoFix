@@ -2199,19 +2199,16 @@ export const handleBulkCategoryUpdate: RequestHandler = async (req, res) => {
         updatedAt: new Date(),
       };
 
-      // Narxni qayta hisoblash
+      // Narxni qayta hisoblash - FAQAT basePrice mavjud bo'lsa
       if (product.basePrice) {
         // Agar basePrice mavjud bo'lsa, undan hisoblash
         const newPrice = product.basePrice * (1 + markupPercentage / 100);
         updateData.price = Math.round(newPrice);
-      } else if (product.price) {
-        // Agar basePrice yo'q bo'lsa, lekin price mavjud bo'lsa
-        // Hozirgi narxni basePrice sifatida ishlatib, yangi narx hisoblash
-        const currentPrice = product.price;
-        const newPrice = currentPrice * (1 + markupPercentage / 100);
-        updateData.price = Math.round(newPrice);
-        // basePrice ni ham saqlash (keyingi yangilanishlar uchun)
-        updateData.basePrice = currentPrice;
+        console.log('[Bulk Category Update] Product:', product.name, '- basePrice:', product.basePrice, '- newPrice:', Math.round(newPrice));
+      } else {
+        // Agar basePrice yo'q bo'lsa, narxni o'zgartirmaslik
+        // Faqat kategoriya va foizni yangilash
+        console.log('[Bulk Category Update] Product:', product.name, '- NO basePrice, price not changed');
       }
 
       // Xillar uchun ham yangilash
@@ -2219,27 +2216,21 @@ export const handleBulkCategoryUpdate: RequestHandler = async (req, res) => {
         updateData.variantSummaries = product.variantSummaries.map((v: any) => {
           const updatedVariant = {
             ...v,
-            // Xil uchun ham kategoriya yangilash
+            // Xil uchun ham kategoriya va foiz yangilash
             categoryId,
+            priceMultiplier: markupPercentage,
+            markupPercentage: markupPercentage,
+            markupPercent: markupPercentage,
           };
 
           if (v.basePrice) {
             // Agar variant basePrice mavjud bo'lsa, undan hisoblash
             const newVariantPrice = v.basePrice * (1 + markupPercentage / 100);
             updatedVariant.price = Math.round(newVariantPrice);
-            updatedVariant.priceMultiplier = markupPercentage;
-            updatedVariant.markupPercentage = markupPercentage;
-            updatedVariant.markupPercent = markupPercentage;
-          } else if (v.price) {
-            // Agar basePrice yo'q bo'lsa, lekin price mavjud bo'lsa
-            const currentVariantPrice = v.price;
-            const newVariantPrice = currentVariantPrice * (1 + markupPercentage / 100);
-            updatedVariant.price = Math.round(newVariantPrice);
-            updatedVariant.priceMultiplier = markupPercentage;
-            updatedVariant.markupPercentage = markupPercentage;
-            updatedVariant.markupPercent = markupPercentage;
-            // basePrice ni ham saqlash (keyingi yangilanishlar uchun)
-            updatedVariant.basePrice = currentVariantPrice;
+            console.log('[Bulk Category Update] Variant:', v.name, '- basePrice:', v.basePrice, '- newPrice:', Math.round(newVariantPrice));
+          } else {
+            // Agar basePrice yo'q bo'lsa, narxni o'zgartirmaslik
+            console.log('[Bulk Category Update] Variant:', v.name, '- NO basePrice, price not changed');
           }
 
           return updatedVariant;
