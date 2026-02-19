@@ -21,6 +21,8 @@ interface ColumnMapping {
   price: number;     // Narxi
   stock: number;     // Ombordagi soni
   category: number;  // Kategoriya
+  barcodeId: number; // Barcode ID
+  multiplier: number; // Foiz (%)
 }
 
 interface PreviewData {
@@ -63,6 +65,8 @@ const COLUMN_LABELS: Record<keyof ColumnMapping, string> = {
   price: 'Narxi',
   stock: 'Ombordagi soni',
   category: 'Kategoriya',
+  barcodeId: 'Barcode ID',
+  multiplier: 'Foiz (%)',
 };
 
 export function ExcelImportModal({ 
@@ -95,11 +99,14 @@ export function ExcelImportModal({
     price: -1,
     stock: -1,
     category: -1,
+    barcodeId: -1,
+    multiplier: -1,
   });
   
   // Settings
   const [categoryId, setCategoryId] = useState<string>('');
   const [defaultStock, setDefaultStock] = useState<number>(5);
+  const [deleteAllBeforeImport, setDeleteAllBeforeImport] = useState<boolean>(false); // Yangi: barcha mahsulotlarni o'chirish
   
   // Kategoriya qo'shish uchun
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
@@ -547,6 +554,7 @@ export function ExcelImportModal({
           defaultMultiplier: defaultMultiplier || 30, // Default 30 if empty
           defaultCurrency: 'USD',
           defaultStatus: 'available',
+          deleteAllBeforeImport, // Barcha mahsulotlarni o'chirish flag
         }),
       });
 
@@ -593,6 +601,7 @@ export function ExcelImportModal({
     setCategoryId('');
     setDefaultStock(5);
     setDefaultMultiplier('');
+    setDeleteAllBeforeImport(false); // Reset checkbox
     setEditedData([]); // Tahrirlangan ma'lumotlarni tozalash
     setEditingCell(null); // Tahrirlash holatini tozalash
     setBulkStockValue(''); // Bulk stock value ni tozalash
@@ -605,6 +614,8 @@ export function ExcelImportModal({
       price: -1,
       stock: -1,
       category: -1,
+      barcodeId: -1,
+      multiplier: -1,
     });
     onClose();
   };
@@ -1015,6 +1026,29 @@ export function ExcelImportModal({
                     max={100}
                     className="w-full px-4 py-3 rounded-xl bg-muted border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-green-500/50"
                   />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Agar Excel da "Фоиз (%)" ustuni bo'lmasa, bu qiymat ishlatiladi
+                  </p>
+                </div>
+
+                {/* Barcha mahsulotlarni o'chirish checkbox */}
+                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={deleteAllBeforeImport}
+                      onChange={(e) => setDeleteAllBeforeImport(e.target.checked)}
+                      className="mt-1 w-5 h-5 rounded border-red-500/50 text-red-600 focus:ring-red-500/50"
+                    />
+                    <div>
+                      <p className="text-base font-medium text-red-400">
+                        Barcha mahsulotlarni o'chirib, yangi import qilish
+                      </p>
+                      <p className="text-sm text-red-300/70 mt-1">
+                        ⚠️ Diqqat: Bu barcha mavjud mahsulotlarni o'chiradi va Excel dan yangi mahsulotlarni qo'shadi
+                      </p>
+                    </div>
+                  </label>
                 </div>
 
                 <div className="flex gap-4">

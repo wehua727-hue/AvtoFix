@@ -37,6 +37,7 @@ interface Product {
   code?: string; // Excel dan kelgan kod
   catalogNumber?: string; // Excel dan kelgan katalog
   customId?: string; // ✅ YANGI: Qo'lda kiritilgan ID
+  barcodeId?: string; // ✅ YANGI: Barcode ID
   stock: number;
   price: number;
   basePrice?: number;
@@ -64,6 +65,8 @@ interface VariantSummary {
   sku?: string;
   code?: string; // Excel dan kelgan kod
   catalogNumber?: string; // Excel dan kelgan katalog
+  customId?: string; // ✅ YANGI: Custom ID
+  barcodeId?: string; // ✅ YANGI: Barcode ID
   basePrice?: number;
   priceMultiplier?: number;
   price?: number;
@@ -216,7 +219,7 @@ export default function ProductDetail() {
   
   // Senik chop etish state'lari
   const [labelDialogOpen, setLabelDialogOpen] = useState(false);
-  const [labelDialogProduct, setLabelDialogProduct] = useState<{ name: string; price: number; sku: string; stock: number; productId: string } | null>(null);
+  const [labelDialogProduct, setLabelDialogProduct] = useState<{ name: string; price: number; sku: string; stock: number; productId: string; code?: string; barcodeId?: string } | null>(null);
   const [labelQuantity, setLabelQuantity] = useState<number | null>(null);
   const [labelSize, setLabelSize] = useState<LabelSize>('large');
   const [customLabelWidth, setCustomLabelWidth] = useState<number>(DEFAULT_LABEL_WIDTH);
@@ -354,6 +357,8 @@ export default function ProductDetail() {
                 sku: typeof v.sku === 'string' ? v.sku : (v.sku != null ? String(v.sku) : undefined),
                 code: typeof v.code === 'string' ? v.code : (v.code != null ? String(v.code) : undefined), // Excel dan kelgan kod
                 catalogNumber: typeof v.catalogNumber === 'string' ? v.catalogNumber : (v.catalogNumber != null ? String(v.catalogNumber) : undefined), // Katalog raqami
+                customId: typeof v.customId === 'string' ? v.customId : (v.customId != null ? String(v.customId) : undefined), // ✅ YANGI: Custom ID
+                barcodeId: typeof v.barcodeId === 'string' ? v.barcodeId : (v.barcodeId != null ? String(v.barcodeId) : undefined), // ✅ YANGI: Barcode ID
                 basePrice: parsedBasePrice != null && !isNaN(parsedBasePrice) ? parsedBasePrice : undefined,
                 priceMultiplier: parsedPriceMultiplier != null && !isNaN(parsedPriceMultiplier) ? parsedPriceMultiplier : undefined,
                 price: parsedPrice != null && !isNaN(parsedPrice) ? parsedPrice : undefined,
@@ -440,6 +445,8 @@ export default function ProductDetail() {
             name: p.name,
             code: (p as any).code ?? "", // Excel dan kelgan kod
             catalogNumber: (p as any).catalogNumber ?? "", // Excel dan kelgan katalog
+            customId: (p as any).customId ?? "", // ✅ YANGI: Custom ID
+            barcodeId: (p as any).barcodeId ?? "", // ✅ YANGI: Barcode ID
             stock: !isNaN(parsedStock) ? parsedStock : 0,
             price: !isNaN(parsedPrice) ? parsedPrice : 0,
             basePrice: parsedBasePrice != null && !isNaN(parsedBasePrice) ? parsedBasePrice : undefined,
@@ -506,6 +513,8 @@ export default function ProductDetail() {
                 sku: typeof v.sku === 'string' ? v.sku : (v.sku != null ? String(v.sku) : undefined),
                 code: typeof v.code === 'string' ? v.code : (v.code != null ? String(v.code) : undefined), // Excel dan kelgan kod
                 catalogNumber: typeof v.catalogNumber === 'string' ? v.catalogNumber : (v.catalogNumber != null ? String(v.catalogNumber) : undefined),
+                customId: typeof v.customId === 'string' ? v.customId : (v.customId != null ? String(v.customId) : undefined), // ✅ YANGI: Custom ID
+                barcodeId: typeof v.barcodeId === 'string' ? v.barcodeId : (v.barcodeId != null ? String(v.barcodeId) : undefined), // ✅ YANGI: Barcode ID
                 basePrice: v.basePrice != null ? Number(v.basePrice) : undefined,
                 priceMultiplier: v.priceMultiplier != null ? Number(v.priceMultiplier) : undefined,
                 price: v.price != null ? Number(v.price) : undefined,
@@ -860,6 +869,9 @@ export default function ProductDetail() {
                             // Senik uchun faqat xilning o'z nomi
                             // 5 talik kod olish - MUHIM: code -> catalogNumber -> sku tartibida
                             const variantCode = (variant as any).code || (variant as any).catalogNumber || variant.sku || '';
+                            const variantBarcodeId = (variant as any).barcodeId;
+                            
+                            console.log('[ProductDetail] Variant label - variant:', variant.name, 'barcodeId:', variantBarcodeId, 'customId:', (variant as any).customId);
                             
                             setLabelDialogProduct({
                               name: variant.name,
@@ -868,6 +880,7 @@ export default function ProductDetail() {
                               stock: variant.stock ?? product.stock ?? 0,
                               productId: `${product.id}-v${idx}`,
                               code: variantCode, // 5 talik kod qo'shamiz
+                              barcodeId: variantBarcodeId, // Barcode ID qo'shamiz
                               customId: (variant as any).customId || undefined // ✅ YANGI: Xil uchun Custom ID
                             } as any);
                             setLabelQuantity(null);
@@ -1138,12 +1151,15 @@ export default function ProductDetail() {
                         // 5 talik kod olish - MUHIM: code -> catalogNumber -> sku tartibida
                         let displayCode = '';
                         let displayCustomId = '';
+                        let displayBarcodeId = '';
                         if (selectedVariant) {
                           displayCode = (selectedVariant as any).code || (selectedVariant as any).catalogNumber || selectedVariant.sku || '';
                           displayCustomId = (selectedVariant as any).customId || ''; // ✅ YANGI: Xil uchun Custom ID
+                          displayBarcodeId = (selectedVariant as any).barcodeId || ''; // Barcode ID
                         } else {
                           displayCode = (product as any).code || (product as any).catalogNumber || product.sku || '';
                           displayCustomId = (product as any).customId || ''; // ✅ YANGI: Mahsulot uchun Custom ID
+                          displayBarcodeId = (product as any).barcodeId || ''; // Barcode ID
                         }
                         
                         // Agar xil tanlangan bo'lsa, uning indexini topamiz
@@ -1164,6 +1180,7 @@ export default function ProductDetail() {
                           stock: displayStock,
                           productId: displayId,
                           code: displayCode, // 5 talik kod qo'shamiz
+                          barcodeId: displayBarcodeId, // Barcode ID qo'shamiz
                           customId: displayCustomId || undefined // ✅ YANGI: Custom ID
                         } as any);
                         setLabelQuantity(null);
@@ -2064,11 +2081,17 @@ export default function ProductDetail() {
                   
                   setIsLabelPrinting(true);
                   try {
-                    // ✅ YANGI: Avval customId ni tekshirish, keyin MongoDB ID
+                    // ✅ BIRINCHI: Excel'dan kelgan barcodeId ni tekshirish
+                    // ✅ IKKINCHI: customId ni tekshirish
+                    // ✅ UCHINCHI: MongoDB ID dan barcode yaratish
                     let barcode: string;
                     let barcodeId: string; // Barcode ostida ko'rsatiladigan ID
                     
-                    if ((labelDialogProduct as any).customId) {
+                    if ((labelDialogProduct as any).barcodeId) {
+                      // Excel'dan kelgan barcodeId mavjud - uni ishlatamiz
+                      barcode = (labelDialogProduct as any).barcodeId.toUpperCase();
+                      barcodeId = barcode;
+                    } else if ((labelDialogProduct as any).customId) {
                       // Custom ID mavjud - uni ishlatamiz
                       barcode = (labelDialogProduct as any).customId.toUpperCase();
                       barcodeId = barcode; // Barcode ostida ham customId ko'rsatiladi

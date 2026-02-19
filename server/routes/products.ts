@@ -172,8 +172,9 @@ export const handleProductsGet: RequestHandler = async (req, res) => {
             // MUHIM: Xil uchun initialStock - faqat serverdan kelgan qiymat
             initialStock: v.initialStock, // Fallback yo'q
             currency: v.currency || productCurrency,
-            // ✅ CRITICAL: Explicitly include customId
+            // ✅ CRITICAL: Explicitly include customId and barcodeId
             customId: v.customId,
+            barcodeId: v.barcodeId,
           };
         });
       }
@@ -264,8 +265,9 @@ export const handleProductGetById: RequestHandler = async (req, res) => {
           // MUHIM: Xil uchun initialStock - faqat serverdan kelgan qiymat
           initialStock: v.initialStock, // Fallback yo'q
           currency: v.currency || productCurrency,
-          // ✅ CRITICAL: Explicitly include customId
+          // ✅ CRITICAL: Explicitly include customId and barcodeId
           customId: v.customId,
+          barcodeId: v.barcodeId,
         };
       });
     }
@@ -1209,8 +1211,9 @@ export const handleProductUpdate: RequestHandler = async (req, res) => {
           stock: v.stock ?? 0,
           initialStock: v.initialStock, // No fallback for variants
           currency: v.currency || productCurrency,
-          // ✅ CRITICAL: Explicitly include customId in response
+          // ✅ CRITICAL: Explicitly include customId and barcodeId in response
           customId: v.customId,
+          barcodeId: v.barcodeId,
         };
       });
     }

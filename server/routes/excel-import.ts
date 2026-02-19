@@ -29,6 +29,8 @@ interface ColumnMapping {
   price: number;     // Narxi
   stock: number;     // Ombordagi soni
   category: number;  // Kategoriya
+  barcodeId: number; // Barcode ID
+  multiplier: number; // Foiz (%)
 }
 
 // Sarlavha kalit so'zlari
@@ -39,6 +41,8 @@ const HEADER_KEYWORDS = {
   price: ['цена', 'narx', 'price', 'стоимость', 'сумма', 'итого'],
   stock: ['кол-во', 'количество', 'к-во', 'soni', 'stock', 'qty', 'остаток', 'шт'],
   category: ['категория', 'группа', 'category', 'guruh'],
+  barcodeId: ['barcode id', 'barcode', 'штрих-код', 'штрихкод'],
+  multiplier: ['фоиз', 'foiz', '%', 'процент', 'markup', 'наценка'],
 };
 
 // Sarlavha qatorini topish va ustunlarni avtomatik aniqlash
@@ -52,6 +56,8 @@ function detectHeaderAndColumns(rawData: any[]): { headerRowIndex: number; heade
     price: -1,
     stock: -1,
     category: -1,
+    barcodeId: -1,
+    multiplier: -1,
   };
 
   // Birinchi 10 qatordan sarlavha qatorini qidirish
@@ -154,7 +160,8 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
       defaultStock = 5,
       defaultMultiplier = 25,
       defaultCurrency = 'USD',
-      defaultStatus = 'available'
+      defaultStatus = 'available',
+      deleteAllBeforeImport = false // Yangi - barcha mahsulotlarni o'chirish
     } = req.body;
 
     if (!fileData) {
@@ -169,9 +176,57 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
     console.log('[Excel Import] User column mapping:', userMapping);
     console.log('[Excel Import] defaultMultiplier:', defaultMultiplier, '% (multiplier:', defaultMultiplier / 100, ')');
     console.log('[Excel Import] Has edited data:', !!editedData);
+    console.log('[Excel Import] Delete all before import:', deleteAllBeforeImport);
+
+    // Agar deleteAllBeforeImport true bo'lsa - barcha mahsulotlarni o'chirish
+    if (deleteAllBeforeImport) {
+      const collection = db.collection(PRODUCTS_COLLECTION);
+      const deleteResult = await collection.deleteMany({ userId });
+      console.log('[Excel Import] Deleted all products:', deleteResult.deletedCount);
+      
+      // Tarixga saqlash
+      try {
+        const historyCollection = db.collection('product_history');
+        await historyCollection.insertOne({
+          userId: userId,
+          type: 'bulk_delete',
+          message: `Excel import uchun barcha mahsulotlar o'chirildi: ${deleteResult.deletedCount} ta`,
+          deletedCount: deleteResult.deletedCount,
+          timestamp: new Date(),
+          createdAt: new Date(),
+          source: 'excel-import',
+        });
+      } catch (historyErr) {
+        console.error('[Excel Import] History save error for bulk delete:', historyErr);
+      }
+      
+      // WebSocket xabar
+      if (userId) {
+        wsManager.broadcastToUser(userId, {
+          type: 'products-bulk-delete',
+          deletedCount: deleteResult.deletedCount,
+          timestamp: Date.now(),
+        });
+      }
+    }
 
     let rawData: any[] = [];
     let headerRowIndex = -1;
+
+    // Kategoriyalarni olish - nom bo'yicha moslashtirish uchun
+    const categoriesCollection = db.collection('categories');
+    const allCategories = await categoriesCollection.find({ userId }).toArray();
+    console.log('[Excel Import] Loaded categories:', allCategories.length);
+    
+    // Kategoriya nomini ID ga moslashtirish funksiyasi
+    const findCategoryByName = (categoryName: string): string | undefined => {
+      if (!categoryName) return undefined;
+      const nameLower = categoryName.toLowerCase().trim();
+      const found = allCategories.find(cat => 
+        (cat.name || '').toLowerCase().trim() === nameLower
+      );
+      return found?._id?.toString();
+    };
 
     // Agar tahrirlangan ma'lumotlar bo'lsa, ularni ishlatish
     if (editedData && Array.isArray(editedData) && editedData.length > 0) {
@@ -218,6 +273,8 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
       price: number;
       stock: number;
       category: string;
+      barcodeId: string; // Yangi
+      multiplier: number; // Yangi
     }
     
     const rows: ParsedRow[] = [];
@@ -236,6 +293,8 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
       let price = 0;
       let stock = defaultStock;
       let category = '';
+      let barcodeId = ''; // Yangi
+      let multiplierValue = defaultMultiplier; // Yangi - default foiz
       
       // Nom
       if (columnMap.name >= 0 && row[columnMap.name]) {
@@ -257,6 +316,23 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
       // Kategoriya
       if (columnMap.category >= 0 && row[columnMap.category]) {
         category = String(row[columnMap.category]).trim();
+      }
+      
+      // Barcode ID - Yangi
+      if (columnMap.barcodeId >= 0 && row[columnMap.barcodeId]) {
+        barcodeId = String(row[columnMap.barcodeId]).trim().toUpperCase();
+        console.log('[Excel Import] Row', i, '- barcodeId column:', columnMap.barcodeId, ', parsed barcodeId:', barcodeId);
+      } else {
+        console.log('[Excel Import] Row', i, '- barcodeId column:', columnMap.barcodeId, ', NO barcodeId in Excel');
+      }
+      
+      // Foiz (%) - Yangi
+      if (columnMap.multiplier >= 0 && row[columnMap.multiplier] !== undefined && row[columnMap.multiplier] !== null) {
+        const parsed = parseFloat(String(row[columnMap.multiplier]).replace(/[^0-9.]/g, ''));
+        if (!isNaN(parsed) && parsed >= 0) {
+          multiplierValue = parsed;
+        }
+        console.log('[Excel Import] Row', i, '- multiplier column:', columnMap.multiplier, ', parsed multiplier:', multiplierValue);
       }
       
       // Soni
@@ -297,7 +373,7 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
         continue;
       }
       
-      rows.push({ name, code, catalogNumber, price, stock, category });
+      rows.push({ name, code, catalogNumber, price, stock, category, barcodeId, multiplier: multiplierValue });
     }
 
     if (rows.length === 0) {
@@ -471,8 +547,13 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
             }
             
             const variantBasePrice = row.price || 0;
+            
+            // Variant uchun foiz - agar Excelda bo'lsa, ishlatish
+            const variantMultiplier = row.multiplier || defaultMultiplier;
+            const variantMultiplierDecimal = variantMultiplier / 100;
+            
             const variantSellingPrice = variantBasePrice > 0 
-              ? Math.round((variantBasePrice * (1 + multiplier)) * 100) / 100 
+              ? Math.round((variantBasePrice * (1 + variantMultiplierDecimal)) * 100) / 100 
               : 0;
             
             const variantStock = row.stock !== undefined && row.stock !== null ? row.stock : defaultStock;
@@ -481,6 +562,19 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
             
             const variantCode = row.code ? String(row.code).trim() : '';
             const variantCatalog = row.catalogNumber ? String(row.catalogNumber).trim() : '';
+            
+            // Variant uchun barcode ID
+            const variantBarcodeId = row.barcodeId || variantSku.slice(-8).toUpperCase();
+            console.log('[Excel Import] Adding variant to existing product - Variant:', row.name, '- Excel barcodeId:', row.barcodeId, '- Final barcodeId:', variantBarcodeId);
+            
+            // Variant uchun kategoriya
+            let variantCategoryId = categoryId;
+            if (row.category) {
+              const foundCategoryId = findCategoryByName(row.category);
+              if (foundCategoryId) {
+                variantCategoryId = foundCategoryId;
+              }
+            }
             
             // Mavjud mahsulotga variant qo'shish
             await collection.updateOne(
@@ -492,17 +586,18 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
                     sku: variantSku,
                     code: variantCode || null,
                     catalogNumber: variantCatalog || null,
+                    barcodeId: variantBarcodeId,
                     basePrice: variantBasePrice,
                     originalPrice: variantBasePrice,
-                    priceMultiplier: defaultMultiplier,
-                    markupPercent: defaultMultiplier,
+                    priceMultiplier: variantMultiplier,
+                    markupPercent: variantMultiplier,
                     price: variantSellingPrice,
                     currency: defaultCurrency,
                     stock: variantStock,
                     stockCount: variantStock,
                     initialStock: variantStock,
                     status: defaultStatus,
-                    categoryId: categoryId || undefined, // Mahsulot bilan bir xil kategoriya
+                    categoryId: variantCategoryId,
                     description: row.category || '',
                   }
                 }
@@ -574,13 +669,31 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
         const productCode = mainRow.code ? String(mainRow.code).trim() : '';
         const productCatalogNumber = mainRow.catalogNumber ? String(mainRow.catalogNumber).trim() : '';
         
-        console.log('[Excel Import] Creating new product:', productName, '- code:', productCode, '- catalogNumber:', productCatalogNumber);
+        // Barcode ID - agar Excelda bo'lsa, ishlatish
+        const productBarcodeId = mainRow.barcodeId || productSku.slice(-8).toUpperCase();
+        console.log('[Excel Import] Product barcodeId:', productName, '- Excel barcodeId:', mainRow.barcodeId, '- Final barcodeId:', productBarcodeId);
+        
+        // Foiz - agar Excelda bo'lsa, ishlatish
+        const productMultiplier = mainRow.multiplier || defaultMultiplier;
+        const productMultiplierDecimal = productMultiplier / 100;
+        
+        // Kategoriya - agar Excelda nom bo'lsa, ID topish
+        let productCategoryId = categoryId; // Default kategoriya
+        if (mainRow.category) {
+          const foundCategoryId = findCategoryByName(mainRow.category);
+          if (foundCategoryId) {
+            productCategoryId = foundCategoryId;
+            console.log('[Excel Import] Matched category:', mainRow.category, '-> ID:', foundCategoryId);
+          }
+        }
+        
+        console.log('[Excel Import] Creating new product:', productName, '- code:', productCode, '- catalogNumber:', productCatalogNumber, '- barcodeId:', productBarcodeId, '- multiplier:', productMultiplier, '%');
         
         const productStock = mainRow.stock !== undefined && mainRow.stock !== null ? mainRow.stock : defaultStock;
         
         const basePrice = mainRow.price || 0;
         const sellingPrice = basePrice > 0 
-          ? Math.round((basePrice * (1 + multiplier)) * 100) / 100 
+          ? Math.round((basePrice * (1 + productMultiplierDecimal)) * 100) / 100 
           : 0;
         
         // Xillarni yaratish
@@ -619,8 +732,13 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
             }
             
             const variantBasePrice = variantRow.price || basePrice;
+            
+            // Variant uchun foiz - agar Excelda bo'lsa, ishlatish
+            const variantMultiplier = variantRow.multiplier || productMultiplier;
+            const variantMultiplierDecimal = variantMultiplier / 100;
+            
             const variantSellingPrice = variantBasePrice > 0 
-              ? Math.round((variantBasePrice * (1 + multiplier)) * 100) / 100 
+              ? Math.round((variantBasePrice * (1 + variantMultiplierDecimal)) * 100) / 100 
               : sellingPrice;
             
             const variantStock = variantRow.stock !== undefined && variantRow.stock !== null ? variantRow.stock : defaultStock;
@@ -631,22 +749,36 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
             const variantCode = variantRow.code ? String(variantRow.code).trim() : '';
             const variantCatalogNumber = variantRow.catalogNumber ? String(variantRow.catalogNumber).trim() : '';
             
+            // Variant uchun barcode ID
+            const variantBarcodeId = variantRow.barcodeId || variantSku.slice(-8).toUpperCase();
+            console.log('[Excel Import] Variant barcodeId:', variantRow.name, '- Excel barcodeId:', variantRow.barcodeId, '- Final barcodeId:', variantBarcodeId);
+            
+            // Variant uchun kategoriya
+            let variantCategoryId = productCategoryId;
+            if (variantRow.category) {
+              const foundCategoryId = findCategoryByName(variantRow.category);
+              if (foundCategoryId) {
+                variantCategoryId = foundCategoryId;
+              }
+            }
+            
             variantSummaries.push({
               name: variantRow.name,
               sku: variantSku,
               code: variantCode || null, // Excel dan kelgan kod
               catalogNumber: variantCatalogNumber || null, // Excel dan kelgan katalog
+              barcodeId: variantBarcodeId, // Barcode ID
               basePrice: variantBasePrice,
               originalPrice: variantBasePrice,
-              priceMultiplier: defaultMultiplier,
-              markupPercent: defaultMultiplier,
+              priceMultiplier: variantMultiplier,
+              markupPercent: variantMultiplier,
               price: variantSellingPrice,
               currency: defaultCurrency,
               stock: variantStock,
               stockCount: variantStock,
               initialStock: variantStock,
               status: defaultStatus,
-              categoryId: categoryId || undefined, // Mahsulot bilan bir xil kategoriya
+              categoryId: variantCategoryId,
               description: variantRow.category || '',
             });
           }
@@ -675,10 +807,11 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
           sku: productSku, // Nomerofka (1, 2, 3...)
           code: productCode || null, // Excel dan kelgan kod
           catalogNumber: productCatalogNumber || null, // Excel dan kelgan katalog
+          barcodeId: productBarcodeId, // Barcode ID
           basePrice: basePrice,
           originalPrice: basePrice,
-          priceMultiplier: defaultMultiplier,
-          markupPercent: defaultMultiplier,
+          priceMultiplier: productMultiplier,
+          markupPercent: productMultiplier,
           price: sellingPrice,
           currency: defaultCurrency,
           stock: productStock,
@@ -687,7 +820,7 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
           status: defaultStatus,
           isHidden: false,
           description: mainRow.category || '',
-          categoryId: categoryId || undefined,
+          categoryId: productCategoryId,
           variantSummaries: variantSummaries,
           userId: userId,
           createdAt: new Date(),

@@ -52,7 +52,7 @@ export const handleCustomerDataCreate: RequestHandler = async (req, res) => {
       return res.status(500).json({ error: "Database not available" });
     }
 
-    const { name, phone, address, carModel, userId } = req.body;
+    const { name, phone, address, location, carModel, userId } = req.body;
 
     if (!name || !phone || !userId) {
       return res.status(400).json({ error: "name, phone, and userId are required" });
@@ -65,6 +65,7 @@ export const handleCustomerDataCreate: RequestHandler = async (req, res) => {
       name: name.trim(),
       phone: phone.trim(),
       address: address?.trim() || "",
+      location: location || null,
       carModel: carModel?.trim() || "",
       userId,
       createdAt: new Date(),
@@ -104,7 +105,7 @@ export const handleCustomerDataUpdate: RequestHandler = async (req, res) => {
       return res.status(400).json({ error: "Invalid customer ID" });
     }
 
-    const { name, phone, address, carModel } = req.body;
+    const { name, phone, address, location, carModel } = req.body;
 
     if (!name || !phone) {
       return res.status(400).json({ error: "name and phone are required" });
@@ -117,6 +118,7 @@ export const handleCustomerDataUpdate: RequestHandler = async (req, res) => {
       name: name.trim(),
       phone: phone.trim(),
       address: address?.trim() || "",
+      location: location || null,
       carModel: carModel?.trim() || "",
       updatedAt: new Date(),
     };

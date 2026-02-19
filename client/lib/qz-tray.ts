@@ -359,14 +359,15 @@ export async function printLabelQZ(
   commands.push(ESC, 0x45, 0x00);
   
   // Barcode with numbers below (HRI)
-  if (label.barcode) {
+  const barcodeValue = label.barcodeId || label.barcode;
+  if (barcodeValue) {
     commands.push(0x0A);
     commands.push(GS, 0x68, 60); // Height: 60 dots
     commands.push(GS, 0x77, 2);  // Width: 2
     commands.push(GS, 0x48, 2);  // HRI: BELOW barcode
     commands.push(GS, 0x66, 0);  // HRI font: A
-    commands.push(GS, 0x6B, 73, label.barcode.length);
-    commands.push(...stringToBytes(label.barcode));
+    commands.push(GS, 0x6B, 73, barcodeValue.length);
+    commands.push(...stringToBytes(barcodeValue));
     commands.push(0x0A);
   }
   

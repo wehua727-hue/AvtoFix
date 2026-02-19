@@ -1238,7 +1238,8 @@ function buildLabelData(label: LabelData): Uint8Array {
   addBytes(ESCPOS.BOLD_OFF);
 
   // Barcode
-  if (label.barcode) {
+  const barcodeValue = label.barcodeId || label.barcode;
+  if (barcodeValue) {
     // Barcode balandligi - STANDARD (50 for consistency)
     const barcodeHeight = sizeConfig?.barcodeHeight || 50;
     addBytes([GS, 0x68, barcodeHeight]);
@@ -1262,13 +1263,13 @@ function buildLabelData(label: LabelData): Uint8Array {
     
     if (barcodeType >= 0x41) {
       // New format for CODE128
-      const barcodeBytes = encoder.encode(label.barcode);
+      const barcodeBytes = encoder.encode(barcodeValue);
       addBytes([GS, 0x6B, barcodeType, barcodeBytes.length]);
       parts.push(...barcodeBytes);
     } else {
       // Old format
       addBytes([GS, 0x6B, barcodeType]);
-      addText(label.barcode);
+      addText(barcodeValue);
       addBytes([0x00]); // NUL terminator
     }
     addBytes([LF]);
@@ -1456,9 +1457,9 @@ export function printLabelViaBrowser(label: LabelData): boolean {
   const barcodeHeight = 55;
   const barcodeWidth = 1.2;
   
-  // Barcode qiymati - to'g'ridan-to'g'ri barcode yoki SKU
+  // Barcode qiymati - BIRINCHI barcodeId, keyin barcode, keyin SKU
   // CODE128 format har qanday belgilarni qo'llab-quvvatlaydi
-  const barcodeValue = label.barcode || label.sku || '';
+  const barcodeValue = label.barcodeId || label.barcode || label.sku || '';
   
   // MUHIM: Barcode ostida ko'rsatish uchun ID
   // Agar barcodeId berilgan bo'lsa - uni ishlatamiz (masalan: AF4CF035V0)
@@ -1648,7 +1649,8 @@ export function printBulkLabelsViaBrowser(labels: LabelData[]): boolean {
   
   // Har bir label uchun HTML yaratish
   const labelsHtml = labels.map((label, index) => {
-    const barcodeValue = label.barcode || label.sku || '';
+    const barcodeValue = label.barcodeId || label.barcode || label.sku || '';
+    const displayText = label.barcodeId || label.barcode || '';
     const barcodeId = `barcode-${index}`;
     
     return `
@@ -1668,7 +1670,8 @@ export function printBulkLabelsViaBrowser(labels: LabelData[]): boolean {
   
   // Barcode script yaratish
   const barcodeScripts = labels.map((label, index) => {
-    const barcodeValue = label.barcode || label.sku || '';
+    const barcodeValue = label.barcodeId || label.barcode || label.sku || '';
+    const displayText = label.barcodeId || label.barcode || '';
     if (!barcodeValue) return '';
     
     return `
@@ -1683,7 +1686,7 @@ export function printBulkLabelsViaBrowser(labels: LabelData[]): boolean {
           textMargin: 5,
           font: "Arial",
           fontOptions: "bold",
-          text: "${barcodeValue}"
+          text: "${displayText}"
         });
       } catch(e) {
         console.error('Barcode error for ${index}:', e);

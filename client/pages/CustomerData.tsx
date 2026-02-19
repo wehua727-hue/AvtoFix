@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Edit2, Trash2, X, Phone, MapPin, Car, User } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, X, Phone, MapPin, Car, User, Navigation } from 'lucide-react';
 import Sidebar from '@/components/Layout/Sidebar';
 import Navbar from '@/components/Layout/Navbar';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,10 @@ interface CustomerData {
   name: string;
   phone: string;
   address: string;
+  location?: {
+    lat: number;
+    lng: number;
+  };
   carModel: string;
   userId: string;
   createdAt: Date;
@@ -63,6 +67,8 @@ export default function CustomerData() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('+998 ');
   const [address, setAddress] = useState('');
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationLink, setLocationLink] = useState(''); // Telegram/Google Maps link
   const [carModel, setCarModel] = useState('');
 
   // Load customers
@@ -102,6 +108,7 @@ export default function CustomerData() {
         name: name.trim(),
         phone: phone.trim(),
         address: address.trim(),
+        location: location || undefined,
         carModel: carModel.trim(),
         userId: user?.id,
       };
@@ -160,6 +167,8 @@ export default function CustomerData() {
     setName(customer.name);
     setPhone(customer.phone || '+998 ');
     setAddress(customer.address);
+    setLocation(customer.location || null);
+    setLocationLink(''); // Link ni tozalash
     setCarModel(customer.carModel);
     setShowAddDialog(true);
   };
@@ -170,6 +179,8 @@ export default function CustomerData() {
     setName('');
     setPhone('+998 ');
     setAddress('');
+    setLocation(null);
+    setLocationLink('');
     setCarModel('');
   };
 
@@ -454,11 +465,25 @@ export default function CustomerData() {
                             <span className="text-foreground font-medium">{highlightText(customer.phone, search)}</span>
                           </div>
                           {customer.address && (
-                            <div className="flex items-center gap-3 text-sm bg-muted/30 rounded-xl p-3 group-hover:bg-muted/50 transition-colors">
+                            <div 
+                              onClick={() => {
+                                if (customer.location && customer.location.lat !== 0 && customer.location.lng !== 0) {
+                                  window.open(`https://www.google.com/maps?q=${customer.location.lat},${customer.location.lng}`, '_blank');
+                                }
+                              }}
+                              className={`flex items-center gap-3 text-sm bg-muted/30 rounded-xl p-3 group-hover:bg-muted/50 transition-colors ${customer.location && customer.location.lat !== 0 && customer.location.lng !== 0 ? 'cursor-pointer hover:bg-blue-500/10 hover:border hover:border-blue-500/30' : ''}`}
+                            >
                               <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
                                 <MapPin className="w-4 h-4 text-purple-600" />
                               </div>
-                              <span className="text-foreground">{highlightText(customer.address, search)}</span>
+                              <div className="flex-1">
+                                <span className="text-foreground">{highlightText(customer.address, search)}</span>
+                                {customer.location && customer.location.lat !== 0 && customer.location.lng !== 0 && (
+                                  <div className="text-xs text-blue-600 font-medium mt-1">
+                                    📍 Xaritada ochish uchun bosing
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           )}
                           {customer.carModel && (
@@ -526,15 +551,148 @@ export default function CustomerData() {
             <div>
               <label className="block text-sm font-medium text-foreground mb-2 flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-pink-600" />
-                Uy manzili
+                Uy manzili va joylashuv
               </label>
-              <input
-                type="text"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="Toshkent shahar, Yunusobod tumani..."
-                className="w-full px-4 py-3 rounded-xl bg-background/50 backdrop-blur-sm border border-border hover:border-pink-500/50 focus:border-pink-500 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-pink-500/20 transition-all"
-              />
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="Toshkent shahar, Yunusobod tumani..."
+                  className="w-full px-4 py-3 rounded-xl bg-background/50 backdrop-blur-sm border border-border hover:border-pink-500/50 focus:border-pink-500 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-pink-500/20 transition-all"
+                />
+                
+                {/* Location link input - Telegram/Google Maps */}
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={locationLink}
+                    onChange={(e) => {
+                      const link = e.target.value.trim();
+                      setLocationLink(link);
+                      
+                      // Parse location from link
+                      if (link) {
+                        // Google Maps: https://maps.google.com/?q=41.2995,69.2401
+                        // Google Maps: https://www.google.com/maps?q=41.2995,69.2401
+                        // Telegram: https://t.me/...?lat=41.2995&lon=69.2401
+                        // 2GIS: https://2gis.uz/tashkent?m=69.2401,41.2995
+                        
+                        let lat = null;
+                        let lng = null;
+                        
+                        try {
+                          const url = new URL(link);
+                          
+                          // Google Maps ?q=lat,lng
+                          if (link.includes('google.com/maps') || link.includes('maps.google.com')) {
+                            const qParam = url.searchParams.get('q');
+                            if (qParam && qParam.includes(',')) {
+                              const [latStr, lngStr] = qParam.split(',');
+                              lat = parseFloat(latStr.trim());
+                              lng = parseFloat(lngStr.trim());
+                            }
+                          }
+                          // Telegram ?lat=...&lon=...
+                          else if (link.includes('t.me')) {
+                            const latParam = url.searchParams.get('lat');
+                            const lonParam = url.searchParams.get('lon');
+                            if (latParam && lonParam) {
+                              lat = parseFloat(latParam);
+                              lng = parseFloat(lonParam);
+                            }
+                          }
+                          // 2GIS ?m=lng,lat (2GIS uses lng,lat order)
+                          else if (link.includes('2gis')) {
+                            const mParam = url.searchParams.get('m');
+                            if (mParam && mParam.includes(',')) {
+                              const [lngStr, latStr] = mParam.split(',');
+                              lat = parseFloat(latStr.trim());
+                              lng = parseFloat(lngStr.trim());
+                            }
+                          }
+                          
+                          if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+                            setLocation({ lat, lng });
+                            toast.success('Joylashuv linkdan olindi');
+                          }
+                        } catch (e) {
+                          // Invalid URL, ignore
+                        }
+                      } else {
+                        setLocation(null);
+                      }
+                    }}
+                    placeholder="Telegram/Google Maps linkini kiriting (masalan: https://t.me/...)"
+                    className="w-full px-4 py-3 rounded-xl bg-background/50 backdrop-blur-sm border border-border hover:border-blue-500/50 focus:border-blue-500 text-foreground placeholder-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    💡 Telegramdan joylashuvni forward qiling, linkni ko'chirib bu yerga kiriting
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(
+                          (position) => {
+                            setLocation({
+                              lat: position.coords.latitude,
+                              lng: position.coords.longitude,
+                            });
+                            setLocationLink('');
+                            toast.success('Joylashuv olindi');
+                          },
+                          (error) => {
+                            console.error('Geolocation error:', error);
+                            toast.error('Joylashuvni olishda xatolik');
+                          }
+                        );
+                      } else {
+                        toast.error('Brauzer joylashuvni qo\'llab-quvvatlamaydi');
+                      }
+                    }}
+                    className="flex-1 border-pink-500/30 hover:bg-pink-500/10 hover:border-pink-500/50 text-pink-600"
+                  >
+                    <Navigation className="w-4 h-4 mr-2" />
+                    Hozirgi joylashuv
+                  </Button>
+                  {location && location.lat !== 0 && location.lng !== 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        window.open(`https://www.google.com/maps?q=${location.lat},${location.lng}`, '_blank');
+                      }}
+                      className="border-blue-500/30 hover:bg-blue-500/10 hover:border-blue-500/50 text-blue-600"
+                    >
+                      <MapPin className="w-4 h-4 mr-2" />
+                      Xaritada
+                    </Button>
+                  )}
+                </div>
+                
+                {location && location.lat !== 0 && location.lng !== 0 && (
+                  <div className="flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2">
+                    <span className="text-xs text-green-600 font-medium">
+                      📍 Joylashuv saqlandi: {location.lat.toFixed(4)}, {location.lng.toFixed(4)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLocation(null);
+                        setLocationLink('');
+                      }}
+                      className="text-xs text-red-600 hover:text-red-700 font-medium"
+                    >
+                      O'chirish
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div>
