@@ -22,6 +22,7 @@ import { handleDevicesList } from "./routes/devices";
 import { handleProductsDelta } from "./routes/products-delta";
 import { handleOfflineSalesSync, handleGetOfflineSales, handleOfflineSalesStats, handleOfflineSalesCleanup, handleClearHistory } from "./routes/offline-sync";
 import { handleExcelImport, handleExcelPreview, handleExcelImportFix } from "./routes/excel-import";
+import { handleExcelPreviewLatin, handleConvertLatinToCyrillic } from "./routes/excel-import-latin";
 import { handleMarketplaceOrder, handleMarketplaceOrdersGet } from "./routes/marketplace";
 import defectiveRouter from "./routes/defective";
 import { handleDailyStats } from "./routes/sales-stats";
@@ -681,6 +682,10 @@ export async function createServer() {
   app.post("/api/excel-import", dbConnectionMiddleware, validateSkuMiddleware, handleExcelImport);
   app.post("/api/excel-import/preview", handleExcelPreview);
   app.post("/api/excel-import/fix", handleExcelImportFix);
+  
+  // LATIN TO CYRILLIC CONVERSION ENDPOINTS
+  app.post("/api/excel-import/preview-latin", handleExcelPreviewLatin);
+  app.post("/api/excel-import/convert-latin-to-cyrillic", handleConvertLatinToCyrillic);
 
   // DEBUG ENDPOINT - bazadagi barcha mahsulotlarni ko'rish (filtersiz)
   app.get("/api/debug/products", async (req, res) => {

@@ -2,6 +2,13 @@ import { RequestHandler } from "express";
 import { connectMongo } from "../mongo";
 import { wsManager } from "../websocket";
 import { validateProductSkus } from "../utils/sku-validator";
+import { 
+  detectAlphabet, 
+  latinToCyrillic, 
+  convertProductName,
+  hasLatinLetters,
+  hasCyrillicLetters
+} from "../utils/alphabet-converter";
 
 // xlsx kutubxonasini import qilish
 let XLSX: any = null;
@@ -362,7 +369,9 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
       code: string;
       catalogNumber: string;
       price: number;
+      stock: number;
       existingProductName: string;
+      existingStock: number;
     }
     const duplicatesList: DuplicateInfo[] = [];
     

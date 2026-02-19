@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Upload, FileSpreadsheet, Check, AlertCircle, Loader2, Settings2, CheckCircle2 } from 'lucide-react';
+import { ExcelImportLatinPreviewDialog } from './ExcelImportLatinPreviewDialog';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -78,6 +79,12 @@ export function ExcelImportModal({
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   
+  // Latin konvertatsiya uchun
+  const [showLatinDialog, setShowLatinDialog] = useState(false);
+  const [hasLatinProducts, setHasLatinProducts] = useState(false);
+  const [latinProductsData, setLatinProductsData] = useState<any>(null); // Latin ma'lumotlarini saqlash
+  const [isCheckingLatin, setIsCheckingLatin] = useState(false); // Latin tekshirish holati
+  
   // Ustun mapping
   const [columnMapping, setColumnMapping] = useState<ColumnMapping>({
     name: -1,
@@ -108,6 +115,55 @@ export function ExcelImportModal({
       setColumnMapping(previewData.detectedMapping);
     }
   }, [previewData]);
+
+  // Debug: hasLatinProducts state o'zgarishini kuzatish
+  useEffect(() => {
+    console.log('[Latin Check] hasLatinProducts state changed:', hasLatinProducts);
+  }, [hasLatinProducts]);
+
+  // editedData o'zgarganda lotin mahsulotlarni qayta tekshirish
+  useEffect(() => {
+    if (editedData.length > 0 && columnMapping.name >= 0) {
+      console.log('[Latin Check] editedData changed, checking for Latin products...');
+      
+      // editedData ichida lotin mahsulotlar borligini tekshirish
+      let hasLatin = false;
+      
+      for (const row of editedData) {
+        if (row && row[columnMapping.name]) {
+          const name = String(row[columnMapping.name]).trim();
+          if (name) {
+            const alphabet = detectAlphabetClient(name);
+            if (alphabet === 'latin' || alphabet === 'mixed') {
+              hasLatin = true;
+              break;
+            }
+          }
+        }
+      }
+      
+      console.log('[Latin Check] Has Latin products in editedData:', hasLatin);
+      setHasLatinProducts(hasLatin);
+    }
+  }, [editedData, columnMapping.name]);
+
+  // Client-side alphabet detection (backend funksiyasining nusxasi)
+  const detectAlphabetClient = (text: string): 'latin' | 'cyrillic' | 'mixed' | 'unknown' => {
+    if (!text) return 'unknown';
+    
+    // Birinchi so'zni ajratib olish
+    const firstWord = text.trim().split(/[\s\-\.]+/)[0];
+    if (!firstWord) return 'unknown';
+    
+    const hasLatin = /[a-zA-Z]/.test(firstWord);
+    const hasCyrillic = /[а-яА-ЯёЁўЎқҚғҒҳҲ]/.test(firstWord);
+    
+    if (hasLatin && hasCyrillic) return 'mixed';
+    if (hasLatin) return 'latin';
+    if (hasCyrillic) return 'cyrillic';
+    
+    return 'unknown';
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -152,6 +208,14 @@ export function ExcelImportModal({
         setPreviewData(data);
         // Tahrirlash uchun ma'lumotlarni nusxalash
         setEditedData(data.sampleRows ? [...data.sampleRows.map((row: any[]) => [...row])] : []);
+        
+        // Latin mahsulotlar borligini tekshirish - aniqlangan mapping bilan
+        if (data.detectedMapping) {
+          console.log('[Excel Import] Calling checkForLatinProducts with mapping:', data.detectedMapping);
+          await checkForLatinProducts(base64, data.detectedMapping);
+          console.log('[Excel Import] checkForLatinProducts completed');
+        }
+        
         setStep('mapping');
       } else {
         setError(data.error || 'Preview xatosi');
@@ -174,6 +238,77 @@ export function ExcelImportModal({
       };
       reader.onerror = error => reject(error);
     });
+  };
+
+  // Latin mahsulotlar borligini tekshirish
+  const checkForLatinProducts = async (base64Data: string, detectedMapping: ColumnMapping) => {
+    setIsCheckingLatin(true);
+    try {
+      console.log('[Latin Check] Starting with mapping:', detectedMapping);
+      console.log('[Latin Check] API URL:', `${API_BASE_URL}/api/excel-import/preview-latin`);
+      
+      const response = await fetch(`${API_BASE_URL}/api/excel-import/preview-latin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileData: base64Data,
+          columnMapping: detectedMapping,
+        }),
+      });
+
+      console.log('[Latin Check] Response status:', response.status);
+      console.log('[Latin Check] Response ok:', response.ok);
+
+      if (!response.ok) {
+        console.error('[Latin Check] Response not OK:', response.status, response.statusText);
+        setHasLatinProducts(false);
+        setLatinProductsData(null);
+        return;
+      }
+
+      const data = await response.json();
+      
+      console.log('[Latin Check] Response data:', data);
+      console.log('[Latin Check] Success:', data.success);
+      console.log('[Latin Check] Latin count:', data.latinCount);
+
+      if (data.success && data.latinCount > 0) {
+        console.log('[Latin Check] Found', data.latinCount, 'Latin products - SETTING STATE');
+        setHasLatinProducts(true);
+        setLatinProductsData(data);
+        console.log('[Latin Check] State updated - hasLatinProducts should be true');
+      } else {
+        console.log('[Latin Check] No Latin products found');
+        setHasLatinProducts(false);
+        setLatinProductsData(null);
+      }
+    } catch (err) {
+      console.error('[Latin Check] Error:', err);
+      setHasLatinProducts(false);
+      setLatinProductsData(null);
+    } finally {
+      setIsCheckingLatin(false);
+    }
+  };
+
+  // Latin konvertatsiya tugmasi bosilganda
+  const handleShowLatinDialog = () => {
+    console.log('[Excel Import] Opening Latin dialog');
+    setShowLatinDialog(true);
+  };
+
+  // Konvertatsiya tugallanganda
+  const handleLatinConvertComplete = (convertedData: any[][] | null) => {
+    setShowLatinDialog(false);
+    
+    if (convertedData && Array.isArray(convertedData)) {
+      console.log('[Excel Import] Received converted data, rows:', convertedData.length);
+      
+      // convertedData allaqachon to'g'ri formatda (faqat ma'lumot qatorlari)
+      setEditedData(convertedData);
+      
+      console.log('[Excel Import] Updated editedData with converted data');
+    }
   };
 
   const handleColumnChange = (field: keyof ColumnMapping, value: number) => {
@@ -392,6 +527,8 @@ export function ExcelImportModal({
     setEditedData([]); // Tahrirlangan ma'lumotlarni tozalash
     setEditingCell(null); // Tahrirlash holatini tozalash
     setBulkStockValue(''); // Bulk stock value ni tozalash
+    setShowLatinDialog(false); // Latin dialog ni yopish
+    setHasLatinProducts(false); // Latin mahsulotlar holatini tozalash
     setColumnMapping({
       name: -1,
       code: -1,
@@ -406,7 +543,8 @@ export function ExcelImportModal({
   if (!isOpen) return null;
 
   return (
-    <AnimatePresence>
+    <>
+    <AnimatePresence mode="wait">
       <div className="fixed inset-0 z-[10001] bg-black/80 backdrop-blur-sm">
         <motion.div
           initial={{ opacity: 0, scale: 0.98 }}
@@ -438,7 +576,7 @@ export function ExcelImportModal({
             <div className="p-3 h-full overflow-y-auto bg-background">
             {/* Upload Step */}
             {step === 'upload' && (
-              <div className="space-y-6 max-w-2xl mx-auto">
+              <div key="upload-step" className="space-y-6 max-w-2xl mx-auto">
                 <div 
                   onClick={() => fileInputRef.current?.click()}
                   className="border-2 border-dashed border-border rounded-2xl p-12 text-center cursor-pointer hover:border-green-500/50 hover:bg-green-500/5 transition-all"
@@ -478,7 +616,7 @@ export function ExcelImportModal({
 
             {/* Mapping Step - Ustunlarni tanlash */}
             {step === 'mapping' && previewData && (
-              <div className="h-full flex flex-col">
+              <div key="mapping-step" className="h-full flex flex-col">
                 {/* Statistika - kichik */}
                 <div className="grid grid-cols-3 gap-3 mb-3 flex-shrink-0">
                   <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/30 text-center">
@@ -500,6 +638,29 @@ export function ExcelImportModal({
                   <div className="flex items-center gap-2 mb-2">
                     <Settings2 className="w-4 h-4 text-green-500" />
                     <p className="text-sm font-semibold text-foreground">Ustunlarni tanlang</p>
+                    
+                    {/* Latin konvertatsiya tugmasi - DOIMO KO'RINADI */}
+                    <button
+                      onClick={handleShowLatinDialog}
+                      disabled={isCheckingLatin}
+                      className={`ml-auto px-3 py-1.5 rounded-lg text-white text-xs font-medium transition-all flex items-center gap-2 ${
+                        isCheckingLatin 
+                          ? 'bg-gray-500 cursor-wait' 
+                          : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500'
+                      }`}
+                    >
+                      {isCheckingLatin ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <span>Tekshirilmoqda...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>🔤</span>
+                          <span>Lotin → Kiril</span>
+                        </>
+                      )}
+                    </button>
                   </div>
                   
                   <div className="grid grid-cols-6 gap-2">
@@ -517,7 +678,7 @@ export function ExcelImportModal({
                         >
                           <option value={-1}>-- Tanlanmagan --</option>
                           {previewData.headers?.map((header, idx) => (
-                            <option key={idx} value={idx}>
+                            <option key={`option-${idx}`} value={idx}>
                               {header || `Ustun ${idx + 1}`}
                             </option>
                           ))}
@@ -570,7 +731,7 @@ export function ExcelImportModal({
                               №
                             </th>
                             {previewData.headers?.map((header, idx) => (
-                              <th key={idx} className="px-2 py-1.5 text-left border-r border-border font-semibold text-foreground bg-muted/95 whitespace-nowrap min-w-[80px]">
+                              <th key={`header-${idx}`} className="px-2 py-1.5 text-left border-r border-border font-semibold text-foreground bg-muted/95 whitespace-nowrap min-w-[80px]">
                                 {header || `Ustun ${idx + 1}`}
                               </th>
                             ))}
@@ -578,7 +739,7 @@ export function ExcelImportModal({
                         </thead>
                         <tbody>
                           {editedData.map((row, rowIdx) => (
-                            <tr key={rowIdx} className="hover:bg-muted/20 border-b border-border/50">
+                            <tr key={`row-${rowIdx}`} className="hover:bg-muted/20 border-b border-border/50">
                               {/* O'chirish tugmasi */}
                               <td className="px-2 py-1.5 text-center border-r border-border w-[40px]">
                                 <button
@@ -590,8 +751,7 @@ export function ExcelImportModal({
                                 </button>
                               </td>
                               {row.map((cell: any, cellIdx: number) => (
-                                <td key={cellIdx} className="px-2 py-1.5 border-r border-border text-foreground min-w-[80px]">
-                                  {editingCell?.row === rowIdx && editingCell?.col === cellIdx ? (
+                                <td key={`cell-${rowIdx}-${cellIdx}`} className="px-2 py-1.5 border-r border-border text-foreground min-w-[80px]">{editingCell?.row === rowIdx && editingCell?.col === cellIdx ? (
                                     <input
                                       type="text"
                                       defaultValue={cell || ''}
@@ -678,7 +838,7 @@ export function ExcelImportModal({
 
             {/* Settings Step */}
             {step === 'settings' && (
-              <div className="space-y-6 max-w-4xl mx-auto">
+              <div key="settings-step" className="space-y-6 max-w-4xl mx-auto">
                 {/* Tanlangan ustunlar */}
                 <div className="p-6 rounded-2xl bg-green-500/10 border border-green-500/30">
                   <p className="text-sm font-medium text-green-400 mb-3">Tanlangan ustunlar:</p>
@@ -743,7 +903,7 @@ export function ExcelImportModal({
 
             {/* Importing Step */}
             {step === 'importing' && (
-              <div className="py-16 text-center max-w-md mx-auto">
+              <div key="importing-step" className="py-16 text-center max-w-md mx-auto">
                 <Loader2 className="w-16 h-16 mx-auto text-green-500 animate-spin mb-6" />
                 <p className="text-xl text-foreground font-medium mb-2">Import qilinmoqda...</p>
                 <p className="text-muted-foreground">Iltimos, kuting</p>
@@ -752,7 +912,7 @@ export function ExcelImportModal({
 
             {/* Result Step */}
             {step === 'result' && importResult && (
-              <div className="space-y-6 w-full px-4">
+              <div key="result-step" className="space-y-6 w-full px-4">
                 <div className={`p-8 rounded-2xl text-center max-w-2xl mx-auto ${
                   importResult.success 
                     ? 'bg-green-500/10 border border-green-500/30' 
@@ -888,5 +1048,16 @@ export function ExcelImportModal({
         </motion.div>
       </div>
     </AnimatePresence>
+      
+    {/* Latin Preview Dialog - AnimatePresence tashqarisida */}
+    <ExcelImportLatinPreviewDialog
+      isOpen={showLatinDialog}
+      onClose={() => setShowLatinDialog(false)}
+      fileData={fileData}
+      editedData={editedData}
+      columnMapping={columnMapping}
+      onConvertComplete={handleLatinConvertComplete}
+    />
+  </>
   );
 }
