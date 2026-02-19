@@ -324,6 +324,7 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
       sizes,
       variantSummaries,
       variants, // Marketplace field nomi
+      addAsVariantTo, // ✨ YANGI: Mavjud mahsulotga xil sifatida qo'shish
     } = req.body;
     
     // Marketplace createdBy ni userId sifatida ishlatish
@@ -335,7 +336,8 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
       finalUserId,
       hasUserId: !!userId,
       hasCreatedBy: !!createdBy,
-      hasFinalUserId: !!finalUserId
+      hasFinalUserId: !!finalUserId,
+      addAsVariantTo, // ✨ YANGI
     });
     
     // Marketplace field nomlarini standart nomlarga aylantirish
@@ -358,10 +360,166 @@ export const handleProductsCreate: RequestHandler = async (req, res) => {
       priceMultiplier: finalPriceMultiplier, 
       userId: finalUserId,
       variantSummariesCount: finalVariantSummaries?.length || 0,
-      variantSummaries: finalVariantSummaries
+      variantSummaries: finalVariantSummaries,
+      addAsVariantTo, // ✨ YANGI
     });
 
     const collection = db.collection(PRODUCTS_COLLECTION);
+
+    // ✨ YANGI: Agar addAsVariantTo berilgan bo'lsa, mavjud mahsulotga xil sifatida qo'shish
+    if (addAsVariantTo) {
+      console.log('[Products POST] Adding as variant to existing product:', addAsVariantTo);
+      
+      try {
+        let existingProductId;
+        try {
+          existingProductId = new ObjectId(addAsVariantTo);
+        } catch {
+          existingProductId = addAsVariantTo;
+        }
+        
+        const existingProduct = await collection.findOne({
+          $or: [
+            { _id: existingProductId },
+            { _id: addAsVariantTo }
+          ],
+          userId: finalUserId
+        });
+        
+        if (!existingProduct) {
+          console.log('[Products POST] Existing product not found:', addAsVariantTo);
+          return res.status(404).json({ 
+            success: false, 
+            error: 'Mavjud mahsulot topilmadi' 
+          });
+        }
+        
+        console.log('[Products POST] Found existing product:', existingProduct.name);
+        
+        // ✨ YANGI: Yangi mahsulotni xil sifatida yaratish
+        const newVariant = {
+          name: name.trim(),
+          sku: sku || undefined,
+          customId: customId ? customId.trim().toUpperCase() : undefined,
+          basePrice: finalBasePrice || undefined,
+          originalPrice: finalBasePrice || undefined,
+          priceMultiplier: finalPriceMultiplier || undefined,
+          markupPercent: finalPriceMultiplier || undefined,
+          price: price || 0,
+          currency,
+          stock: finalStock || 0,
+          stockCount: finalStock || 0,
+          initialStock: finalStock || 0,
+          status: normalizeProductStatus(status),
+          categoryId: categoryId || undefined,
+          imagePaths: Array.isArray(imagePaths) ? imagePaths : [],
+        };
+        
+        console.log('[Products POST] New variant:', newVariant);
+        
+        // ✨ YANGI: Agar yangi mahsulotning o'zida xillar bo'lsa, ularni ham qo'shish
+        const variantsToAdd = [newVariant];
+        
+        if (Array.isArray(finalVariantSummaries) && finalVariantSummaries.length > 0) {
+          console.log('[Products POST] New product has', finalVariantSummaries.length, 'variants - adding them too');
+          
+          // Yangi mahsulotning xillarini ham qo'shish
+          for (const variant of finalVariantSummaries) {
+            const additionalVariant = {
+              name: variant.name || name.trim(),
+              sku: variant.sku || undefined,
+              customId: variant.customId ? variant.customId.trim().toUpperCase() : undefined,
+              basePrice: (variant.basePrice ?? finalBasePrice) || undefined,
+              originalPrice: (variant.basePrice ?? finalBasePrice) || undefined,
+              priceMultiplier: (variant.priceMultiplier ?? finalPriceMultiplier) || undefined,
+              markupPercent: (variant.priceMultiplier ?? finalPriceMultiplier) || undefined,
+              price: (variant.price ?? price) || 0,
+              currency: variant.currency || currency,
+              stock: variant.stock ?? 0,
+              stockCount: variant.stock ?? 0,
+              initialStock: variant.stock ?? 0,
+              status: normalizeProductStatus(variant.status),
+              categoryId: variant.categoryId || categoryId || undefined,
+              imagePaths: Array.isArray(variant.imagePaths) ? variant.imagePaths : [],
+            };
+            
+            variantsToAdd.push(additionalVariant);
+            console.log('[Products POST] Adding additional variant:', additionalVariant.name);
+          }
+        }
+        
+        console.log('[Products POST] Total variants to add:', variantsToAdd.length);
+        
+        // Mavjud mahsulotga barcha xillarni qo'shish
+        const updateResult = await collection.updateOne(
+          { _id: existingProduct._id },
+          {
+            $push: {
+              variantSummaries: { $each: variantsToAdd } as any
+            },
+            $set: {
+              updatedAt: new Date()
+            }
+          } as any
+        );
+        
+        if (updateResult.modifiedCount === 0) {
+          console.log('[Products POST] Failed to add variants');
+          return res.status(500).json({ 
+            success: false, 
+            error: 'Xillarni qo\'shishda xatolik' 
+          });
+        }
+        
+        console.log('[Products POST] Variants added successfully:', variantsToAdd.length);
+        
+        // Yangilangan mahsulotni qaytarish
+        const updatedProduct = await collection.findOne({ _id: existingProduct._id });
+        
+        // ✨ YANGI: Tarixga saqlash - barcha qo'shilgan xillar uchun
+        try {
+          const historyCollection = db.collection(PRODUCT_HISTORY_COLLECTION);
+          
+          // Har bir qo'shilgan xil uchun tarix yozuvi yaratish
+          for (const variant of variantsToAdd) {
+            await historyCollection.insertOne({
+              userId: finalUserId,
+              type: 'variant_create',
+              productId: existingProduct._id.toString(),
+              productName: variant.name,
+              variantName: variant.name,
+              parentProductName: existingProduct.name,
+              sku: variant.sku || '',
+              stock: variant.stock || 0,
+              addedStock: variant.stock || 0,
+              price: variant.price || 0,
+              currency: variant.currency || currency,
+              message: `Qo'lda xil qo'shildi: ${variant.name}`,
+              timestamp: new Date(),
+              createdAt: new Date(),
+              source: 'manual',
+            });
+          }
+          
+          console.log('[Products POST] History saved for', variantsToAdd.length, 'variants');
+        } catch (historyErr) {
+          console.error('[Products POST] History save error:', historyErr);
+        }
+        
+        return res.status(201).json({
+          success: true,
+          product: updatedProduct,
+          message: `${variantsToAdd.length} ta xil muvaffaqiyatli qo'shildi: ${existingProduct.name}`,
+          addedVariantsCount: variantsToAdd.length,
+        });
+      } catch (err) {
+        console.error('[Products POST] Error adding variant:', err);
+        return res.status(500).json({ 
+          success: false, 
+          error: 'Xilni qo\'shishda xatolik' 
+        });
+      }
+    }
 
     // 🆕 DUBLIKAT TEKSHIRUVI
     // 1. Agar 5 xonali kod (code) mavjud bo'lsa - kod bo'yicha tekshirish

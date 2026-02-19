@@ -1928,6 +1928,48 @@ export default function Products() {
     // ✨ YANGI: SKU duplikati tekshirish - REAL-TIME DA KO'RSATILADI
     // Tugma bosilganda yana tekshirilmaydi (input joyida allaqachon ko'rsatilgan)
 
+    // ✨ YANGI: Birinchi 2 so'z bilan mavjud mahsulotni topish (faqat yangi mahsulot qo'shganda)
+    let existingProductByName: Product | null = null;
+    if (!editingId) {
+      // Nomni normalizatsiya qilish: katta-kichik harf, bo'sh joylar, maxsus belgilar
+      const normalizeForComparison = (text: string): string => {
+        return text
+          .toLowerCase() // Katta-kichik harf farqini yo'qotish
+          .trim() // Bosh va oxiridagi bo'sh joylarni olib tashlash
+          .replace(/\s+/g, ' ') // Bir nechta bo'sh joylarni bitta bo'sh joyga almashtirish
+          .replace(/[^\u0400-\u04FF\w\s]/g, ''); // Maxsus belgilarni olib tashlash (faqat kirill, lotin va raqamlar qoladi)
+      };
+      
+      const words = normalizeForComparison(name).split(/\s+/);
+      const firstTwoWords = words.slice(0, 2).join(' ');
+      
+      console.log('[Products] Checking for existing product with first 2 words:', firstTwoWords, '(normalized)');
+      
+      // Barcha mahsulotlarni tekshirish
+      existingProductByName = products.find(p => {
+        const existingWords = normalizeForComparison(p.name || '').split(/\s+/);
+        const existingFirstTwoWords = existingWords.slice(0, 2).join(' ');
+        const matches = existingFirstTwoWords === firstTwoWords;
+        
+        if (matches) {
+          console.log('[Products] 🔍 Match found:', {
+            input: firstTwoWords,
+            existing: existingFirstTwoWords,
+            productName: p.name,
+            productSku: p.sku
+          });
+        }
+        
+        return matches;
+      }) || null;
+      
+      if (existingProductByName) {
+        console.log('[Products] ✅ Found existing product:', existingProductByName.name, '- Will add as variant');
+      } else {
+        console.log('[Products] ❌ No existing product found - Will create new product');
+      }
+    }
+
     setIsSaving(true);
     try {
       // Helper to post payload once images are prepared
@@ -1960,6 +2002,8 @@ export default function Products() {
           userId: user?.id, // Привязка к пользователю
           userRole: user?.role, // Foydalanuvchi roli (xodim uchun initialStock saqlash)
           canEditProducts: user?.canEditProducts, // Xodim tahrirlash huquqi
+          // ✨ YANGI: Agar mavjud mahsulot topilgan bo'lsa, uning ID sini yuborish
+          addAsVariantTo: existingProductByName?.id || undefined,
         };
 
         console.log('[Products] Payload to send:', {
@@ -2400,37 +2444,79 @@ export default function Products() {
             id: created.id || (created as any)._id,
           };
 
-          setProducts((prev) => sortProductsBySku([...prev, mappedProduct]));
+          // ✨ YANGI: Agar xil sifatida qo'shilgan bo'lsa, mavjud mahsulotni yangilash
+          // Case-insensitive tekshirish
+          const isVariantAdded = existingProductByName && 
+            data.message?.toLowerCase().includes('xil muvaffaqiyatli qo\'shildi');
+          
+          if (isVariantAdded && existingProductByName) {
+            console.log('[Products] ✅ Variant added to existing product - reloading from server');
+            
+            // Nechta xil qo'shilganini aniqlash
+            const addedCount = data.addedVariantsCount || 1;
+            
+            // Tarixga yozish - xil qo'shildi
+            addToHistory({
+              type: 'variant_create',
+              productId: mappedProduct.id,
+              productName: existingProductByName.name,
+              variantName: name.trim(),
+              sku: sku || '',
+              stock: Number(stock) || 0,
+              addedStock: Number(stock) || 0,
+              price: Number(price) || 0,
+              currency: priceCurrency,
+              timestamp: new Date(),
+              message: addedCount > 1 
+                ? `${addedCount} ta xil qo'shildi → ${existingProductByName.name}`
+                : `Xil qo'shildi: ${name.trim()} → ${existingProductByName.name}`,
+              source: 'manual',
+            });
+            
+            // Foydalanuvchiga xabar
+            toast.success(
+              addedCount > 1
+                ? `${addedCount} ta xil muvaffaqiyatli qo'shildi: ${existingProductByName.name}`
+                : `Xil muvaffaqiyatli qo'shildi: ${existingProductByName.name}`
+            );
+            
+            // ✨ YANGI: Mahsulotlarni serverdan qayta yuklash
+            console.log('[Products] Reloading products from server after variant addition');
+            loadProducts();
+          } else {
+            console.log('[Products] ✅ New product created - adding to list');
+            setProducts((prev) => sortProductsBySku([...prev, mappedProduct]));
+            
+            // Tarixga yozish - yangi mahsulot yaratildi (xillar bilan birga)
+            const historyVariants = (mappedProduct.variantSummaries || variantSummaries || []).map((v: any) => ({
+              name: v.name,
+              sku: v.sku,
+              stock: v.stock ?? 0,
+              price: v.price ?? 0,
+              currency: v.currency || priceCurrency,
+            }));
 
-          // Tarixga yozish - yangi mahsulot yaratildi (xillar bilan birga)
-          const historyVariants = (mappedProduct.variantSummaries || variantSummaries || []).map((v: any) => ({
-            name: v.name,
-            sku: v.sku,
-            stock: v.stock ?? 0,
-            price: v.price ?? 0,
-            currency: v.currency || priceCurrency,
-          }));
+            console.log('[Products] Creating history with variants:', {
+              mappedProductVariants: mappedProduct.variantSummaries?.length || 0,
+              localVariantSummaries: variantSummaries?.length || 0,
+              historyVariants: historyVariants.length,
+              historyVariantsData: historyVariants
+            });
 
-          console.log('[Products] Creating history with variants:', {
-            mappedProductVariants: mappedProduct.variantSummaries?.length || 0,
-            localVariantSummaries: variantSummaries?.length || 0,
-            historyVariants: historyVariants.length,
-            historyVariantsData: historyVariants
-          });
-
-          addToHistory({
-            type: 'create',
-            productId: mappedProduct.id,
-            productName: mappedProduct.name,
-            sku: mappedProduct.sku || sku,
-            stock: mappedProduct.stock || Number(stock) || 0,
-            price: mappedProduct.price || 0,
-            currency: mappedProduct.currency || priceCurrency,
-            timestamp: new Date(),
-            message: `Yangi mahsulot qo'shildi: ${mappedProduct.name} (${mappedProduct.stock || stock} ta)`,
-            variants: historyVariants.length > 0 ? historyVariants : undefined,
-            source: 'manual', // Qo'lda qo'shilgan
-          });
+            addToHistory({
+              type: 'create',
+              productId: mappedProduct.id,
+              productName: mappedProduct.name,
+              sku: mappedProduct.sku || sku,
+              stock: mappedProduct.stock || Number(stock) || 0,
+              price: mappedProduct.price || 0,
+              currency: mappedProduct.currency || priceCurrency,
+              timestamp: new Date(),
+              message: `Yangi mahsulot qo'shildi: ${mappedProduct.name} (${mappedProduct.stock || stock} ta)`,
+              variants: historyVariants.length > 0 ? historyVariants : undefined,
+              source: 'manual', // Qo'lda qo'shilgan
+            });
+          }
         }
 
         // Har ikki holatda ham formani tozalaymiz va modalni yopamiz
@@ -3288,21 +3374,76 @@ export default function Products() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 lg:gap-4">
                             <div>
                               <label className="block text-xs font-semibold text-foreground mb-1.5">Mahsulot nomi</label>
-                              <input
-                                id="product-name-input"
-                                type="text"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    document.getElementById('product-baseprice-input')?.focus();
-                                  }
-                                }}
-                                className="w-full px-4 py-2.5 rounded-xl bg-background border border-input text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
-                                placeholder="Masalan: Bolt 15mm"
-                                disabled={isSaving}
-                              />
+                              <div className="relative flex gap-2">
+                                <input
+                                  id="product-name-input"
+                                  type="text"
+                                  value={name}
+                                  onChange={(e) => setName(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      document.getElementById('product-baseprice-input')?.focus();
+                                    }
+                                  }}
+                                  className="flex-1 px-4 py-2.5 rounded-xl bg-background border border-input text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
+                                  placeholder="Masalan: Bolt 15mm"
+                                  disabled={isSaving}
+                                />
+                                {/* Lotin → Kiril tugmasi */}
+                                {name && /[a-zA-Z]/.test(name.trim().split(/[\s\-\.]+/)[0] || '') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      // Lotin → Kiril konvertatsiya
+                                      const map: Record<string, string> = {
+                                        'A': 'А', 'B': 'Б', 'D': 'Д', 'E': 'Е', 'F': 'Ф', 'G': 'Г', 'H': 'Ҳ',
+                                        'I': 'И', 'J': 'Ж', 'K': 'К', 'L': 'Л', 'M': 'М', 'N': 'Н', 'O': 'О',
+                                        'P': 'П', 'Q': 'Қ', 'R': 'Р', 'S': 'С', 'T': 'Т', 'U': 'У', 'V': 'В',
+                                        'X': 'Х', 'Y': 'Й', 'Z': 'З',
+                                        'a': 'а', 'b': 'б', 'd': 'д', 'e': 'е', 'f': 'ф', 'g': 'г', 'h': 'ҳ',
+                                        'i': 'и', 'j': 'ж', 'k': 'к', 'l': 'л', 'm': 'м', 'n': 'н', 'o': 'о',
+                                        'p': 'п', 'q': 'қ', 'r': 'р', 's': 'с', 't': 'т', 'u': 'у', 'v': 'в',
+                                        'x': 'х', 'y': 'й', 'z': 'з',
+                                      };
+                                      const digraphs: Record<string, string> = {
+                                        'Sh': 'Ш', 'SH': 'Ш', 'Ch': 'Ч', 'CH': 'Ч',
+                                        'sh': 'ш', 'ch': 'ч',
+                                      };
+                                      
+                                      let result = '';
+                                      let i = 0;
+                                      const text = name;
+                                      
+                                      while (i < text.length) {
+                                        let converted = false;
+                                        
+                                        if (i < text.length - 1) {
+                                          const twoChar = text.substring(i, i + 2);
+                                          if (digraphs[twoChar]) {
+                                            result += digraphs[twoChar];
+                                            i += 2;
+                                            converted = true;
+                                          }
+                                        }
+                                        
+                                        if (!converted) {
+                                          const oneChar = text[i];
+                                          result += map[oneChar] || oneChar;
+                                          i++;
+                                        }
+                                      }
+                                      
+                                      setName(result);
+                                    }}
+                                    className="px-3 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white text-xs font-medium transition-all flex items-center gap-1 whitespace-nowrap"
+                                    title="Lotindan kirilga o'girish"
+                                  >
+                                    <span>🔤</span>
+                                    <span className="hidden sm:inline">Kiril</span>
+                                  </button>
+                                )}
+                              </div>
                             </div>
                             <div>
                               <label className="block text-xs font-semibold text-foreground mb-1.5">SKU / Kod</label>
@@ -3966,14 +4107,68 @@ export default function Products() {
                               {isAddingSize && (
                                 <div className="flex items-center gap-2 mt-1">
                                   <div className="flex flex-1 gap-2">
-                                    <input
-                                      type="text"
-                                      value={sizeDraft}
-                                      onChange={(e) => setSizeDraft(e.target.value)}
-                                      className="w-1/2 px-3 py-2 rounded-xl bg-background border border-input text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                                      placeholder="Xil: 15mm yoki S"
-                                      disabled={isSaving}
-                                    />
+                                    <div className="relative flex gap-2 w-1/2">
+                                      <input
+                                        type="text"
+                                        value={sizeDraft}
+                                        onChange={(e) => setSizeDraft(e.target.value)}
+                                        className="flex-1 px-3 py-2 rounded-xl bg-background border border-input text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                                        placeholder="Xil: 15mm yoki S"
+                                        disabled={isSaving}
+                                      />
+                                      {/* Lotin → Kiril tugmasi xil uchun */}
+                                      {sizeDraft && /[a-zA-Z]/.test(sizeDraft.trim().split(/[\s\-\.]+/)[0] || '') && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            // Lotin → Kiril konvertatsiya
+                                            const map: Record<string, string> = {
+                                              'A': 'А', 'B': 'Б', 'D': 'Д', 'E': 'Е', 'F': 'Ф', 'G': 'Г', 'H': 'Ҳ',
+                                              'I': 'И', 'J': 'Ж', 'K': 'К', 'L': 'Л', 'M': 'М', 'N': 'Н', 'O': 'О',
+                                              'P': 'П', 'Q': 'Қ', 'R': 'Р', 'S': 'С', 'T': 'Т', 'U': 'У', 'V': 'В',
+                                              'X': 'Х', 'Y': 'Й', 'Z': 'З',
+                                              'a': 'а', 'b': 'б', 'd': 'д', 'e': 'е', 'f': 'ф', 'g': 'г', 'h': 'ҳ',
+                                              'i': 'и', 'j': 'ж', 'k': 'к', 'l': 'л', 'm': 'м', 'n': 'н', 'o': 'о',
+                                              'p': 'п', 'q': 'қ', 'r': 'р', 's': 'с', 't': 'т', 'u': 'у', 'v': 'в',
+                                              'x': 'х', 'y': 'й', 'z': 'з',
+                                            };
+                                            const digraphs: Record<string, string> = {
+                                              'Sh': 'Ш', 'SH': 'Ш', 'Ch': 'Ч', 'CH': 'Ч',
+                                              'sh': 'ш', 'ch': 'ч',
+                                            };
+                                            
+                                            let result = '';
+                                            let i = 0;
+                                            const text = sizeDraft;
+                                            
+                                            while (i < text.length) {
+                                              let converted = false;
+                                              
+                                              if (i < text.length - 1) {
+                                                const twoChar = text.substring(i, i + 2);
+                                                if (digraphs[twoChar]) {
+                                                  result += digraphs[twoChar];
+                                                  i += 2;
+                                                  converted = true;
+                                                }
+                                              }
+                                              
+                                              if (!converted) {
+                                                const oneChar = text[i];
+                                                result += map[oneChar] || oneChar;
+                                                i++;
+                                              }
+                                            }
+                                            
+                                            setSizeDraft(result);
+                                          }}
+                                          className="px-2 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white text-xs font-medium transition-all flex items-center gap-1 whitespace-nowrap"
+                                          title="Lotindan kirilga o'girish"
+                                        >
+                                          <span>🔤</span>
+                                        </button>
+                                      )}
+                                    </div>
                                     <input
                                       type="number"
                                       min={0}

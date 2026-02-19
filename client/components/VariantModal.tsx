@@ -533,20 +533,75 @@ export default function VariantModal({
                 <label className="block text-sm font-semibold text-foreground">
                   Xil nomi <span className="text-destructive">*</span>
                 </label>
-                <input
-                  id="variant-name-input"
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      document.getElementById('variant-baseprice-input')?.focus();
-                    }
-                  }}
-                  className="w-full px-4 py-3 rounded-xl bg-background border border-input text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all"
-                  placeholder="Masalan: Qizil, Katta, 15mm"
-                />
+                <div className="relative flex gap-2">
+                  <input
+                    id="variant-name-input"
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        document.getElementById('variant-baseprice-input')?.focus();
+                      }
+                    }}
+                    className="flex-1 px-4 py-3 rounded-xl bg-background border border-input text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all"
+                    placeholder="Masalan: Qizil, Katta, 15mm"
+                  />
+                  {/* Lotin → Kiril tugmasi */}
+                  {name && /[a-zA-Z]/.test(name.trim().split(/[\s\-\.]+/)[0] || '') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Lotin → Kiril konvertatsiya
+                        const map: Record<string, string> = {
+                          'A': 'А', 'B': 'Б', 'D': 'Д', 'E': 'Е', 'F': 'Ф', 'G': 'Г', 'H': 'Ҳ',
+                          'I': 'И', 'J': 'Ж', 'K': 'К', 'L': 'Л', 'M': 'М', 'N': 'Н', 'O': 'О',
+                          'P': 'П', 'Q': 'Қ', 'R': 'Р', 'S': 'С', 'T': 'Т', 'U': 'У', 'V': 'В',
+                          'X': 'Х', 'Y': 'Й', 'Z': 'З',
+                          'a': 'а', 'b': 'б', 'd': 'д', 'e': 'е', 'f': 'ф', 'g': 'г', 'h': 'ҳ',
+                          'i': 'и', 'j': 'ж', 'k': 'к', 'l': 'л', 'm': 'м', 'n': 'н', 'o': 'о',
+                          'p': 'п', 'q': 'қ', 'r': 'р', 's': 'с', 't': 'т', 'u': 'у', 'v': 'в',
+                          'x': 'х', 'y': 'й', 'z': 'з',
+                        };
+                        const digraphs: Record<string, string> = {
+                          'Sh': 'Ш', 'SH': 'Ш', 'Ch': 'Ч', 'CH': 'Ч',
+                          'sh': 'ш', 'ch': 'ч',
+                        };
+                        
+                        let result = '';
+                        let i = 0;
+                        const text = name;
+                        
+                        while (i < text.length) {
+                          let converted = false;
+                          
+                          if (i < text.length - 1) {
+                            const twoChar = text.substring(i, i + 2);
+                            if (digraphs[twoChar]) {
+                              result += digraphs[twoChar];
+                              i += 2;
+                              converted = true;
+                            }
+                          }
+                          
+                          if (!converted) {
+                            const oneChar = text[i];
+                            result += map[oneChar] || oneChar;
+                            i++;
+                          }
+                        }
+                        
+                        setName(result);
+                      }}
+                      className="px-3 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white text-xs font-medium transition-all flex items-center gap-1 whitespace-nowrap"
+                      title="Lotindan kirilga o'girish"
+                    >
+                      <span>🔤</span>
+                      <span className="hidden sm:inline">Kiril</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* SKU / Kod */}
