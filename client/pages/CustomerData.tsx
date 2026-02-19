@@ -554,12 +554,12 @@ export default function CustomerData() {
                 Uy manzili va joylashuv
               </label>
               <div className="space-y-2">
-                <input
-                  type="text"
+                <textarea
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Toshkent shahar, Yunusobod tumani..."
-                  className="w-full px-4 py-3 rounded-xl bg-background/50 backdrop-blur-sm border border-border hover:border-pink-500/50 focus:border-pink-500 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-pink-500/20 transition-all"
+                  placeholder="Toshkent shahar, Yunusobod tumani... yoki link kiriting"
+                  rows={3}
+                  className="w-full px-4 py-3 rounded-xl bg-background/50 backdrop-blur-sm border border-border hover:border-pink-500/50 focus:border-pink-500 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-pink-500/20 transition-all resize-none"
                 />
                 
                 {/* Location link input - Telegram/Google Maps */}
