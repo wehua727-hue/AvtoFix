@@ -437,8 +437,6 @@ export default function Products() {
   const [showExportCategoryDialog, setShowExportCategoryDialog] = useState(false);
   const [selectedExportCategory, setSelectedExportCategory] = useState<string>('');
   const [showClearDialog, setShowClearDialog] = useState(false);
-  const [clearMinCode, setClearMinCode] = useState<string>('');
-  const [clearMaxCode, setClearMaxCode] = useState<string>('');
 
   const [name, setName] = useState('');
   const [sku, setSku] = useState('');
@@ -1110,111 +1108,6 @@ export default function Products() {
     } else {
       toast.info(`📋 ${empty.length} ta bo'sh kod topildi`);
     }
-  };
-
-  // 🆕 Kod bo'yicha tozalash funksiyasi
-  const handleClearByCodeRange = async () => {
-    const minCode = parseInt(clearMinCode);
-    const maxCode = parseInt(clearMaxCode);
-
-    if (isNaN(minCode) || isNaN(maxCode)) {
-      toast.error('Iltimos, to\'g\'ri kod kiriting');
-      return;
-    }
-
-    if (minCode > maxCode) {
-      toast.error('Minimum kod maksimumdan katta bo\'lishi mumkin emas');
-      return;
-    }
-
-    // Kod oralig'idagi mahsulotlarni topish (ota mahsulot va xillar)
-    const productsToDelete = products.filter(p => {
-      const productCode = parseInt(p.sku);
-
-      // Ota mahsulot kodi oraliqda bo'lsa
-      if (!isNaN(productCode) && productCode >= minCode && productCode <= maxCode) {
-        return true;
-      }
-
-      // Xillarning kodini tekshirish
-      if (p.variantSummaries && p.variantSummaries.length > 0) {
-        const hasVariantInRange = p.variantSummaries.some(v => {
-          if (!v.sku) return false;
-          const variantCode = parseInt(v.sku);
-          return !isNaN(variantCode) && variantCode >= minCode && variantCode <= maxCode;
-        });
-
-        if (hasVariantInRange) {
-          return true; // Agar biror xil oraliqda bo'lsa, butun mahsulotni o'chirish
-        }
-      }
-
-      return false;
-    });
-
-    if (productsToDelete.length === 0) {
-      toast.error('Bu kod oralig\'ida mahsulotlar topilmadi');
-      return;
-    }
-
-    showConfirmModal({
-      title: "Kod bo'yicha tozalash",
-      description: `${minCode} dan ${maxCode} gacha ${productsToDelete.length} ta mahsulot (xillar bilan) o'chiriladi. Davom etasizmi?`,
-      confirmText: "O'chirish",
-      cancelText: "Bekor qilish",
-      variant: 'destructive',
-      onConfirm: async () => {
-        closeConfirmModal();
-        try {
-          // Har bir mahsulotni o'chirish
-          const deletePromises = productsToDelete.map(p =>
-            fetch(`${API_BASE_URL}/api/products/${p.id}`, {
-              method: 'DELETE',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                userRole: user?.role,
-                canEditProducts: user?.canEditProducts
-              })
-            })
-          );
-
-          await Promise.all(deletePromises);
-
-          // State'dan o'chirish
-          setProducts(prev => prev.filter(p => {
-            const productCode = parseInt(p.sku);
-
-            // Ota mahsulot kodi oraliqda bo'lsa - o'chirish
-            if (!isNaN(productCode) && productCode >= minCode && productCode <= maxCode) {
-              return false;
-            }
-
-            // Xillarning kodini tekshirish
-            if (p.variantSummaries && p.variantSummaries.length > 0) {
-              const hasVariantInRange = p.variantSummaries.some(v => {
-                if (!v.sku) return false;
-                const variantCode = parseInt(v.sku);
-                return !isNaN(variantCode) && variantCode >= minCode && variantCode <= maxCode;
-              });
-
-              if (hasVariantInRange) {
-                return false; // O'chirish
-              }
-            }
-
-            return true; // Qoldirish
-          }));
-
-          toast.success(`✅ ${productsToDelete.length} ta mahsulot o'chirildi`);
-          setShowClearDialog(false);
-          setClearMinCode('');
-          setClearMaxCode('');
-        } catch (error) {
-          console.error('Failed to delete products:', error);
-          toast.error('Xatolik yuz berdi');
-        }
-      }
-    });
   };
 
   // 🆕 To'liq tozalash funksiyasi
@@ -7284,7 +7177,7 @@ export default function Products() {
         </DialogContent>
       </Dialog>
 
-      {/* 🆕 Tozalash Dialog - 2 ta variant */}
+      {/* 🆕 Tozalash Dialog - Faqat to'liq tozalash */}
       <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
         <DialogContent className="max-w-lg bg-slate-900/95 border-slate-700/50 backdrop-blur-xl rounded-3xl p-6">
           <DialogHeader>
@@ -7292,12 +7185,12 @@ export default function Products() {
               🗑️ Mahsulotlarni Tozalash
             </DialogTitle>
             <p className="text-slate-400 text-sm mt-2">
-              Tozalash turini tanlang
+              Barcha mahsulotlarni o'chirish
             </p>
           </DialogHeader>
 
           <div className="space-y-4 mt-4">
-            {/* Variant 1: To'liq tozalash */}
+            {/* To'liq tozalash */}
             <button
               onClick={handleClearAll}
               className="w-full p-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 border-2 border-red-500/30 hover:border-red-500/50 transition-all group"
@@ -7314,102 +7207,12 @@ export default function Products() {
                 </div>
               </div>
             </button>
-
-            {/* Variant 2: Kod bo'yicha tozalash */}
-            <div className="p-4 rounded-xl bg-orange-500/10 border-2 border-orange-500/30">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-xl bg-orange-500/20 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
-                  </svg>
-                </div>
-                <div className="text-left flex-1">
-                  <h3 className="text-lg font-bold text-orange-400">Kod Bo'yicha Tozalash</h3>
-                  <p className="text-sm text-slate-400">
-                    Kod oralig'idagi mahsulotlarni o'chirish
-                  </p>
-                </div>
-              </div>
-
-              {/* Kod input'lari */}
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-medium text-slate-400 mb-1 block">
-                    Minimum Kod
-                  </label>
-                  <input
-                    type="number"
-                    value={clearMinCode}
-                    onChange={(e) => setClearMinCode(e.target.value)}
-                    placeholder="Masalan: 2000"
-                    className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-slate-400 mb-1 block">
-                    Maksimum Kod
-                  </label>
-                  <input
-                    type="number"
-                    value={clearMaxCode}
-                    onChange={(e) => setClearMaxCode(e.target.value)}
-                    placeholder="Masalan: 3000"
-                    className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                </div>
-
-                {/* Statistika */}
-                {clearMinCode && clearMaxCode && (
-                  <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
-                    <p className="text-slate-400 text-xs">
-                      <span className="text-orange-400 font-bold">
-                        {products.filter(p => {
-                          const productCode = parseInt(p.sku);
-
-                          // Ota mahsulot kodi oraliqda bo'lsa
-                          if (!isNaN(productCode) && productCode >= parseInt(clearMinCode) && productCode <= parseInt(clearMaxCode)) {
-                            return true;
-                          }
-
-                          // Xillarning kodini tekshirish
-                          if (p.variantSummaries && p.variantSummaries.length > 0) {
-                            const hasVariantInRange = p.variantSummaries.some(v => {
-                              if (!v.sku) return false;
-                              const variantCode = parseInt(v.sku);
-                              return !isNaN(variantCode) && variantCode >= parseInt(clearMinCode) && variantCode <= parseInt(clearMaxCode);
-                            });
-
-                            if (hasVariantInRange) {
-                              return true;
-                            }
-                          }
-
-                          return false;
-                        }).length}
-                      </span> ta mahsulot (xillar bilan) o'chiriladi
-                    </p>
-                  </div>
-                )}
-
-                <Button
-                  onClick={handleClearByCodeRange}
-                  disabled={!clearMinCode || !clearMaxCode}
-                  className="w-full bg-orange-600 hover:bg-orange-700 text-white"
-                >
-                  🗑️ Kod Bo'yicha O'chirish
-                </Button>
-              </div>
-            </div>
           </div>
 
           <div className="flex justify-end gap-3 mt-6">
             <Button
               variant="outline"
-              onClick={() => {
-                setShowClearDialog(false);
-                setClearMinCode('');
-                setClearMaxCode('');
-              }}
+              onClick={() => setShowClearDialog(false)}
               className="bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-600"
             >
               Yopish
