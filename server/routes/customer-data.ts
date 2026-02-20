@@ -52,7 +52,13 @@ export const handleCustomerDataCreate: RequestHandler = async (req, res) => {
       return res.status(500).json({ error: "Database not available" });
     }
 
-    const { name, phone, address, location, carModel, userId } = req.body;
+    const { name, phone, address, location, locationLink, carModel, userId } = req.body;
+
+    // Debug: location ni log qilish
+    console.log('[CustomerData Create] Received location:', location);
+    console.log('[CustomerData Create] Received locationLink:', locationLink);
+    console.log('[CustomerData Create] Location type:', typeof location);
+    console.log('[CustomerData Create] Full body:', req.body);
 
     if (!name || !phone || !userId) {
       return res.status(400).json({ error: "name, phone, and userId are required" });
@@ -66,11 +72,14 @@ export const handleCustomerDataCreate: RequestHandler = async (req, res) => {
       phone: phone.trim(),
       address: address?.trim() || "",
       location: location || null,
+      locationLink: locationLink?.trim() || "",
       carModel: carModel?.trim() || "",
       userId,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
+
+    console.log('[CustomerData Create] Saving customer with location:', newCustomer.location);
 
     const result = await collection.insertOne(newCustomer);
 
@@ -105,7 +114,12 @@ export const handleCustomerDataUpdate: RequestHandler = async (req, res) => {
       return res.status(400).json({ error: "Invalid customer ID" });
     }
 
-    const { name, phone, address, location, carModel } = req.body;
+    const { name, phone, address, location, locationLink, carModel } = req.body;
+
+    // Debug: location ni log qilish
+    console.log('[CustomerData Update] Received location:', location);
+    console.log('[CustomerData Update] Received locationLink:', locationLink);
+    console.log('[CustomerData Update] Location type:', typeof location);
 
     if (!name || !phone) {
       return res.status(400).json({ error: "name and phone are required" });
@@ -119,9 +133,12 @@ export const handleCustomerDataUpdate: RequestHandler = async (req, res) => {
       phone: phone.trim(),
       address: address?.trim() || "",
       location: location || null,
+      locationLink: locationLink?.trim() || "",
       carModel: carModel?.trim() || "",
       updatedAt: new Date(),
     };
+
+    console.log('[CustomerData Update] Updating with location:', updateData.location);
 
     const result = await collection.updateOne(
       { _id: new ObjectId(idStr) },

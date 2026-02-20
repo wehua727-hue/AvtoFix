@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, Edit2, Trash2, X, Phone, MapPin, Car, User, Navigation } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, X, Phone, MapPin, Car, User, Navigation, CheckCircle } from 'lucide-react';
 import Sidebar from '@/components/Layout/Sidebar';
 import Navbar from '@/components/Layout/Navbar';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ interface CustomerData {
     lat: number;
     lng: number;
   };
+  locationLink?: string;
   carModel: string;
   userId: string;
   createdAt: Date;
@@ -109,9 +110,15 @@ export default function CustomerData() {
         phone: phone.trim(),
         address: address.trim(),
         location: location || undefined,
+        locationLink: locationLink.trim() || undefined,
         carModel: carModel.trim(),
         userId: user?.id,
       };
+
+      // Debug: location ni log qilish
+      console.log('[CustomerData] Saving customer with location:', location);
+      console.log('[CustomerData] Saving customer with locationLink:', locationLink);
+      console.log('[CustomerData] Full payload:', payload);
 
       const url = editingCustomer
         ? `${API_BASE_URL}/api/customer-data/${editingCustomer.id}`
@@ -168,7 +175,7 @@ export default function CustomerData() {
     setPhone(customer.phone || '+998 ');
     setAddress(customer.address);
     setLocation(customer.location || null);
-    setLocationLink(''); // Link ni tozalash
+    setLocationLink(customer.locationLink || ''); // Link ni yuklash
     setCarModel(customer.carModel);
     setShowAddDialog(true);
   };
@@ -465,24 +472,28 @@ export default function CustomerData() {
                             <span className="text-foreground font-medium">{highlightText(customer.phone, search)}</span>
                           </div>
                           {customer.address && (
-                            <div 
-                              onClick={() => {
-                                if (customer.location && customer.location.lat !== 0 && customer.location.lng !== 0) {
-                                  window.open(`https://www.google.com/maps?q=${customer.location.lat},${customer.location.lng}`, '_blank');
-                                }
-                              }}
-                              className={`flex items-center gap-3 text-sm bg-muted/30 rounded-xl p-3 group-hover:bg-muted/50 transition-colors ${customer.location && customer.location.lat !== 0 && customer.location.lng !== 0 ? 'cursor-pointer hover:bg-blue-500/10 hover:border hover:border-blue-500/30' : ''}`}
-                            >
+                            <div className="flex items-center gap-3 text-sm bg-muted/30 rounded-xl p-3 group-hover:bg-muted/50 transition-colors">
                               <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
                                 <MapPin className="w-4 h-4 text-purple-600" />
                               </div>
                               <div className="flex-1">
                                 <span className="text-foreground">{highlightText(customer.address, search)}</span>
-                                {customer.location && customer.location.lat !== 0 && customer.location.lng !== 0 && (
-                                  <div className="text-xs text-blue-600 font-medium mt-1">
-                                    📍 Xaritada ochish uchun bosing
-                                  </div>
-                                )}
+                              </div>
+                            </div>
+                          )}
+                          {customer.location && customer.location.lat !== 0 && customer.location.lng !== 0 && (
+                            <div 
+                              onClick={() => {
+                                window.open(`https://www.google.com/maps?q=${customer.location.lat},${customer.location.lng}`, '_blank');
+                              }}
+                              className="flex items-center gap-3 text-sm bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-xl p-3 cursor-pointer hover:from-green-500/20 hover:to-emerald-500/20 border border-green-500/30 hover:border-green-500/50 transition-all duration-200 group/location"
+                            >
+                              <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center group-hover/location:scale-110 transition-transform">
+                                <Navigation className="w-4 h-4 text-green-600" />
+                              </div>
+                              <div className="flex-1">
+                                <div className="text-green-700 dark:text-green-400 font-medium">Joylashuv</div>
+                                <div className="text-xs text-green-600/80 dark:text-green-500/80">Xaritada ochish uchun bosing</div>
                               </div>
                             </div>
                           )}
@@ -567,68 +578,147 @@ export default function CustomerData() {
                   <input
                     type="text"
                     value={locationLink}
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const link = e.target.value.trim();
                       setLocationLink(link);
                       
+                      console.log('[CustomerData] Location link input:', link);
+                      
                       // Parse location from link
                       if (link) {
-                        // Google Maps: https://maps.google.com/?q=41.2995,69.2401
-                        // Google Maps: https://www.google.com/maps?q=41.2995,69.2401
-                        // Telegram: https://t.me/...?lat=41.2995&lon=69.2401
-                        // 2GIS: https://2gis.uz/tashkent?m=69.2401,41.2995
-                        
                         let lat = null;
                         let lng = null;
                         
                         try {
-                          const url = new URL(link);
+                          // Check for shortened Google Maps link - use backend API
+                          if (link.includes('maps.app.goo.gl') || link.includes('goo.gl/maps')) {
+                            console.log('[CustomerData] Shortened Google Maps link detected - using backend API');
+                            toast.info('Link tekshirilmoqda...');
+                            
+                            try {
+                              const response = await fetch(`${API_BASE_URL}/api/resolve-location`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ url: link })
+                              });
+                              
+                              const data = await response.json();
+                              console.log('[CustomerData] Backend response:', data);
+                              
+                              if (data.success && data.location) {
+                                lat = data.location.lat;
+                                lng = data.location.lng;
+                                console.log('[CustomerData] Got coordinates from backend - lat:', lat, 'lng:', lng);
+                              } else {
+                                toast.error(data.error || 'Koordinatalar topilmadi');
+                                return;
+                              }
+                            } catch (fetchError) {
+                              console.error('[CustomerData] Backend fetch error:', fetchError);
+                              toast.error('Linkni tekshirib bo\'lmadi');
+                              return;
+                            }
+                          } else {
+                            // Parse other link types directly
+                            const url = new URL(link);
+                            
+                            console.log('[CustomerData] Parsed URL:', url.hostname);
+                            console.log('[CustomerData] Search params:', url.searchParams.toString());
+                            console.log('[CustomerData] Full path:', url.pathname);
+                            
+                            // Google Maps regular links
+                            if (link.includes('google.com/maps') || link.includes('maps.google.com')) {
+                              // Format 1: ?q=lat,lng
+                              const qParam = url.searchParams.get('q');
+                              console.log('[CustomerData] Google Maps q param:', qParam);
+                              if (qParam && qParam.includes(',')) {
+                                const [latStr, lngStr] = qParam.split(',');
+                                lat = parseFloat(latStr.trim());
+                                lng = parseFloat(lngStr.trim());
+                              }
+                              
+                              // Format 2: /@lat,lng in path or URL
+                              if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
+                                const atMatch = link.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+                                if (atMatch) {
+                                  lat = parseFloat(atMatch[1]);
+                                  lng = parseFloat(atMatch[2]);
+                                  console.log('[CustomerData] Extracted from @ in path - lat:', lat, 'lng:', lng);
+                                }
+                              }
+                              
+                              // Format 3: /place/.../@lat,lng
+                              if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
+                                const placeMatch = link.match(/\/place\/[^/]+\/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+                                if (placeMatch) {
+                                  lat = parseFloat(placeMatch[1]);
+                                  lng = parseFloat(placeMatch[2]);
+                                  console.log('[CustomerData] Extracted from place - lat:', lat, 'lng:', lng);
+                                }
+                              }
+                            }
+                            // Telegram ?lat=...&lon=...
+                            else if (link.includes('t.me')) {
+                              const latParam = url.searchParams.get('lat');
+                              const lonParam = url.searchParams.get('lon');
+                              console.log('[CustomerData] Telegram lat:', latParam, 'lon:', lonParam);
+                              if (latParam && lonParam) {
+                                lat = parseFloat(latParam);
+                                lng = parseFloat(lonParam);
+                              }
+                            }
+                            // 2GIS ?m=lng,lat (2GIS uses lng,lat order)
+                            else if (link.includes('2gis')) {
+                              const mParam = url.searchParams.get('m');
+                              console.log('[CustomerData] 2GIS m param:', mParam);
+                              if (mParam && mParam.includes(',')) {
+                                const [lngStr, latStr] = mParam.split(',');
+                                lat = parseFloat(latStr.trim());
+                                lng = parseFloat(lngStr.trim());
+                              }
+                            }
+                          }
                           
-                          // Google Maps ?q=lat,lng
-                          if (link.includes('google.com/maps') || link.includes('maps.google.com')) {
-                            const qParam = url.searchParams.get('q');
-                            if (qParam && qParam.includes(',')) {
-                              const [latStr, lngStr] = qParam.split(',');
-                              lat = parseFloat(latStr.trim());
-                              lng = parseFloat(lngStr.trim());
-                            }
-                          }
-                          // Telegram ?lat=...&lon=...
-                          else if (link.includes('t.me')) {
-                            const latParam = url.searchParams.get('lat');
-                            const lonParam = url.searchParams.get('lon');
-                            if (latParam && lonParam) {
-                              lat = parseFloat(latParam);
-                              lng = parseFloat(lonParam);
-                            }
-                          }
-                          // 2GIS ?m=lng,lat (2GIS uses lng,lat order)
-                          else if (link.includes('2gis')) {
-                            const mParam = url.searchParams.get('m');
-                            if (mParam && mParam.includes(',')) {
-                              const [lngStr, latStr] = mParam.split(',');
-                              lat = parseFloat(latStr.trim());
-                              lng = parseFloat(lngStr.trim());
-                            }
-                          }
+                          console.log('[CustomerData] Parsed coordinates - lat:', lat, 'lng:', lng);
                           
                           if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
-                            setLocation({ lat, lng });
+                            const newLocation = { lat, lng };
+                            setLocation(newLocation);
+                            console.log('[CustomerData] Location set:', newLocation);
                             toast.success('Joylashuv linkdan olindi');
+                          } else {
+                            console.warn('[CustomerData] Invalid coordinates parsed');
+                            toast.error('Link noto\'g\'ri formatda yoki koordinatalar topilmadi');
                           }
                         } catch (e) {
-                          // Invalid URL, ignore
+                          console.error('[CustomerData] URL parse error:', e);
+                          toast.error('Link noto\'g\'ri formatda');
                         }
                       } else {
                         setLocation(null);
+                        console.log('[CustomerData] Location cleared');
                       }
                     }}
-                    placeholder="Telegram/Google Maps linkini kiriting (masalan: https://t.me/...)"
+                    placeholder="Google Maps yoki Telegram linkini kiriting"
                     className="w-full px-4 py-3 rounded-xl bg-background/50 backdrop-blur-sm border border-border hover:border-blue-500/50 focus:border-blue-500 text-foreground placeholder-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    💡 Telegramdan joylashuvni forward qiling, linkni ko'chirib bu yerga kiriting
-                  </p>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p className="flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      <span>Qo'llab-quvvatlanadigan formatlar:</span>
+                    </p>
+                    <ul className="ml-4 space-y-0.5 text-muted-foreground/80">
+                      <li>• Telegram: Joylashuvni forward qiling va linkni kiriting</li>
+                      <li>• Google Maps: Har qanday link (qisqa yoki to'liq)</li>
+                      <li>• 2GIS: Joyni oching va brauzer linkini nusxalang</li>
+                    </ul>
+                  </div>
+                  {location && (
+                    <p className="text-xs text-green-400 flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" />
+                      <span>Joylashuv: {location.lat.toFixed(6)}, {location.lng.toFixed(6)}</span>
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex gap-2">
