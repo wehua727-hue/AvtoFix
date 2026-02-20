@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { type ProductStatus } from '@/components/ProductStatusSelector';
 import CurrencyPriceInput, { type Currency } from '@/components/CurrencyPriceInput';
-import { X, Plus, Trash2, CheckCircle2, Clock, XCircle, ChevronRight, FolderPlus, Pencil, Check, Tag } from 'lucide-react';
+import { X, Plus, Trash2, CheckCircle2, Clock, XCircle, ChevronRight, FolderPlus, Pencil, Check, Tag, Type } from 'lucide-react';
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'; // ✅ YANGI: Barcode scanner hook
 
 interface CategoryOption {
@@ -597,7 +597,7 @@ export default function VariantModal({
                       className="px-3 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white text-xs font-medium transition-all flex items-center gap-1 whitespace-nowrap"
                       title="Lotindan kirilga o'girish"
                     >
-                      <span>🔤</span>
+                      <Type className="w-3.5 h-3.5" />
                       <span className="hidden sm:inline">Kiril</span>
                     </button>
                   )}
@@ -803,13 +803,13 @@ export default function VariantModal({
                   className="w-full px-4 py-3 pr-10 rounded-xl bg-background border border-input text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all appearance-none cursor-pointer"
                 >
                   <option value="available" className="flex items-center gap-2">
-                    ✅ Yangi
+                    Yangi
                   </option>
                   <option value="pending" className="flex items-center gap-2">
-                    ⏱️ O'rtacha
+                    O'rtacha
                   </option>
                   <option value="out-of-stock" className="flex items-center gap-2">
-                    ❌ Eski
+                    Eski
                   </option>
                 </select>
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">

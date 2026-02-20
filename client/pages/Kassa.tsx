@@ -19,6 +19,8 @@ import {
   Tag,
   Truck,
   ShoppingCart,
+  Package,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1845,7 +1847,7 @@ export default function Kassa() {
                           {/* Parent name for variants */}
                           {isVariantResult && parentName && (
                             <div className="text-xs text-purple-400 mb-1 flex items-center gap-1">
-                              <span>📦</span>
+                              <Package className="w-3 h-3" />
                               <span className="truncate">{highlightText(parentName, searchQuery)}</span>
                               <span className="text-purple-500/50">→</span>
                             </div>
@@ -2326,7 +2328,12 @@ export default function Kassa() {
                 <span className="text-green-400 mr-1">$</span>
                 {formatNum(total)}
               </div>
-              {!isOnline && <div className="text-xs text-amber-400 mt-3 font-medium">⚡ Offline rejimda saqlanadi</div>}
+              {!isOnline && (
+                <div className="text-xs text-amber-400 mt-3 font-medium flex items-center justify-center gap-1">
+                  <Zap className="w-3 h-3" />
+                  <span>Offline rejimda saqlanadi</span>
+                </div>
+              )}
             </div>
 
             {/* Yaroqli/Yaroqsiz switch - faqat qaytarish rejimida */}

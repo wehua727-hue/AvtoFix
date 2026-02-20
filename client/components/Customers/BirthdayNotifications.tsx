@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Cake, X, Phone, Gift } from 'lucide-react';
+import { Cake, X, Phone, Gift, PartyPopper } from 'lucide-react';
 import type { IBirthdayNotification } from '@shared/customer-types';
 
 // API base URL - работает для веб и Electron
@@ -98,8 +98,9 @@ export default function BirthdayNotifications() {
                           {notification.customer.firstName} {notification.customer.lastName}
                         </h3>
                         {notification.isToday ? (
-                          <Badge className="bg-pink-500/20 text-pink-400 border-pink-500/30">
-                            🎉 Bugun!
+                          <Badge className="bg-pink-500/20 text-pink-400 border-pink-500/30 flex items-center gap-1">
+                            <PartyPopper className="w-3 h-3" />
+                            <span>Bugun!</span>
                           </Badge>
                         ) : (
                           <Badge variant="secondary" className="bg-blue-500/20 text-blue-400 border-blue-500/30">

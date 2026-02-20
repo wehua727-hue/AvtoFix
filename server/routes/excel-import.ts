@@ -160,8 +160,7 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
       defaultStock = 5,
       defaultMultiplier = 25,
       defaultCurrency = 'USD',
-      defaultStatus = 'available',
-      deleteAllBeforeImport = false // Yangi - barcha mahsulotlarni o'chirish
+      defaultStatus = 'available'
     } = req.body;
 
     if (!fileData) {
@@ -175,40 +174,8 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
     console.log('[Excel Import] Starting import for user:', userId);
     console.log('[Excel Import] User column mapping:', userMapping);
     console.log('[Excel Import] defaultMultiplier:', defaultMultiplier, '% (multiplier:', defaultMultiplier / 100, ')');
+    console.log('[Excel Import] defaultCurrency:', defaultCurrency);
     console.log('[Excel Import] Has edited data:', !!editedData);
-    console.log('[Excel Import] Delete all before import:', deleteAllBeforeImport);
-
-    // Agar deleteAllBeforeImport true bo'lsa - barcha mahsulotlarni o'chirish
-    if (deleteAllBeforeImport) {
-      const collection = db.collection(PRODUCTS_COLLECTION);
-      const deleteResult = await collection.deleteMany({ userId });
-      console.log('[Excel Import] Deleted all products:', deleteResult.deletedCount);
-      
-      // Tarixga saqlash
-      try {
-        const historyCollection = db.collection('product_history');
-        await historyCollection.insertOne({
-          userId: userId,
-          type: 'bulk_delete',
-          message: `Excel import uchun barcha mahsulotlar o'chirildi: ${deleteResult.deletedCount} ta`,
-          deletedCount: deleteResult.deletedCount,
-          timestamp: new Date(),
-          createdAt: new Date(),
-          source: 'excel-import',
-        });
-      } catch (historyErr) {
-        console.error('[Excel Import] History save error for bulk delete:', historyErr);
-      }
-      
-      // WebSocket xabar
-      if (userId) {
-        wsManager.broadcastToUser(userId, {
-          type: 'products-bulk-delete',
-          deletedCount: deleteResult.deletedCount,
-          timestamp: Date.now(),
-        });
-      }
-    }
 
     let rawData: any[] = [];
     let headerRowIndex = -1;

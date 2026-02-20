@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Trash2, Tag, Loader2, Printer, X, FileSpreadsheet, Plus, Search, History, Download } from 'lucide-react';
+import { Trash2, Tag, Loader2, Printer, X, FileSpreadsheet, Plus, Search, History, Download, DollarSign, Coins, TrendingUp, Package, CheckCircle, XCircle, AlertTriangle, Zap, Type } from 'lucide-react';
 import Sidebar from '@/components/Layout/Sidebar';
 import Navbar from '@/components/Layout/Navbar';
 import ProductStatusSelector, { productStatusConfig, type ProductStatus } from '@/components/ProductStatusSelector';
@@ -572,24 +572,12 @@ export default function Products() {
   const [historyTab, setHistoryTab] = useState<'today' | 'past'>('today');
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<ProductHistoryItem | null>(null);
 
-  // Memoized profit calculation - faqat products yoki exchangeRates o'zgarganda hisoblash
-  const { totalProfitUSD, totalDaromadUSD } = useMemo(() => {
-    const toUSD = (amount: number, currency?: string): number => {
-      if (!amount) return 0;
-      const defaultUsdRate = 12500;
-      const rates = exchangeRates || { usd: defaultUsdRate, rub: 140, cny: 1750 };
-
-      switch (currency) {
-        case 'USD': return amount;
-        case 'UZS': return amount / rates.usd;
-        case 'RUB': return (amount * rates.rub) / rates.usd;
-        case 'CNY': return (amount * rates.cny) / rates.usd;
-        default: return amount / rates.usd;
-      }
-    };
-
+  // Memoized profit calculation - faqat products o'zgarganda hisoblash
+  const { totalProfitUSD, totalDaromadUSD, totalProfitUZS, totalDaromadUZS } = useMemo(() => {
     let totalProfitUSD = 0;
     let totalDaromadUSD = 0;
+    let totalProfitUZS = 0;
+    let totalDaromadUZS = 0;
 
     // Mahsulotlarning sof foydasini va daromadini hisoblash
     for (const product of products) {
@@ -601,8 +589,15 @@ export default function Products() {
       const productProfit = profitPerUnit * stock;
       const productDaromad = sellingPrice * stock;
 
-      totalProfitUSD += toUSD(productProfit, product.currency);
-      totalDaromadUSD += toUSD(productDaromad, product.currency);
+      // Valyutaga qarab to'g'ri joyga qo'shish
+      if (product.currency === 'UZS') {
+        totalProfitUZS += productProfit;
+        totalDaromadUZS += productDaromad;
+      } else {
+        // USD yoki boshqa valyutalar USD sifatida hisoblanadi
+        totalProfitUSD += productProfit;
+        totalDaromadUSD += productDaromad;
+      }
 
       // Xillarning sof foydasini va daromadini hisoblash
       if (product.variantSummaries && product.variantSummaries.length > 0) {
@@ -614,14 +609,21 @@ export default function Products() {
           const variantProfit = variantProfitPerUnit * variantStock;
           const variantDaromad = variantSellingPrice * variantStock;
 
-          totalProfitUSD += toUSD(variantProfit, variant.currency);
-          totalDaromadUSD += toUSD(variantDaromad, variant.currency);
+          // Valyutaga qarab to'g'ri joyga qo'shish
+          if (variant.currency === 'UZS') {
+            totalProfitUZS += variantProfit;
+            totalDaromadUZS += variantDaromad;
+          } else {
+            // USD yoki boshqa valyutalar USD sifatida hisoblanadi
+            totalProfitUSD += variantProfit;
+            totalDaromadUSD += variantDaromad;
+          }
         }
       }
     }
 
-    return { totalProfitUSD, totalDaromadUSD };
-  }, [products, exchangeRates]);
+    return { totalProfitUSD, totalDaromadUSD, totalProfitUZS, totalDaromadUZS };
+  }, [products]);
 
   // Memoized sorted categories - faqat categories o'zgarganda sort qilish
   const sortedCategories = useMemo(() => {
@@ -2941,19 +2943,35 @@ export default function Products() {
             {/* Desktop da ko'rinadigan qismlar */}
             <div className="hidden md:flex items-center gap-2 sm:gap-3">
               {/* Sof Foyda - ko'k rangda */}
-              <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-cyan-600/20 to-blue-700/20 border border-cyan-500/30">
-                <span className="text-cyan-400 font-bold text-base">💰</span>
-                <span className="text-sm sm:text-base font-bold text-cyan-300">
-                  ${totalProfitUSD.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                </span>
+              <div className="flex flex-col gap-0.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-600/20 to-blue-700/20 border border-cyan-500/30">
+                <div className="flex items-center gap-1.5">
+                  <TrendingUp className="w-4 h-4 text-cyan-400" />
+                  <span className="text-xs sm:text-sm font-bold text-cyan-300">
+                    ${totalProfitUSD.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <TrendingUp className="w-4 h-4 text-cyan-400" />
+                  <span className="text-xs sm:text-sm font-bold text-cyan-300">
+                    {totalProfitUZS.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} so'm
+                  </span>
+                </div>
               </div>
 
               {/* Jami Daromad - yashil rangda */}
-              <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-green-600/20 to-green-700/20 border border-green-500/30">
-                <span className="text-green-400 font-bold text-base">$</span>
-                <span className="text-sm sm:text-base font-bold text-green-300">
-                  {totalDaromadUSD.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                </span>
+              <div className="flex flex-col gap-0.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-green-600/20 to-green-700/20 border border-green-500/30">
+                <div className="flex items-center gap-1.5">
+                  <DollarSign className="w-4 h-4 text-green-400" />
+                  <span className="text-xs sm:text-sm font-bold text-green-300">
+                    {totalDaromadUSD.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Coins className="w-4 h-4 text-green-400" />
+                  <span className="text-xs sm:text-sm font-bold text-green-300">
+                    {totalDaromadUZS.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} so'm
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -3520,7 +3538,7 @@ export default function Products() {
                                     className="px-3 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white text-xs font-medium transition-all flex items-center gap-1 whitespace-nowrap"
                                     title="Lotindan kirilga o'girish"
                                   >
-                                    <span>🔤</span>
+                                    <Type className="w-3.5 h-3.5" />
                                     <span className="hidden sm:inline">Kiril</span>
                                   </button>
                                 )}
@@ -4246,7 +4264,7 @@ export default function Products() {
                                           className="px-2 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white text-xs font-medium transition-all flex items-center gap-1 whitespace-nowrap"
                                           title="Lotindan kirilga o'girish"
                                         >
-                                          <span>🔤</span>
+                                          <Type className="w-3.5 h-3.5" />
                                         </button>
                                       )}
                                     </div>
@@ -7664,7 +7682,29 @@ export default function Products() {
                 <input
                   type="text"
                   value={bulkCategoryMaxSku}
-                  onChange={(e) => setBulkCategoryMaxSku(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    // Eng katta SKU ni topish
+                    const allSkus = products.flatMap(p => {
+                      const skus = [parseInt(p.sku) || 0];
+                      if (p.variantSummaries) {
+                        p.variantSummaries.forEach(v => {
+                          if (v.sku) skus.push(parseInt(v.sku) || 0);
+                        });
+                      }
+                      return skus;
+                    });
+                    const maxExistingSku = Math.max(...allSkus, 0);
+                    
+                    // Agar kiritilgan qiymat mavjud eng katta SKU dan katta bo'lsa, ogohlantirish
+                    const inputSku = parseInt(value) || 0;
+                    if (inputSku > maxExistingSku) {
+                      toast.warning(`Eng katta mavjud SKU: ${maxExistingSku}. ${inputSku} kodli mahsulot mavjud emas.`);
+                      return;
+                    }
+                    
+                    setBulkCategoryMaxSku(value);
+                  }}
                   placeholder="100"
                   className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600/50 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
                 />

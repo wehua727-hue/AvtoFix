@@ -16,7 +16,7 @@ import Navbar from '@/components/Layout/Navbar';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { 
   Plus, Pencil, Trash2, Loader2, Users, Sparkles,
-  Crown, Shield, Check, UserCog, Eye, EyeOff
+  Crown, Shield, Check, UserCog, Eye, EyeOff, AlertTriangle
 } from 'lucide-react';
 
 interface User {
@@ -489,7 +489,10 @@ export default function UsersPage() {
                     )}
                     {editingUser?.isBlocked && (
                       <div className="bg-red-900/20 border border-red-600/30 rounded-lg p-3">
-                        <p className="text-sm text-red-400 font-medium">⚠️ Akkaunt bloklangan</p>
+                        <p className="text-sm text-red-400 font-medium flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4" />
+                          <span>Akkaunt bloklangan</span>
+                        </p>
                         <p className="text-xs text-gray-400 mt-1">Obuna sanasini o'zgartiring yoki cheksiz tarifga o'tkazing</p>
                       </div>
                     )}

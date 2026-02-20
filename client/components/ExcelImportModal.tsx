@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Upload, FileSpreadsheet, Check, AlertCircle, Loader2, Settings2, CheckCircle2 } from 'lucide-react';
+import { X, Upload, FileSpreadsheet, Check, AlertCircle, Loader2, Settings2, CheckCircle2, DollarSign, Coins, Type } from 'lucide-react';
 import { ExcelImportLatinPreviewDialog } from './ExcelImportLatinPreviewDialog';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -106,7 +106,6 @@ export function ExcelImportModal({
   // Settings
   const [categoryId, setCategoryId] = useState<string>('');
   const [defaultStock, setDefaultStock] = useState<number>(5);
-  const [deleteAllBeforeImport, setDeleteAllBeforeImport] = useState<boolean>(false); // Yangi: barcha mahsulotlarni o'chirish
   
   // Kategoriya qo'shish uchun
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
@@ -121,6 +120,9 @@ export function ExcelImportModal({
   
   // Bulk stock update uchun
   const [bulkStockValue, setBulkStockValue] = useState<string>('');
+  
+  // Valyuta tanlash uchun
+  const [importCurrency, setImportCurrency] = useState<'USD' | 'UZS'>('USD');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -552,9 +554,8 @@ export function ExcelImportModal({
           userId,
           defaultStock,
           defaultMultiplier: defaultMultiplier || 30, // Default 30 if empty
-          defaultCurrency: 'USD',
+          defaultCurrency: importCurrency, // Tanlangan valyuta
           defaultStatus: 'available',
-          deleteAllBeforeImport, // Barcha mahsulotlarni o'chirish flag
         }),
       });
 
@@ -601,12 +602,12 @@ export function ExcelImportModal({
     setCategoryId('');
     setDefaultStock(5);
     setDefaultMultiplier('');
-    setDeleteAllBeforeImport(false); // Reset checkbox
     setEditedData([]); // Tahrirlangan ma'lumotlarni tozalash
     setEditingCell(null); // Tahrirlash holatini tozalash
     setBulkStockValue(''); // Bulk stock value ni tozalash
     setShowLatinDialog(false); // Latin dialog ni yopish
     setHasLatinProducts(false); // Latin mahsulotlar holatini tozalash
+    setImportCurrency('USD'); // Valyutani reset qilish
     setColumnMapping({
       name: -1,
       code: -1,
@@ -719,11 +720,24 @@ export function ExcelImportModal({
                     <Settings2 className="w-4 h-4 text-green-500" />
                     <p className="text-sm font-semibold text-foreground">Ustunlarni tanlang</p>
                     
-                    {/* Latin konvertatsiya tugmasi - DOIMO KO'RINADI */}
+                    {/* Valyuta tanlash - YANGI */}
+                    <div className="ml-auto flex items-center gap-2">
+                      <label className="text-xs font-medium text-muted-foreground">Valyuta:</label>
+                      <select
+                        value={importCurrency}
+                        onChange={(e) => setImportCurrency(e.target.value as 'USD' | 'UZS')}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-green-500/50 flex items-center gap-1"
+                      >
+                        <option value="USD">Dollar (USD)</option>
+                        <option value="UZS">So'm (UZS)</option>
+                      </select>
+                    </div>
+                    
+                    {/* Latin konvertatsiya tugmasi */}
                     <button
                       onClick={handleShowLatinDialog}
                       disabled={isCheckingLatin}
-                      className={`ml-auto px-3 py-1.5 rounded-lg text-white text-xs font-medium transition-all flex items-center gap-2 ${
+                      className={`px-3 py-1.5 rounded-lg text-white text-xs font-medium transition-all flex items-center gap-2 ${
                         isCheckingLatin 
                           ? 'bg-gray-500 cursor-wait' 
                           : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500'
@@ -736,7 +750,7 @@ export function ExcelImportModal({
                         </>
                       ) : (
                         <>
-                          <span>🔤</span>
+                          <Type className="w-3.5 h-3.5" />
                           <span>Lotin → Kiril</span>
                         </>
                       )}
@@ -797,7 +811,10 @@ export function ExcelImportModal({
                             Barcha mahsulotga qo'llash
                           </button>
                           {columnMapping.stock < 0 && (
-                            <span className="text-xs text-amber-400">⚠️ "К-во" ustuni qidiriladi yoki yangi ustun qo'shiladi</span>
+                            <span className="text-xs text-amber-400 flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3" />
+                              <span>"К-во" ustuni qidiriladi yoki yangi ustun qo'shiladi</span>
+                            </span>
                           )}
                         </div>
                       </div>
@@ -1029,26 +1046,6 @@ export function ExcelImportModal({
                   <p className="text-xs text-muted-foreground mt-2">
                     Agar Excel da "Фоиз (%)" ustuni bo'lmasa, bu qiymat ishlatiladi
                   </p>
-                </div>
-
-                {/* Barcha mahsulotlarni o'chirish checkbox */}
-                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30">
-                  <label className="flex items-start gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={deleteAllBeforeImport}
-                      onChange={(e) => setDeleteAllBeforeImport(e.target.checked)}
-                      className="mt-1 w-5 h-5 rounded border-red-500/50 text-red-600 focus:ring-red-500/50"
-                    />
-                    <div>
-                      <p className="text-base font-medium text-red-400">
-                        Barcha mahsulotlarni o'chirib, yangi import qilish
-                      </p>
-                      <p className="text-sm text-red-300/70 mt-1">
-                        ⚠️ Diqqat: Bu barcha mavjud mahsulotlarni o'chiradi va Excel dan yangi mahsulotlarni qo'shadi
-                      </p>
-                    </div>
-                  </label>
                 </div>
 
                 <div className="flex gap-4">
