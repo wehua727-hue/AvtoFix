@@ -754,23 +754,7 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
           }
         }
 
-        // SKU validation qo'shish
-        const productToValidate = {
-          sku: productSku,
-          variantSummaries: variantSummaries
-        };
-        
-        const validation = await validateProductSkus(productToValidate, {
-          userId: userId,
-          db: db,
-          collection: PRODUCTS_COLLECTION
-        });
-        
-        if (!validation.isValid) {
-          errors.push(`SKU validation xatolik: ${validation.error}`);
-          console.log('[Excel Import] SKU validation failed:', validation.error);
-          continue; // Bu mahsulotni o'tkazib yuborish
-        }
+        // SKU validation o'chirildi - faqat kod/nom bilan dublikat tekshiriladi
 
         productsToInsert.push({
           name: productName,
