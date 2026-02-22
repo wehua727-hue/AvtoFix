@@ -664,6 +664,58 @@ export function useOfflineKassa(userId: string, userPhone?: string, defectiveCou
 
       console.log('[searchBySkuWithVariant] CustomId not found:', normalizedCodeUpper);
 
+      // ✅ 0.5. BarcodeId bo'yicha qidirish (- belgisi bilan ham)
+      console.log('[searchBySkuWithVariant] Searching for barcodeId:', normalizedCodeUpper);
+      
+      for (const product of products) {
+        // Mahsulot barcodeId ni tekshirish
+        const productBarcodeId = (product as any).barcodeId;
+        if (productBarcodeId) {
+          const normalizedProductBarcodeId = String(productBarcodeId).toUpperCase().trim();
+          console.log('[searchBySkuWithVariant] Product barcodeId:', normalizedProductBarcodeId, 'Name:', product.name);
+          
+          if (normalizedProductBarcodeId === normalizedCodeUpper) {
+            console.log('[searchBySkuWithVariant] Found product by barcodeId:', normalizedCodeUpper);
+            return { product, variantIndex: undefined };
+          }
+        }
+
+        // Variant barcodeId ni tekshirish
+        if (product.variantSummaries && product.variantSummaries.length > 0) {
+          for (let i = 0; i < product.variantSummaries.length; i++) {
+            const variant = product.variantSummaries[i];
+            const variantBarcodeId = (variant as any).barcodeId;
+            
+            if (variantBarcodeId) {
+              const normalizedVariantBarcodeId = String(variantBarcodeId).toUpperCase().trim();
+              console.log('[searchBySkuWithVariant] Variant barcodeId:', normalizedVariantBarcodeId, 'Name:', variant.name);
+              
+              if (normalizedVariantBarcodeId === normalizedCodeUpper) {
+                console.log('[searchBySkuWithVariant] Found variant by barcodeId:', normalizedCodeUpper);
+                const variantProduct: OfflineProduct = {
+                  ...product,
+                  id: `${product.id}-v${i}`,
+                  name: variant.name || variant.sku || `${product.name} - Xil ${i + 1}`,
+                  sku: variant.sku || product.sku,
+                  barcode: variant.barcode || product.barcode,
+                  price: variant.price || product.price,
+                  costPrice: variant.costPrice || product.costPrice || 0,
+                  currency: variant.currency || product.currency || 'UZS',
+                  stock: variant.stock ?? 0,
+                  initialStock: variant.initialStock ?? variant.stock ?? 0,
+                  productId: product.id,
+                  customId: variant.customId,
+                  variantSummaries: undefined
+                };
+                return { product: variantProduct, variantIndex: i };
+              }
+            }
+          }
+        }
+      }
+
+      console.log('[searchBySkuWithVariant] BarcodeId not found:', normalizedCodeUpper);
+
       // 1. Xil ID bilan qidirish (format: {productId}v{index} - chiziqchasiz)
       // Masalan: "316b8v0" yoki "316B8V0"
       if (normalizedCode.match(/^[a-f0-9]+v\d+$/i)) {
