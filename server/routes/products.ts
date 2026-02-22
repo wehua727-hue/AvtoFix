@@ -209,6 +209,8 @@ export const handleProductsGet: RequestHandler = async (req, res) => {
         initialStock,
         variantSummaries,
         categoryName,
+        // ✅ CRITICAL: Explicitly include barcodeId for main product
+        barcodeId: product.barcodeId,
       };
       
       // MUHIM: Debug logging - final result

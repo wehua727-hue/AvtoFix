@@ -173,6 +173,7 @@ export const handleGetAllProducts: RequestHandler = async (req, res) => {
       basePrice: typeof (p as any).basePrice === 'number' ? (p as any).basePrice : null,
       priceMultiplier: typeof (p as any).priceMultiplier === 'number' ? (p as any).priceMultiplier : null,
       sku: p.sku ?? '',
+      barcodeId: (p as any).barcodeId ?? null, // ✅ YANGI: BarcodeId qo'shish
       categoryId: p.categoryId ? p.categoryId.toString?.() ?? null : null,
       stock: typeof p.stock === 'number' ? p.stock : null,
       sizes: Array.isArray(p.sizes) ? p.sizes : [],
