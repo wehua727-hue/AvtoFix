@@ -16,6 +16,7 @@ interface ExcelImportModalProps {
 
 interface ColumnMapping {
   name: number;      // Mahsulot nomi (majburiy)
+  sku: number;       // SKU tartib raqami
   code: number;      // Mahsulot kodi (Код)
   catalogNumber: number; // Katalog raqami (№ по каталогу)
   price: number;     // Narxi
@@ -60,6 +61,7 @@ interface ImportResult {
 // Ustun nomlari
 const COLUMN_LABELS: Record<keyof ColumnMapping, string> = {
   name: 'Mahsulot nomi',
+  sku: 'SKU',
   code: 'Mahsulot kodi',
   catalogNumber: 'Katalog №',
   price: 'Narxi',
@@ -94,6 +96,7 @@ export function ExcelImportModal({
   // Ustun mapping
   const [columnMapping, setColumnMapping] = useState<ColumnMapping>({
     name: -1,
+    sku: -1,
     code: -1,
     catalogNumber: -1,
     price: -1,
@@ -624,6 +627,7 @@ export function ExcelImportModal({
     setImportCurrency('USD'); // Valyutani reset qilish
     setColumnMapping({
       name: -1,
+      sku: -1,
       code: -1,
       catalogNumber: -1,
       price: -1,

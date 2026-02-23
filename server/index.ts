@@ -803,7 +803,8 @@ export async function createServer() {
     app.use(express.static(distPath));
     
     // SPA routing - barcha boshqa so'rovlarni index.html ga yo'naltirish
-    app.get('*', (req, res) => {
+    // Express 5 da '*' o'rniga regex ishlatish kerak
+    app.get(/^(?!\/api).*$/, (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   } else {

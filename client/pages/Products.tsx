@@ -1259,13 +1259,14 @@ export default function Products() {
         // 1. Ota mahsulotni qo'shish - BARCHA MA'LUMOTLAR BILAN
         excelData.push({
           '№': rowNumber++,
-          'Код': (product as any).code || '', // Faqat code, SKU emas
+          'SKU': product.sku || '', // SKU tartib raqami
+          'Код': (product as any).code || '', // 4-5 talik kod
           'Наименование': product.name,
           '№ по каталогу': (product as any).catalogNumber || product.customId || '',
           'Barcode ID': barcodeId, // Barcode ID qo'shildi
           'Категория': categoryName,
           'Кол-во': stock,
-          'Цена': basePrice, // Asl narx
+          'Аsl нархи': basePrice, // Asl narx
           'Фоиз (%)': priceMultiplier,
           'Сумма': summa,
           'Валюта': product.currency || 'USD',
@@ -1274,7 +1275,6 @@ export default function Products() {
         // 2. Xillarni qo'shish - BARCHA MA'LUMOTLAR BILAN
         if (product.variantSummaries && product.variantSummaries.length > 0) {
           product.variantSummaries.forEach((variant, variantIndex) => {
-            const variantPrice = variant.price || product.price || 0;
             const variantStock = variant.stock || 0;
             const variantBasePrice = variant.basePrice || product.basePrice || 0;
             const variantMultiplier = variant.priceMultiplier || product.priceMultiplier || 0;
@@ -1288,13 +1288,14 @@ export default function Products() {
 
             excelData.push({
               '№': rowNumber++,
-              'Код': (variant as any).code || '', // Faqat code, SKU emas
+              'SKU': variant.sku || '', // Xil SKU
+              'Код': (variant as any).code || '', // 4-5 talik kod
               'Наименование': variant.name || product.name,
               '№ по каталогу': (variant as any).catalogNumber || variant.customId || (product as any).catalogNumber || product.customId || '',
               'Barcode ID': variantBarcodeId, // Xil uchun barcode ID
               'Категория': categoryName,
               'Кол-во': variantStock,
-              'Цена': variantBasePrice, // Asl narx
+              'Аsl нархи': variantBasePrice, // Asl narx
               'Фоиз (%)': variantMultiplier,
               'Сумма': variantSumma,
               'Валюта': variant.currency || product.currency || 'USD',
@@ -1311,13 +1312,14 @@ export default function Products() {
       // Ustun kengliklarini o'rnatish - YANGI USTUNLAR BILAN
       worksheet['!cols'] = [
         { wch: 5 },   // №
+        { wch: 10 },  // SKU
         { wch: 12 },  // Код
         { wch: 50 },  // Наименование
         { wch: 18 },  // № по каталогу
         { wch: 12 },  // Barcode ID
         { wch: 20 },  // Категория
         { wch: 8 },   // Кол-во
-        { wch: 12 },  // Цена
+        { wch: 12 },  // Аsl нархи
         { wch: 10 },  // Фоиз (%)
         { wch: 12 },  // Сумма
         { wch: 8 },   // Валюта
@@ -1415,19 +1417,21 @@ export default function Products() {
             // Ustun bo'yicha style tanlash
             switch (C) {
               case 0: // № - markaz
-              case 1: // Код - markaz
-              case 3: // № по каталогу - markaz
-              case 9: // Валюта - markaz
+              case 1: // SKU - markaz
+              case 2: // Код - markaz
+              case 4: // № по каталогу - markaz
+              case 5: // Barcode ID - markaz
+              case 11: // Валюта - markaz
                 worksheet[cellAddress].s = centerStyle;
                 break;
-              case 2: // Наименование - chap
-              case 4: // Категория - chap
+              case 3: // Наименование - chap
+              case 6: // Категория - chap
                 worksheet[cellAddress].s = dataStyle;
                 break;
-              case 5: // Кол-во - o'ng
-              case 6: // Цена - o'ng
-              case 7: // Фоиз (%) - o'ng
-              case 8: // Сумма - o'ng
+              case 7: // Кол-во - o'ng
+              case 8: // Аsl нархи - o'ng
+              case 9: // Фоиз (%) - o'ng
+              case 10: // Сумма - o'ng
                 worksheet[cellAddress].s = numberStyle;
                 break;
               default:

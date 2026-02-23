@@ -116,7 +116,11 @@ export const handleProductsGet: RequestHandler = async (req, res) => {
     
     console.log("[products] Final filter:", JSON.stringify(filter));
     
-    const products = await collection.find(filter).toArray();
+    // Mahsulotlarni olish - MongoDB'ga qo'shilgan tartibda (_id bo'yicha)
+    // _id MongoDB'da avtomatik yaratiladi va qo'shilgan vaqtni o'z ichiga oladi
+    const products = await collection.find(filter).sort({ _id: 1 }).toArray();
+    
+    console.log("[products] Products fetched in insertion order (by _id)");
 
     // Kategoriyalarni olish (categoryName yo'q bo'lgan mahsulotlar uchun)
     const categoryIds = [...new Set(products.map((p: any) => p.categoryId).filter(Boolean))];

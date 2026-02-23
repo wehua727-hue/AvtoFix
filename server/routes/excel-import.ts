@@ -24,6 +24,7 @@ const PRODUCTS_COLLECTION = process.env.OFFLINE_PRODUCTS_COLLECTION || "products
 // Ustun mapping interfeysi
 interface ColumnMapping {
   name: number;      // Mahsulot nomi (majburiy)
+  sku: number;       // SKU tartib raqami
   code: number;      // Mahsulot kodi
   catalogNumber: number; // Katalog raqami
   price: number;     // Narxi
@@ -36,9 +37,10 @@ interface ColumnMapping {
 // Sarlavha kalit so'zlari
 const HEADER_KEYWORDS = {
   name: ['наименование', 'название', 'номи', 'nomi', 'name', 'товар', 'mahsulot', 'product'],
-  code: ['код', 'code', 'артикул'],
+  sku: ['sku', 'артикул', 'номер', 'nomer', '№'],
+  code: ['код', 'code'],
   catalogNumber: ['№ по каталогу', 'каталог №', 'по каталогу', 'catalog'],
-  price: ['цена', 'narx', 'price', 'стоимость', 'сумма', 'итого'],
+  price: ['цена', 'narx', 'price', 'стоимость', 'сумма', 'итого', 'аsl нархи', 'asl narxi'],
   stock: ['кол-во', 'количество', 'к-во', 'soni', 'stock', 'qty', 'остаток', 'шт'],
   category: ['категория', 'группа', 'category', 'guruh'],
   barcodeId: ['barcode id', 'barcode', 'штрих-код', 'штрихкод'],
@@ -51,6 +53,7 @@ function detectHeaderAndColumns(rawData: any[]): { headerRowIndex: number; heade
   let headers: string[] = [];
   const mapping: ColumnMapping = {
     name: -1,
+    sku: -1,
     code: -1,
     catalogNumber: -1,
     price: -1,
@@ -84,8 +87,18 @@ function detectHeaderAndColumns(rawData: any[]): { headerRowIndex: number; heade
         continue;
       }
 
+      // "SKU" bo'lsa - sku (aniq tekshirish)
+      if ((cellValue === 'sku' || cellValue.includes('sku')) && !usedColumns.includes(col)) {
+        if (tempMapping.sku === -1) {
+          tempMapping.sku = col;
+          usedColumns.push(col);
+          foundColumns++;
+        }
+        continue;
+      }
+
       // "код" yoki "code" bo'lsa - code (lekin "каталог" bo'lmasa)
-      if ((cellValue === 'код' || cellValue.includes('код') || cellValue === 'code' || cellValue.includes('артикул') || cellValue === 'артикул') && !cellValue.includes('каталог') && !usedColumns.includes(col)) {
+      if ((cellValue === 'код' || cellValue.includes('код') || cellValue === 'code' || cellValue.includes('артикул') || cellValue === 'артикул') && !cellValue.includes('каталог') && !cellValue.includes('sku') && !usedColumns.includes(col)) {
         if (tempMapping.code === -1) {
           tempMapping.code = col;
           usedColumns.push(col);
@@ -227,19 +240,23 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
     // Foydalanuvchi mapping ni ishlatish yoki avtomatik
     const columnMap: ColumnMapping = userMapping || {
       name: 0,
+      sku: -1,
       code: -1,
       catalogNumber: -1,
       price: 1,
       stock: -1,
       category: -1,
+      barcodeId: -1,
+      multiplier: -1,
     };
 
     console.log('[Excel Import] Using column map:', columnMap);
-    console.log('[Excel Import] Column indices - name:', columnMap.name, ', code:', columnMap.code, ', catalogNumber:', columnMap.catalogNumber, ', price:', columnMap.price, ', stock:', columnMap.stock);
+    console.log('[Excel Import] Column indices - name:', columnMap.name, ', sku:', columnMap.sku, ', code:', columnMap.code, ', catalogNumber:', columnMap.catalogNumber, ', price:', columnMap.price, ', stock:', columnMap.stock);
 
     // 3. Qatorlarni parse qilish - FAQAT sarlavha qatoridan KEYIN
     interface ParsedRow {
       name: string;
+      sku: string; // SKU qo'shildi
       code: string;
       catalogNumber: string;
       price: number;
@@ -260,6 +277,7 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
       
       // Ma'lumotlarni olish
       let name = '';
+      let sku = ''; // SKU qo'shildi
       let code = '';
       let catalogNumber = '';
       let price = 0;
@@ -271,6 +289,12 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
       // Nom
       if (columnMap.name >= 0 && row[columnMap.name]) {
         name = String(row[columnMap.name]).trim();
+      }
+      
+      // SKU - Exceldan o'qish
+      if (columnMap.sku >= 0 && row[columnMap.sku] !== undefined && row[columnMap.sku] !== null && row[columnMap.sku] !== '') {
+        sku = String(row[columnMap.sku]).trim();
+        console.log('[Excel Import] Row', i, '- SKU column:', columnMap.sku, ', raw value:', row[columnMap.sku], ', parsed SKU:', sku);
       }
       
       // Mahsulot kodi
@@ -345,7 +369,7 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
         continue;
       }
       
-      rows.push({ name, code, catalogNumber, price, stock, category, barcodeId, multiplier: multiplierValue });
+      rows.push({ name, sku, code, catalogNumber, price, stock, category, barcodeId, multiplier: multiplierValue });
     }
 
     if (rows.length === 0) {
@@ -529,8 +553,12 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
               : 0;
             
             const variantStock = row.stock !== undefined && row.stock !== null ? row.stock : defaultStock;
-            const variantSku = String(globalSku);
-            globalSku++;
+            
+            // SKU - Exceldan olingan SKU ni ishlatish, agar bo'lmasa yangi SKU berish
+            const variantSku = row.sku || String(globalSku);
+            if (!row.sku) {
+              globalSku++; // Faqat yangi SKU berilganda increment qilish
+            }
             
             const variantCode = row.code ? String(row.code).trim() : '';
             const variantCatalog = row.catalogNumber ? String(row.catalogNumber).trim() : '';
@@ -636,8 +664,11 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
           continue; // Bu guruhni o'tkazib yuborish
         }
         
-        const productSku = String(globalSku);
-        globalSku++;
+        // SKU - Exceldan olingan SKU ni ishlatish, agar bo'lmasa yangi SKU berish
+        const productSku = mainRow.sku || String(globalSku);
+        if (!mainRow.sku) {
+          globalSku++; // Faqat yangi SKU berilganda increment qilish
+        }
         
         const productCode = mainRow.code ? String(mainRow.code).trim() : '';
         const productCatalogNumber = mainRow.catalogNumber ? String(mainRow.catalogNumber).trim() : '';
@@ -717,8 +748,11 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
             
             const variantStock = variantRow.stock !== undefined && variantRow.stock !== null ? variantRow.stock : defaultStock;
             
-            const variantSku = String(globalSku);
-            globalSku++;
+            // SKU - Exceldan olingan SKU ni ishlatish, agar bo'lmasa yangi SKU berish
+            const variantSku = variantRow.sku || String(globalSku);
+            if (!variantRow.sku) {
+              globalSku++; // Faqat yangi SKU berilganda increment qilish
+            }
             
             const variantCode = variantRow.code ? String(variantRow.code).trim() : '';
             const variantCatalogNumber = variantRow.catalogNumber ? String(variantRow.catalogNumber).trim() : '';
@@ -797,7 +831,8 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
     
     if (productsToInsert.length > 0) {
       try {
-        const result = await collection.insertMany(productsToInsert, { ordered: false });
+        // ordered: true - Excel tartibini saqlab qolish uchun
+        const result = await collection.insertMany(productsToInsert, { ordered: true });
         
         createdProducts = productsToInsert.map((product, index) => ({
           ...product,
