@@ -800,16 +800,10 @@ export async function createServer() {
   const distPath = path.join(__dirname, '../dist');
   if (fs.existsSync(distPath)) {
     console.log('[Server] Serving static files from:', distPath);
-    app.use(express.static(distPath, { index: false })); // index: false - avtomatik index.html serve qilmaslik
+    app.use(express.static(distPath));
     
-    // SPA routing - FAQAT API bo'lmagan so'rovlarni index.html ga yo'naltirish
-    // MUHIM: '*' o'rniga regex ishlatish
-    app.use((req, res, next) => {
-      // Agar so'rov /api bilan boshlansa yoki /uploads bo'lsa - o'tkazib yuborish
-      if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/check')) {
-        return next();
-      }
-      // Boshqa barcha so'rovlarni index.html ga yo'naltirish
+    // SPA routing - barcha boshqa so'rovlarni index.html ga yo'naltirish
+    app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   } else {

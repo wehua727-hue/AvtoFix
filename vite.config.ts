@@ -41,7 +41,7 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: false, // Production uchun sourcemap o'chirish
-    minify: 'esbuild', // esbuild ishlatish (tezroq va dependency kerak emas)
+    minify: 'terser', // Kodni minify qilish
     rollupOptions: {
       output: {
         manualChunks: {
