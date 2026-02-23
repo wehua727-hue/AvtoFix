@@ -15,6 +15,8 @@ export default defineConfig({
       "shop.avtofix.uz",
       "avtofix.uz",
       ".avtofix.uz", // Barcha subdomenlar
+      ".wpshost.ru", // WPS hosting
+      ".hosting", // Boshqa hosting provayderlar
     ],
     fs: {
       allow: ["./", "./client", "./shared"],
@@ -31,8 +33,22 @@ export default defineConfig({
       },
     },
   },
+  preview: {
+    host: "0.0.0.0",
+    port: 5174,
+    strictPort: false,
+  },
   build: {
     outDir: "dist",
+    sourcemap: false, // Production uchun sourcemap o'chirish
+    minify: 'terser', // Kodni minify qilish
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
+    },
   },
   plugins: [react()],
   resolve: {
@@ -42,5 +58,3 @@ export default defineConfig({
     },
   },
 });
-
- 

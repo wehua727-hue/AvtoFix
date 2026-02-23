@@ -5,6 +5,15 @@ import multer from "multer";
 import QRCode from "qrcode";
 import mongoose from "mongoose";
 import { ObjectId } from "mongodb";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+
+// ES module uchun __dirname ni yaratish
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 import { handleProductsGet, handleProductsCreate, handleProductGetById, handleProductUpdate, handleProductDelete, handleProductsClearAll, handleProductStockUpdate, handleProductHistoryGet, handleProductHistoryCreate, handleProductHistoryDelete, handleProductHistoryClear, handleProductImageUpload, handleBulkCategoryUpdate } from "./routes/products";
 import { dbConnectionMiddleware, validateSkuMiddleware } from "./middleware/sku-validation";
 import { handleCategoriesGet, handleCategoriesCreate, handleCategoryUpdate, handleCategoryDelete, handleCategoryMarkupUpdate } from "./routes/categories";
@@ -786,6 +795,20 @@ export async function createServer() {
   process.on('SIGINT', cleanup);
   process.on('SIGTERM', cleanup);
   process.on('SIGUSR2', cleanup); // For nodemon
+
+  // Static files (production) - barcha API route'lardan KEYIN
+  const distPath = path.join(__dirname, '../dist');
+  if (fs.existsSync(distPath)) {
+    console.log('[Server] Serving static files from:', distPath);
+    app.use(express.static(distPath));
+    
+    // SPA routing - barcha boshqa so'rovlarni index.html ga yo'naltirish
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  } else {
+    console.log('[Server] dist folder not found - running in development mode');
+  }
 
   // Error handling middleware - barcha route'lardan keyin
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
