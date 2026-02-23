@@ -545,7 +545,12 @@ export function ExcelImportModal({
     try {
       const response = await fetch(`${API_BASE_URL}/api/excel-import`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors', // CORS rejimini aniq belgilash
+        credentials: 'omit', // Credentials yubormaslik (soddaroq)
         body: JSON.stringify({
           fileData,
           editedData, // Tahrirlangan ma'lumotlarni yuborish
@@ -558,6 +563,14 @@ export function ExcelImportModal({
           defaultStatus: 'available',
         }),
       });
+
+      // Agar response JSON bo'lmasa (masalan, CORS xatosi yoki server xatosi)
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('[Excel Import] Non-JSON response:', text);
+        throw new Error('Server noto\'g\'ri javob qaytardi. Fayl hajmi juda katta bo\'lishi mumkin (maksimal 50MB).');
+      }
 
       const data = await response.json();
       
@@ -580,9 +593,10 @@ export function ExcelImportModal({
         onImportComplete();
       }
     } catch (err: any) {
+      console.error('[Excel Import] Error:', err);
       setImportResult({
         success: false,
-        message: err.message || 'Import xatosi',
+        message: err.message || 'Import xatosi. Fayl hajmi juda katta bo\'lishi mumkin.',
         totalProducts: 0,
         totalVariants: 0,
       });

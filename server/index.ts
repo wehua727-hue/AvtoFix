@@ -38,33 +38,22 @@ export { wsManager } from "./websocket";
 export async function createServer() {
   const app = express();
 
-  // CORS konfiguratsiyasi - WPS hosting va mobil uchun
+  // CORS konfiguratsiyasi - barcha origin'larga ruxsat (development va production)
   const corsOptions = {
-    origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
-      // Development rejimida barcha origin'larga ruxsat
-      if (!origin || 
-          origin.includes('localhost') || 
-          origin.includes('127.0.0.1') || 
-          origin.includes('shop.avtofix.uz') ||
-          origin.includes('avtofix.uz') ||
-          origin.includes('wpshost') ||
-          origin.includes('hosting')) {
-        callback(null, true);
-      } else {
-        // Mobil ilovalar uchun ham ruxsat (origin bo'lmasligi mumkin)
-        callback(null, true);
-      }
-    },
+    origin: true, // Barcha origin'larga ruxsat
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-user-id'],
-    optionsSuccessStatus: 200
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-user-id', 'Accept'],
+    exposedHeaders: ['Content-Type', 'Content-Length'],
+    maxAge: 86400, // 24 soat
+    optionsSuccessStatus: 200,
+    preflightContinue: false, // OPTIONS so'rovlarini avtomatik handle qilish
   };
 
   // Middleware
   app.use(cors(corsOptions));
-  app.use(express.json({ limit: "10mb" }));
-  app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+  app.use(express.json({ limit: "50mb" })); // Excel fayllar uchun katta limit
+  app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
   // Multer middleware for image uploads (memory storage)
   const upload = multer({
@@ -797,6 +786,34 @@ export async function createServer() {
   process.on('SIGINT', cleanup);
   process.on('SIGTERM', cleanup);
   process.on('SIGUSR2', cleanup); // For nodemon
+
+  // Error handling middleware - barcha route'lardan keyin
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error('[Server Error]', err);
+    
+    // JSON parse xatoligi
+    if (err instanceof SyntaxError && 'body' in err) {
+      return res.status(400).json({
+        success: false,
+        error: 'Noto\'g\'ri JSON format. Fayl hajmi juda katta bo\'lishi mumkin.',
+        details: err.message
+      });
+    }
+    
+    // Multer xatoligi (fayl hajmi)
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({
+        success: false,
+        error: 'Fayl hajmi juda katta. Maksimal hajm: 50MB'
+      });
+    }
+    
+    // Boshqa xatoliklar
+    return res.status(500).json({
+      success: false,
+      error: err.message || 'Server xatosi'
+    });
+  });
 
   return app;
 }

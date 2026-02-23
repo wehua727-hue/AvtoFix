@@ -136,6 +136,11 @@ function detectHeaderAndColumns(rawData: any[]): { headerRowIndex: number; heade
  * Excel fayldan mahsulotlarni import qilish
  */
 export const handleExcelImport: RequestHandler = async (req, res) => {
+  // CORS header'larini qo'lda qo'shish
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, x-user-id');
+  
   try {
     // XLSX mavjudligini tekshirish
     if (!XLSX) {
