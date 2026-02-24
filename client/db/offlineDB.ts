@@ -19,7 +19,8 @@ import Dexie, { Table } from 'dexie';
 export interface OfflineVariant {
   name: string;
   sku?: string;
-  customId?: string; // ✅ YANGI: Qo'lda kiritilgan ID
+  customId?: string; // ✅ Qo'lda kiritilgan ID
+  barcodeId?: string; // ✅ YANGI: Barcode ID (Excel dan yoki avtomatik)
   barcode?: string;
   price: number;
   costPrice?: number;     // Asl narx (tan narxi) - sof foyda hisoblash uchun
@@ -42,7 +43,8 @@ export interface OfflineProduct {
   normalizedName: string; // Qidiruv uchun
   keywords: string[];     // Tokenized keywords
   sku?: string;
-  customId?: string;      // ✅ YANGI: Qo'lda kiritilgan ID
+  customId?: string;      // ✅ Qo'lda kiritilgan ID
+  barcodeId?: string;     // ✅ YANGI: Barcode ID (Excel dan yoki avtomatik)
   barcode?: string;
   price: number;
   costPrice?: number;     // Asl narx (tan narxi) - sof foyda hisoblash uchun

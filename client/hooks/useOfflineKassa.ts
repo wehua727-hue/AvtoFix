@@ -160,7 +160,8 @@ export function useOfflineKassa(userId: string, userPhone?: string, defectiveCou
           normalizedName: normalizeText(p.name),
           keywords: tokenize(p.name),
           sku: p.sku !== undefined && p.sku !== null ? String(p.sku) : undefined,
-          customId: p.customId !== undefined && p.customId !== null ? String(p.customId) : undefined, // ✅ YANGI: Custom ID
+          customId: p.customId !== undefined && p.customId !== null ? String(p.customId) : undefined, // ✅ Custom ID
+          barcodeId: p.barcodeId !== undefined && p.barcodeId !== null ? String(p.barcodeId) : undefined, // ✅ YANGI: Barcode ID
           barcode: p.barcode !== undefined && p.barcode !== null ? String(p.barcode) : undefined,
           price: p.price || 0,
           costPrice: p.costPrice || p.cost || p.basePrice || Math.round((p.price || 0) * 0.7),
@@ -184,7 +185,8 @@ export function useOfflineKassa(userId: string, userPhone?: string, defectiveCou
             currency: v.currency || p.currency || 'UZS',
             stock: v.stock ?? 0, // REAL-TIME variant stock
             initialStock: v.initialStock, // MUHIM: Faqat serverdan kelgan qiymat, fallback yo'q!
-            customId: v.customId !== undefined && v.customId !== null ? String(v.customId) : undefined, // ✅ YANGI: Variant Custom ID
+            customId: v.customId !== undefined && v.customId !== null ? String(v.customId) : undefined, // ✅ Variant Custom ID
+            barcodeId: v.barcodeId !== undefined && v.barcodeId !== null ? String(v.barcodeId) : undefined, // ✅ YANGI: Variant Barcode ID
             imageUrl: v.imageUrl || v.images?.[0]
           })) : []
         }));
