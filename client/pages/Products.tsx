@@ -446,6 +446,9 @@ export default function Products() {
   const [selectedImportSource, setSelectedImportSource] = useState<string>(''); // Tanlangan Excel nomi
   const [availableImportSources, setAvailableImportSources] = useState<string[]>([]); // Mavjud Excel nomlari
   const [showClearDialog, setShowClearDialog] = useState(false);
+  const [clearBySkuRange, setClearBySkuRange] = useState(false); // SKU oralig'i bo'yicha o'chirish
+  const [clearMinSku, setClearMinSku] = useState(''); // Minimum SKU
+  const [clearMaxSku, setClearMaxSku] = useState(''); // Maximum SKU
 
   const [name, setName] = useState('');
   const [sku, setSku] = useState('');
@@ -1148,6 +1151,119 @@ export default function Products() {
             }
           } catch (err) {
             console.error('Failed to clear products:', err);
+            toast.error("Xatolik yuz berdi");
+          }
+        }
+      }
+    });
+  };
+
+  // 🆕 SKU oralig'i bo'yicha o'chirish funksiyasi
+  const handleClearBySkuRange = async () => {
+    const minSku = parseInt(clearMinSku);
+    const maxSku = parseInt(clearMaxSku);
+
+    if (isNaN(minSku) || isNaN(maxSku)) {
+      toast.error("SKU raqamlarini to'g'ri kiriting");
+      return;
+    }
+
+    if (minSku > maxSku) {
+      toast.error("Minimum SKU maksimumdan katta bo'lmasligi kerak");
+      return;
+    }
+
+    // O'chiriladigan mahsulotlar va xillarni hisoblash
+    const productsToDelete: string[] = []; // To'liq o'chiriladigan mahsulotlar
+    const productsToUpdate: Array<{ productId: string; variantsToKeep: any[] }> = []; // Xillari o'chiriladigan mahsulotlar
+    
+    for (const product of products) {
+      const productSku = parseInt(product.sku);
+      const isProductInRange = !isNaN(productSku) && productSku >= minSku && productSku <= maxSku;
+      
+      // Xillarni tekshirish
+      const variantsInRange: number[] = [];
+      const variantsOutOfRange: any[] = [];
+      
+      if (product.variantSummaries && product.variantSummaries.length > 0) {
+        product.variantSummaries.forEach((variant, index) => {
+          const variantSku = parseInt(variant.sku || '');
+          if (!isNaN(variantSku) && variantSku >= minSku && variantSku <= maxSku) {
+            variantsInRange.push(index);
+          } else {
+            variantsOutOfRange.push(variant);
+          }
+        });
+      }
+      
+      // Agar asosiy mahsulot oralig'ida bo'lsa
+      if (isProductInRange) {
+        if (variantsOutOfRange.length > 0) {
+          // Asosiy mahsulot o'chadi, lekin xillar qoladi - ularni yangi mahsulot qilish kerak
+          // Bu backend da amalga oshiriladi
+          productsToUpdate.push({
+            productId: product.id,
+            variantsToKeep: variantsOutOfRange
+          });
+        } else {
+          // Asosiy mahsulot va barcha xillar o'chadi
+          productsToDelete.push(product.id);
+        }
+      } else {
+        // Asosiy mahsulot oralig'ida emas
+        if (variantsInRange.length > 0) {
+          // Faqat ba'zi xillar o'chadi
+          productsToUpdate.push({
+            productId: product.id,
+            variantsToKeep: variantsOutOfRange
+          });
+        }
+        // Aks holda hech narsa o'chmasligi kerak
+      }
+    }
+
+    const totalToDelete = productsToDelete.length + productsToUpdate.length;
+    
+    if (totalToDelete === 0) {
+      toast.info(`${minSku} dan ${maxSku} gacha SKU oralig'ida mahsulot topilmadi`);
+      return;
+    }
+
+    showConfirmModal({
+      title: "SKU oralig'i bo'yicha o'chirish",
+      description: `${minSku} dan ${maxSku} gacha bo'lgan ${totalToDelete} ta mahsulot/xil o'chiriladi. Bu amalni qaytarib bo'lmaydi!`,
+      confirmText: "O'chirish",
+      cancelText: "Bekor qilish",
+      variant: 'destructive',
+      onConfirm: async () => {
+        closeConfirmModal();
+        if (user?.id) {
+          try {
+            const res = await fetch(`${API_BASE_URL}/api/products/delete-by-sku-range`, {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                userId: user.id,
+                minSku,
+                maxSku,
+                productsToDelete,
+                productsToUpdate
+              }),
+            });
+            const data = await res.json();
+            if (data.success) {
+              // Mahsulotlarni qayta yuklash
+              loadProducts();
+              toast.success(data.message || "Mahsulotlar o'chirildi");
+              setShowClearDialog(false);
+              setClearBySkuRange(false);
+              setClearMinSku('');
+              setClearMaxSku('');
+            } else {
+              toast.error(data.error || "Xatolik yuz berdi");
+            }
+          } catch (err) {
+            console.error('Failed to delete products by SKU range:', err);
             toast.error("Xatolik yuz berdi");
           }
         }
@@ -7859,42 +7975,121 @@ export default function Products() {
         </DialogContent>
       </Dialog>
 
-      {/* 🆕 Tozalash Dialog - Faqat to'liq tozalash */}
-      <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+      {/* 🆕 Tozalash Dialog - To'liq yoki SKU oralig'i bo'yicha */}
+      <Dialog open={showClearDialog} onOpenChange={(open) => {
+        setShowClearDialog(open);
+        if (!open) {
+          setClearBySkuRange(false);
+          setClearMinSku('');
+          setClearMaxSku('');
+        }
+      }}>
         <DialogContent className="max-w-lg bg-slate-900/95 border-slate-700/50 backdrop-blur-xl rounded-3xl p-6">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold text-slate-100">
               🗑️ Mahsulotlarni Tozalash
             </DialogTitle>
             <p className="text-slate-400 text-sm mt-2">
-              Barcha mahsulotlarni o'chirish
+              {clearBySkuRange ? "SKU oralig'i bo'yicha o'chirish" : "Barcha mahsulotlarni o'chirish"}
             </p>
           </DialogHeader>
 
           <div className="space-y-4 mt-4">
-            {/* To'liq tozalash */}
-            <button
-              onClick={handleClearAll}
-              className="w-full p-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 border-2 border-red-500/30 hover:border-red-500/50 transition-all group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Trash2 className="w-6 h-6 text-red-400" />
-                </div>
-                <div className="text-left flex-1">
-                  <h3 className="text-lg font-bold text-red-400">To'liq Tozalash</h3>
-                  <p className="text-sm text-slate-400">
-                    Barcha {products.length} ta mahsulotni o'chirish
-                  </p>
-                </div>
+            {/* Switch - To'liq / SKU oralig'i */}
+            <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
+              <div>
+                <p className="text-sm font-medium text-slate-200">SKU oralig'i bo'yicha o'chirish</p>
+                <p className="text-xs text-slate-400 mt-0.5">Faqat ma'lum SKU oralig'idagi mahsulotlarni o'chirish</p>
               </div>
-            </button>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={clearBySkuRange}
+                  onChange={(e) => setClearBySkuRange(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+
+            {/* SKU oralig'i inputlari */}
+            {clearBySkuRange && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                      Minimum SKU
+                    </label>
+                    <input
+                      type="number"
+                      value={clearMinSku}
+                      onChange={(e) => setClearMinSku(e.target.value)}
+                      placeholder="5"
+                      className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                      Maximum SKU
+                    </label>
+                    <input
+                      type="number"
+                      value={clearMaxSku}
+                      onChange={(e) => setClearMaxSku(e.target.value)}
+                      placeholder="50"
+                      className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                <button
+                  onClick={handleClearBySkuRange}
+                  className="w-full p-4 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 border-2 border-orange-500/30 hover:border-orange-500/50 transition-all group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-orange-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Trash2 className="w-6 h-6 text-orange-400" />
+                    </div>
+                    <div className="text-left flex-1">
+                      <h3 className="text-lg font-bold text-orange-400">SKU Oralig'ini O'chirish</h3>
+                      <p className="text-sm text-slate-400">
+                        {clearMinSku && clearMaxSku ? `${clearMinSku} dan ${clearMaxSku} gacha` : 'SKU oralig\'ini kiriting'}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            )}
+
+            {/* To'liq tozalash */}
+            {!clearBySkuRange && (
+              <button
+                onClick={handleClearAll}
+                className="w-full p-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 border-2 border-red-500/30 hover:border-red-500/50 transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Trash2 className="w-6 h-6 text-red-400" />
+                  </div>
+                  <div className="text-left flex-1">
+                    <h3 className="text-lg font-bold text-red-400">To'liq Tozalash</h3>
+                    <p className="text-sm text-slate-400">
+                      Barcha {products.length} ta mahsulotni o'chirish
+                    </p>
+                  </div>
+                </div>
+              </button>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 mt-6">
             <Button
               variant="outline"
-              onClick={() => setShowClearDialog(false)}
+              onClick={() => {
+                setShowClearDialog(false);
+                setClearBySkuRange(false);
+                setClearMinSku('');
+                setClearMaxSku('');
+              }}
               className="bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-600"
             >
               Yopish

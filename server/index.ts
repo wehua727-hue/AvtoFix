@@ -14,7 +14,7 @@ import { dirname } from "path";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-import { handleProductsGet, handleProductsCreate, handleProductGetById, handleProductUpdate, handleProductDelete, handleProductsClearAll, handleProductStockUpdate, handleProductHistoryGet, handleProductHistoryCreate, handleProductHistoryDelete, handleProductHistoryClear, handleProductImageUpload, handleBulkCategoryUpdate } from "./routes/products";
+import { handleProductsGet, handleProductsCreate, handleProductGetById, handleProductUpdate, handleProductDelete, handleProductsClearAll, handleProductsDeleteBySkuRange, handleProductStockUpdate, handleProductHistoryGet, handleProductHistoryCreate, handleProductHistoryDelete, handleProductHistoryClear, handleProductImageUpload, handleBulkCategoryUpdate } from "./routes/products";
 import { dbConnectionMiddleware, validateSkuMiddleware } from "./middleware/sku-validation";
 import { handleCategoriesGet, handleCategoriesCreate, handleCategoryUpdate, handleCategoryDelete, handleCategoryMarkupUpdate } from "./routes/categories";
 import { handleStoresGet, handleStoresCreate, handleStoreDelete } from "./routes/stores";
@@ -122,6 +122,7 @@ export async function createServer() {
   app.get("/api/products/delta", handleProductsDelta);
   app.get("/api/products/sync-status", handleSyncStatus);
   app.delete("/api/products/clear-all", handleProductsClearAll);
+  app.delete("/api/products/delete-by-sku-range", handleProductsDeleteBySkuRange);
   // Параметрические роуты - в конце, :id последним
   app.put("/api/products/:id", dbConnectionMiddleware, validateSkuMiddleware, handleProductUpdate);
   app.patch("/api/products/:id/stock", handleProductStockUpdate);

@@ -1674,6 +1674,154 @@ export const handleProductsClearAll: RequestHandler = async (req, res) => {
 };
 
 /**
+ * DELETE /api/products/delete-by-sku-range
+ * SKU oralig'i bo'yicha mahsulotlarni o'chirish
+ * MUHIM: Agar asosiy mahsulot o'chsa lekin xillar qolsa, xillarni yangi mahsulot qilish
+ */
+export const handleProductsDeleteBySkuRange: RequestHandler = async (req, res) => {
+  console.log(`[api/products/delete-by-sku-range] ========== DELETE BY SKU RANGE REQUEST ==========`);
+  console.log(`[api/products/delete-by-sku-range] Body:`, req.body);
+  
+  try {
+    const conn = await connectMongo();
+    if (!conn || !conn.db) {
+      console.log(`[api/products/delete-by-sku-range] ❌ Database not available`);
+      return res.status(500).json({ error: "Database not available" });
+    }
+    
+    const db = conn.db;
+    const { userId, minSku, maxSku, productsToDelete, productsToUpdate } = req.body;
+    
+    if (!userId) {
+      console.log(`[api/products/delete-by-sku-range] ❌ userId is missing`);
+      return res.status(400).json({ error: "userId is required" });
+    }
+    
+    console.log(`[api/products/delete-by-sku-range] Min SKU: ${minSku}, Max SKU: ${maxSku}`);
+    console.log(`[api/products/delete-by-sku-range] Products to delete: ${productsToDelete?.length || 0}`);
+    console.log(`[api/products/delete-by-sku-range] Products to update: ${productsToUpdate?.length || 0}`);
+    
+    const collection = db.collection(PRODUCTS_COLLECTION);
+    let deletedCount = 0;
+    let updatedCount = 0;
+    
+    // 1. To'liq o'chiriladigan mahsulotlar
+    if (Array.isArray(productsToDelete) && productsToDelete.length > 0) {
+      const objectIds = productsToDelete.map(id => {
+        try {
+          return new ObjectId(id);
+        } catch {
+          return id;
+        }
+      });
+      
+      const result = await collection.deleteMany({
+        userId: userId,
+        $or: [
+          { _id: { $in: objectIds } },
+          { _id: { $in: productsToDelete } }
+        ]
+      });
+      
+      deletedCount += result.deletedCount;
+      console.log(`[api/products/delete-by-sku-range] Deleted ${result.deletedCount} products completely`);
+    }
+    
+    // 2. Xillari o'chiriladigan mahsulotlar
+    if (Array.isArray(productsToUpdate) && productsToUpdate.length > 0) {
+      for (const item of productsToUpdate) {
+        const { productId, variantsToKeep } = item;
+        
+        try {
+          const objectId = new ObjectId(productId);
+          
+          // Mahsulotni olish
+          const product = await collection.findOne({ _id: objectId, userId });
+          
+          if (!product) {
+            console.log(`[api/products/delete-by-sku-range] Product not found: ${productId}`);
+            continue;
+          }
+          
+          const productSku = parseInt(product.sku);
+          const isProductInRange = !isNaN(productSku) && productSku >= minSku && productSku <= maxSku;
+          
+          if (isProductInRange && variantsToKeep.length > 0) {
+            // Asosiy mahsulot o'chadi, xillar yangi mahsulot bo'ladi
+            // Birinchi xilni asosiy mahsulot qilamiz
+            const firstVariant = variantsToKeep[0];
+            const remainingVariants = variantsToKeep.slice(1);
+            
+            await collection.updateOne(
+              { _id: objectId },
+              {
+                $set: {
+                  name: firstVariant.name,
+                  sku: firstVariant.sku,
+                  code: firstVariant.code,
+                  catalogNumber: firstVariant.catalogNumber,
+                  barcodeId: firstVariant.barcodeId,
+                  customId: firstVariant.customId,
+                  basePrice: firstVariant.basePrice,
+                  price: firstVariant.price,
+                  priceMultiplier: firstVariant.priceMultiplier,
+                  currency: firstVariant.currency,
+                  stock: firstVariant.stock,
+                  categoryId: firstVariant.categoryId,
+                  variantSummaries: remainingVariants,
+                  updatedAt: new Date()
+                }
+              }
+            );
+            
+            updatedCount++;
+            console.log(`[api/products/delete-by-sku-range] Updated product ${productId}: promoted variant to main product`);
+          } else if (!isProductInRange && variantsToKeep.length >= 0) {
+            // Asosiy mahsulot qoladi, faqat xillar o'chadi
+            await collection.updateOne(
+              { _id: objectId },
+              {
+                $set: {
+                  variantSummaries: variantsToKeep,
+                  updatedAt: new Date()
+                }
+              }
+            );
+            
+            updatedCount++;
+            console.log(`[api/products/delete-by-sku-range] Updated product ${productId}: removed variants in range`);
+          }
+        } catch (err) {
+          console.error(`[api/products/delete-by-sku-range] Error updating product ${productId}:`, err);
+        }
+      }
+    }
+    
+    console.log(`[api/products/delete-by-sku-range] ✅ Deleted: ${deletedCount}, Updated: ${updatedCount}`);
+    
+    // WebSocket orqali xabar yuborish
+    const io = (req as any).io;
+    if (io) {
+      io.emit('products-updated', {
+        userId: userId,
+        action: 'delete-range',
+        count: deletedCount + updatedCount
+      });
+    }
+    
+    return res.json({
+      success: true,
+      message: `${deletedCount + updatedCount} ta mahsulot/xil o'chirildi`,
+      deletedCount,
+      updatedCount
+    });
+  } catch (error) {
+    console.error("[api/products/delete-by-sku-range DELETE] Error:", error);
+    return res.status(500).json({ error: "Failed to delete products" });
+  }
+};
+
+/**
  * PATCH /api/products/:id/stock
  * Stock yangilash - SODDA VA ISHONCHLI
  */
