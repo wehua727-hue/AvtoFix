@@ -70,7 +70,7 @@ export default function VariantModal({
   const [sku, setSku] = useState('');
   const [customId, setCustomId] = useState(''); // ✅ YANGI: Xil uchun Custom ID
   const [basePrice, setBasePrice] = useState('');
-  const [priceMultiplier, setPriceMultiplier] = useState('25');
+  const [priceMultiplier, setPriceMultiplier] = useState('10'); // Default 10%
   const [price, setPrice] = useState('');
   const [priceCurrency, setPriceCurrency] = useState<Currency>('USD');
   const [stock, setStock] = useState('1');
@@ -121,7 +121,7 @@ export default function VariantModal({
       setSku(initialData.sku ?? '');
       setCustomId((initialData as any).customId ?? ''); // ✅ YANGI: Custom ID
       setBasePrice(initialData.basePrice ?? '');
-      setPriceMultiplier(initialData.priceMultiplier ?? '25');
+      setPriceMultiplier(initialData.priceMultiplier ?? '10'); // Default 10%
       setPrice(initialData.price ?? '');
       setPriceCurrency(initialData.priceCurrency ?? (initialData as any).currency ?? productCurrency ?? 'USD');
       setStock(initialData.stock ?? '');
@@ -136,7 +136,7 @@ export default function VariantModal({
       setSku(nextSku ?? ''); // Avtomatik keyingi SKU
       setCustomId(''); // ✅ YANGI: Custom ID tozalash
       setBasePrice('');
-      setPriceMultiplier('25');
+      setPriceMultiplier('10'); // Default 10%
       setPrice('');
       setPriceCurrency(productCurrency || 'USD'); // Mahsulotning currency sini ishlatish
       setStock('1');

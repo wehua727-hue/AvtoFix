@@ -453,7 +453,7 @@ export default function Products() {
   const [price, setPrice] = useState('');
   const [priceCurrency, setPriceCurrency] = useState<Currency>('USD');
   const [basePrice, setBasePrice] = useState('');
-  const [priceMultiplier, setPriceMultiplier] = useState('25');
+  const [priceMultiplier, setPriceMultiplier] = useState('10'); // Default 10%
   const [stock, setStock] = useState('1');
   const [isPriceManuallyEdited, setIsPriceManuallyEdited] = useState(false);
   const [categoryId, setCategoryId] = useState('');
@@ -2489,7 +2489,7 @@ export default function Products() {
           setPrice('');
           setPriceCurrency('USD');
           setBasePrice('');
-          setPriceMultiplier('25');
+          setPriceMultiplier('10'); // Default 10%
           setStock('1');
           setCategoryId('');
           setSelectedParent(null);
@@ -2740,7 +2740,7 @@ export default function Products() {
         setPrice('');
         setPriceCurrency('USD');
         setBasePrice('');
-        setPriceMultiplier('25');
+        setPriceMultiplier('10'); // Default 10%
         setStock('1');
         setCategoryId('');
         setSelectedParent(null);
@@ -3128,7 +3128,7 @@ export default function Products() {
                       setPrice('');
                       setPriceCurrency('USD');
                       setBasePrice('');
-                      setPriceMultiplier('25');
+                      setPriceMultiplier('10'); // Default 10%
                       setStock('1');
                       setCategoryId('');
                       setSelectedParent(null);
@@ -3574,7 +3574,7 @@ export default function Products() {
                           setPrice('');
                           setPriceCurrency('USD');
                           setBasePrice('');
-                          setPriceMultiplier('25');
+                          setPriceMultiplier('10'); // Default 10%
                           setStock('1');
                           setCategoryId('');
                           setSelectedParent(null);
@@ -4228,7 +4228,7 @@ export default function Products() {
                                               basePrice: baseFromVariant != null && Number.isFinite(baseFromVariant)
                                                 ? String(baseFromVariant)
                                                 : '',
-                                              priceMultiplier: variant?.priceMultiplier != null ? String(variant.priceMultiplier) : '25',
+                                              priceMultiplier: variant?.priceMultiplier != null ? String(variant.priceMultiplier) : '10', // Default 10%
                                               price: priceFromVariant != null && Number.isFinite(priceFromVariant)
                                                 ? String(priceFromVariant)
                                                 : '',
@@ -4794,7 +4794,7 @@ export default function Products() {
                               setCustomId(''); // ✅ YANGI: Custom ID ni tozalash
                               setPrice('');
                               setBasePrice('');
-                              setPriceMultiplier('25');
+                              setPriceMultiplier('10'); // Default 10%
                               setStock('1');
                               setCategoryId('');
                               setSelectedParent(null);
@@ -8128,7 +8128,7 @@ export default function Products() {
                   setPrice('');
                   setPriceCurrency('USD');
                   setBasePrice('');
-                  setPriceMultiplier('25');
+                  setPriceMultiplier('10'); // Default 10%
                   setStock('1');
                   setCategoryId('');
                   setSelectedParent(null);
