@@ -5,7 +5,7 @@ import { Trash2, Tag, Loader2, Printer, X, FileSpreadsheet, Plus, Search, Histor
 import Sidebar from '@/components/Layout/Sidebar';
 import Navbar from '@/components/Layout/Navbar';
 import ProductStatusSelector, { productStatusConfig, type ProductStatus } from '@/components/ProductStatusSelector';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   listPrinters,
@@ -65,6 +65,8 @@ interface VariantSummary {
   stock?: number;
   status?: string;
   imagePaths?: string[];
+  importSource?: string; // ✅ YANGI: Excel fayl nomi
+  importOrder?: number; // ✅ YANGI: Import tartibi
 }
 
 interface Product {
@@ -86,6 +88,8 @@ interface Product {
   imagePaths?: string[];
   status?: ProductStatus;
   description?: string;
+  importSource?: string; // ✅ YANGI: Excel fayl nomi
+  importOrder?: number; // ✅ YANGI: Import tartibi
   video?: {
     filename: string;
     url?: string;
@@ -438,6 +442,9 @@ export default function Products() {
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [showExportCategoryDialog, setShowExportCategoryDialog] = useState(false);
   const [selectedExportCategory, setSelectedExportCategory] = useState<string>('');
+  const [exportByImportSource, setExportByImportSource] = useState(false); // Switch holati
+  const [selectedImportSource, setSelectedImportSource] = useState<string>(''); // Tanlangan Excel nomi
+  const [availableImportSources, setAvailableImportSources] = useState<string[]>([]); // Mavjud Excel nomlari
   const [showClearDialog, setShowClearDialog] = useState(false);
 
   const [name, setName] = useState('');
@@ -1148,8 +1155,50 @@ export default function Products() {
     });
   };
 
+  // Import source'larni to'plash
+  const getAvailableImportSources = () => {
+    console.log('[Export] ===== STARTING getAvailableImportSources =====');
+    console.log('[Export] Total products in state:', products.length);
+    
+    const sources = new Set<string>();
+    
+    if (products.length === 0) {
+      console.log('[Export] ⚠️ No products found in state!');
+      return [];
+    }
+    
+    console.log('[Export] First product sample:', JSON.stringify(products[0], null, 2));
+    
+    for (let i = 0; i < products.length; i++) {
+      const product = products[i];
+      console.log(`[Export] [${i+1}/${products.length}] Product:`, product.name, '- SKU:', product.sku, '- importSource:', product.importSource, '- importOrder:', product.importOrder);
+      
+      if (product.importSource) {
+        console.log('[Export] ✅ Found importSource in product:', product.name, '→', product.importSource);
+        sources.add(product.importSource);
+      } else {
+        console.log('[Export] ❌ No importSource in product:', product.name);
+      }
+      
+      if (product.variantSummaries && product.variantSummaries.length > 0) {
+        console.log(`[Export] Checking ${product.variantSummaries.length} variants for product:`, product.name);
+        for (const variant of product.variantSummaries) {
+          if (variant.importSource) {
+            console.log('[Export] ✅ Found importSource in variant:', variant.name, '→', variant.importSource);
+            sources.add(variant.importSource);
+          }
+        }
+      }
+    }
+    
+    const result = Array.from(sources).sort();
+    console.log('[Export] ===== FINAL Available import sources:', result);
+    console.log('[Export] ===== Total unique sources found:', result.length);
+    return result;
+  };
+
   // 🆕 Excel export funksiyasi - barcha mahsulotlar va xillarni yuklab olish
-  const handleExportToExcel = async (selectedCategoryId?: string) => {
+  const handleExportToExcel = async (selectedCategoryId?: string, selectedImportSource?: string) => {
     try {
       // Dinamik import - faqat kerak bo'lganda yuklanadi
       const XLSX = await import('xlsx');
@@ -1219,8 +1268,53 @@ export default function Products() {
         return;
       }
 
-      // MUHIM: Mahsulotlarni SKU bo'yicha tartiblash - saytda qanday ko'rsatilgan bo'lsa shunday
-      productsToExport = sortProductsBySku(productsToExport);
+      // Excel nomi bo'yicha filtrlash (agar tanlangan bo'lsa)
+      if (selectedImportSource) {
+        const filteredProducts: Product[] = [];
+        const filteredVariants: any[] = [];
+        
+        for (const product of productsToExport) {
+          // Asosiy mahsulotni tekshirish
+          if (product.importSource === selectedImportSource) {
+            filteredProducts.push(product);
+          }
+          
+          // Xillarni tekshirish
+          if (product.variantSummaries && product.variantSummaries.length > 0) {
+            const matchingVariants = product.variantSummaries.filter(
+              v => v.importSource === selectedImportSource
+            );
+            if (matchingVariants.length > 0) {
+              // Agar xillar mos kelsa, asosiy mahsulotni ham qo'shish (agar hali qo'shilmagan bo'lsa)
+              if (!filteredProducts.find(p => p.id === product.id)) {
+                filteredProducts.push({
+                  ...product,
+                  variantSummaries: matchingVariants
+                });
+              }
+            }
+          }
+        }
+        
+        productsToExport = filteredProducts;
+        
+        if (productsToExport.length === 0) {
+          toast.error(`"${selectedImportSource}" dan import qilingan mahsulotlar topilmadi`);
+          return;
+        }
+      }
+
+      // Import order bo'yicha tartiblash (agar Excel nomi tanlangan bo'lsa)
+      if (selectedImportSource) {
+        productsToExport.sort((a, b) => {
+          const aOrder = a.importOrder || 999999;
+          const bOrder = b.importOrder || 999999;
+          return aOrder - bOrder;
+        });
+      } else {
+        // MUHIM: Mahsulotlarni SKU bo'yicha tartiblash - saytda qanday ko'rsatilgan bo'lsa shunday
+        productsToExport = sortProductsBySku(productsToExport);
+      }
 
       const categoryName = selectedCategoryId
         ? categories.find(c => c.id === selectedCategoryId)?.name || 'Noma\'lum'
@@ -1248,7 +1342,7 @@ export default function Products() {
         const basePrice = product.basePrice || 0;
         const priceMultiplier = product.priceMultiplier || 0;
         const summa = basePrice * stock; // Asl narx bilan summa
-        const categoryName = categories.find(c => c.id === product.categoryId)?.name || '';
+        const categoryName = product.categoryId ? (categories.find(c => c.id === product.categoryId)?.name || 'yo\'q') : 'yo\'q';
         
         // Barcode ID - PRIORITY: Excel barcodeId → MongoDB ID (oxirgi 8 belgi)
         const productIdString = String(product.id);
@@ -1280,6 +1374,9 @@ export default function Products() {
             const variantMultiplier = variant.priceMultiplier || product.priceMultiplier || 0;
             const variantSumma = variantBasePrice * variantStock; // Asl narx bilan summa
             
+            // Xil uchun kategoriya - FAQAT xilning o'z kategoriyasi, agar bo'lmasa "yo'q"
+            const variantCategoryName = variant.categoryId ? (categories.find(c => c.id === variant.categoryId)?.name || 'yo\'q') : 'yo\'q';
+            
             // Xil uchun barcode ID - PRIORITY: Excel barcodeId → MongoDB ID (oxirgi 8 belgi)
             const variantProductId = `${product.id}-v${variantIndex}`;
             const variantBarcodeId = variant.barcodeId || variantProductId.slice(-8).toUpperCase();
@@ -1293,7 +1390,7 @@ export default function Products() {
               'Наименование': variant.name || product.name,
               '№ по каталогу': (variant as any).catalogNumber || variant.customId || (product as any).catalogNumber || product.customId || '',
               'Barcode ID': variantBarcodeId, // Xil uchun barcode ID
-              'Категория': categoryName,
+              'Категория': variantCategoryName, // Xilning o'z kategoriyasi
               'Кол-во': variantStock,
               'Аsl нархи': variantBasePrice, // Asl narx
               'Фоиз (%)': variantMultiplier,
@@ -1457,9 +1554,16 @@ export default function Products() {
       // Fayl nomini yaratish
       const date = new Date();
       const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-      const fileName = selectedCategoryId
-        ? `mahsulotlar_${categoryName}_${dateStr}.xlsx`
-        : `mahsulotlar_barcha_${dateStr}.xlsx`;
+      
+      let fileName: string;
+      if (selectedImportSource) {
+        // Excel nomi bo'yicha export - asl nomni saqlash
+        fileName = selectedImportSource;
+      } else if (selectedCategoryId) {
+        fileName = `mahsulotlar_${categoryName}_${dateStr}.xlsx`;
+      } else {
+        fileName = `mahsulotlar_barcha_${dateStr}.xlsx`;
+      }
 
       // Faylni yuklab olish
       XLSX.writeFile(workbook, fileName);
@@ -1652,6 +1756,14 @@ export default function Products() {
         if (!res.ok) return;
         const data = await res.json();
         console.log('[Products] Loaded products:', data);
+        
+        // DEBUG: Birinchi mahsulotni to'liq ko'rish
+        if (Array.isArray(data) && data.length > 0) {
+          console.log('[Products] First product FULL:', JSON.stringify(data[0], null, 2));
+          console.log('[Products] First product importSource:', data[0].importSource);
+          console.log('[Products] First product importOrder:', data[0].importOrder);
+        }
+        
         // Backend returns array directly, not wrapped in {products: [...]}
         let productsArray: any[] = [];
         if (Array.isArray(data)) {
@@ -1797,6 +1909,21 @@ export default function Products() {
       window.removeEventListener('product-updated', handleProductUpdated as EventListener);
     };
   }, [user?.id, user?.phone]);
+
+  // Export dialog ochilganda import source'larni to'plash
+  useEffect(() => {
+    if (showExportCategoryDialog) {
+      console.log('[Export Dialog useEffect] Dialog opened, calling getAvailableImportSources...');
+      console.log('[Export Dialog useEffect] Products count:', products.length);
+      const sources = getAvailableImportSources();
+      console.log('[Export Dialog useEffect] Setting availableImportSources:', sources);
+      setAvailableImportSources(sources);
+    } else {
+      // Dialog yopilganda reset qilish
+      setExportByImportSource(false);
+      setSelectedImportSource('');
+    }
+  }, [showExportCategoryDialog, products]);
 
   const parseNumberInput = (value: string): number | null => {
     if (!value.trim()) return null;
@@ -3104,7 +3231,13 @@ export default function Products() {
             <span className="text-gray-600">|</span>
             <button
               type="button"
-              onClick={() => setShowExportCategoryDialog(true)}
+              onClick={() => {
+                console.log('[Export Button] Clicked! Opening export dialog...');
+                console.log('[Export Button] Current showExportCategoryDialog state:', showExportCategoryDialog);
+                console.log('[Export Button] Current products count:', products.length);
+                setShowExportCategoryDialog(true);
+                console.log('[Export Button] Set showExportCategoryDialog to true');
+              }}
               className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 transition"
             >
               <Download className="w-4 h-4" />
@@ -5222,6 +5355,14 @@ export default function Products() {
                       <span className="text-sm font-semibold text-foreground">{selectedVariantDetail.sku || '-'}</span>
                     </div>
 
+                    {/* Import source */}
+                    {(selectedVariantDetail as any).importSource && (selectedVariantDetail as any).importOrder && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Import:</span>
+                        <span className="text-sm font-semibold text-blue-400">{(selectedVariantDetail as any).importSource}({(selectedVariantDetail as any).importOrder})</span>
+                      </div>
+                    )}
+
                     {/* Soni */}
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Soni:</span>
@@ -6584,6 +6725,12 @@ export default function Products() {
                 {(labelDialogProduct as any).code && (
                   <div className="mt-3 text-base text-amber-400 font-semibold">5 talik kod: {(labelDialogProduct as any).code}</div>
                 )}
+                {(labelDialogProduct as any).importSource && (labelDialogProduct as any).importOrder && (
+                  <div className="mt-3 flex items-center gap-2 text-sm">
+                    <span className="text-blue-400">📄 Import:</span>
+                    <span className="text-blue-300 font-semibold">{(labelDialogProduct as any).importSource}({(labelDialogProduct as any).importOrder})</span>
+                  </div>
+                )}
               </div>
 
               {/* Printer tanlash */}
@@ -7435,39 +7582,117 @@ export default function Products() {
       </Dialog>
 
       {/* 🆕 Excel Export - Kategoriya Tanlash Dialog */}
-      <Dialog open={showExportCategoryDialog} onOpenChange={setShowExportCategoryDialog}>
+      <Dialog open={showExportCategoryDialog} onOpenChange={(open) => {
+        console.log('[Export Dialog] Dialog state changed:', open);
+        setShowExportCategoryDialog(open);
+        if (open) {
+          // Dialog ochilganda import source'larni to'plash
+          console.log('[Export Dialog] Dialog opened, calling getAvailableImportSources...');
+          const sources = getAvailableImportSources();
+          console.log('[Export Dialog] Setting availableImportSources:', sources);
+          setAvailableImportSources(sources);
+        } else {
+          // Dialog yopilganda reset qilish
+          setExportByImportSource(false);
+          setSelectedImportSource('');
+        }
+      }}>
         <DialogContent className="max-w-2xl bg-slate-900/95 border-slate-700/50 backdrop-blur-xl rounded-3xl p-6">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold text-slate-100">
               📊 Excel ga Yuklash
             </DialogTitle>
-            <p className="text-slate-400 text-sm mt-2">
-              Kategoriya tanlang yoki barcha mahsulotlarni yuklang
-            </p>
+            <DialogDescription className="text-slate-400 text-sm mt-2">
+              {exportByImportSource ? 'Excel fayl nomini tanlang' : 'Kategoriya tanlang yoki barcha mahsulotlarni yuklang'}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 mt-4">
-            {/* Kategoriya tanlash */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium text-slate-300">
-                  Kategoriya
-                </label>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setIsCreatingCategory(true);
-                    setNewCategoryName('');
-                    setCreateCategoryError(null);
-                  }}
-                  className="h-7 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-600"
-                >
-                  <Plus className="w-3 h-3 mr-1" />
-                  Yangi kategoriya
-                </Button>
+            {/* Switch - Kategoriya / Excel nomi */}
+            <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
+              <div>
+                <p className="text-sm font-medium text-slate-200">Excel nomi bo'yicha yuklash</p>
+                <p className="text-xs text-slate-400 mt-0.5">Import qilingan Excel fayl nomiga qarab filtrlash</p>
               </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={exportByImportSource}
+                  onChange={(e) => {
+                    setExportByImportSource(e.target.checked);
+                    if (e.target.checked) {
+                      setSelectedExportCategory('');
+                    } else {
+                      setSelectedImportSource('');
+                    }
+                  }}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+
+            {/* Excel nomi tanlash (agar switch yoqilgan bo'lsa) */}
+            {exportByImportSource && (
+              <div>
+                <label className="text-sm font-medium text-slate-300 mb-2 block">
+                  Excel fayl nomi
+                </label>
+                <select
+                  value={selectedImportSource}
+                  onChange={(e) => setSelectedImportSource(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Tanlang...</option>
+                  {availableImportSources.map((source) => {
+                    // Shu Excel'dan nechta mahsulot va xil borligini hisoblash
+                    let count = 0;
+                    products.forEach(p => {
+                      // Asosiy mahsulot
+                      if (p.importSource === source) {
+                        count++;
+                      }
+                      // Xillar
+                      if (p.variantSummaries) {
+                        p.variantSummaries.forEach(v => {
+                          if (v.importSource === source) {
+                            count++;
+                          }
+                        });
+                      }
+                    });
+                    return (
+                      <option key={source} value={source}>
+                        {source} ({count} ta mahsulot)
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            )}
+
+            {/* Kategoriya tanlash (agar switch o'chirilgan bo'lsa) */}
+            {!exportByImportSource && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Kategoriya
+                  </label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setIsCreatingCategory(true);
+                      setNewCategoryName('');
+                      setCreateCategoryError(null);
+                    }}
+                    className="h-7 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-600"
+                  >
+                    <Plus className="w-3 h-3 mr-1" />
+                    Yangi kategoriya
+                  </Button>
+                </div>
               
               {/* Yangi kategoriya qo'shish formasi */}
               {isCreatingCategory && (
@@ -7546,12 +7771,26 @@ export default function Products() {
                 </SelectContent>
               </Select>
             </div>
+            )}
 
             {/* Statistika - XILLAR BILAN */}
-            {selectedExportCategory && (() => {
-              const filteredProducts = selectedExportCategory === 'all' 
-                ? products 
-                : products.filter(p => p.categoryId === selectedExportCategory);
+            {(selectedExportCategory || selectedImportSource) && (() => {
+              let filteredProducts: Product[];
+              
+              if (exportByImportSource && selectedImportSource) {
+                // Excel nomi bo'yicha filtrlash
+                filteredProducts = products.filter(p => 
+                  p.importSource === selectedImportSource || 
+                  (p.variantSummaries && p.variantSummaries.some(v => v.importSource === selectedImportSource))
+                );
+              } else if (selectedExportCategory) {
+                // Kategoriya bo'yicha filtrlash
+                filteredProducts = selectedExportCategory === 'all' 
+                  ? products 
+                  : products.filter(p => p.categoryId === selectedExportCategory);
+              } else {
+                filteredProducts = [];
+              }
               
               // Mahsulotlar va xillar sonini hisoblash
               let totalRows = 0;
@@ -7587,25 +7826,34 @@ export default function Products() {
             
             <Button
               onClick={() => {
-                if (!selectedExportCategory) {
-                  toast.error('Kategoriya tanlang');
-                  return;
+                if (exportByImportSource) {
+                  // Excel nomi bo'yicha export
+                  if (!selectedImportSource) {
+                    toast.error('Excel fayl nomini tanlang');
+                    return;
+                  }
+                  handleExportToExcel(undefined, selectedImportSource);
+                } else {
+                  // Kategoriya bo'yicha export
+                  if (!selectedExportCategory) {
+                    toast.error('Kategoriya tanlang');
+                    return;
+                  }
+                  const categoryIdToExport = selectedExportCategory === 'all' ? undefined : selectedExportCategory;
+                  handleExportToExcel(categoryIdToExport);
                 }
                 
-                console.log('[Export Dialog] selectedExportCategory:', selectedExportCategory);
-                console.log('[Export Dialog] Is "all"?', selectedExportCategory === 'all');
-                
-                const categoryIdToExport = selectedExportCategory === 'all' ? undefined : selectedExportCategory;
-                console.log('[Export Dialog] categoryIdToExport:', categoryIdToExport);
-                
-                handleExportToExcel(categoryIdToExport);
                 setShowExportCategoryDialog(false);
                 setSelectedExportCategory('');
+                setSelectedImportSource('');
+                setExportByImportSource(false);
               }}
-              disabled={!selectedExportCategory}
+              disabled={exportByImportSource ? !selectedImportSource : !selectedExportCategory}
               className="bg-blue-600 hover:bg-blue-700 text-white"
             >
-              📥 {selectedExportCategory === 'all' ? 'Hammasini yuklash' : 'Tanlangan kategoriyani yuklash'}
+              📥 {exportByImportSource 
+                ? `${selectedImportSource} ni yuklash` 
+                : (selectedExportCategory === 'all' ? 'Hammasini yuklash' : 'Tanlangan kategoriyani yuklash')}
             </Button>
           </div>
         </DialogContent>

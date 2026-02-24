@@ -556,6 +556,7 @@ export function ExcelImportModal({
         credentials: 'omit', // Credentials yubormaslik (soddaroq)
         body: JSON.stringify({
           fileData,
+          fileName: selectedFile?.name || 'unknown.xlsx', // Fayl nomini yuborish
           editedData, // Tahrirlangan ma'lumotlarni yuborish
           columnMapping, // Ustun mapping yuborish
           categoryId: categoryId || undefined,

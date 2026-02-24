@@ -171,6 +171,7 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
     const db = conn.db;
     const { 
       fileData,
+      fileName, // Excel fayl nomi (yangi)
       editedData, // Tahrirlangan ma'lumotlar
       columnMapping: userMapping, // Foydalanuvchi tanlagan ustunlar
       categoryId,
@@ -190,6 +191,7 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
     }
 
     console.log('[Excel Import] Starting import for user:', userId);
+    console.log('[Excel Import] File name:', fileName); // Yangi log
     console.log('[Excel Import] User column mapping:', userMapping);
     console.log('[Excel Import] defaultMultiplier:', defaultMultiplier, '% (multiplier:', defaultMultiplier / 100, ')');
     console.log('[Excel Import] defaultCurrency:', defaultCurrency);
@@ -401,23 +403,37 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
     // Barcha mahsulotlarni olish va raqam sifatida sort qilish
     const allProducts = await collection
       .find({ userId })
-      .project({ sku: 1 })
+      .project({ sku: 1, variantSummaries: 1 }) // variantSummaries ni ham olish
       .toArray();
     
     let nextSku = 1;
     if (allProducts.length > 0) {
       // SKU larni raqam sifatida parse qilish va eng kattasini topish
-      const skuNumbers = allProducts
-        .map(p => {
-          const num = parseInt(String(p.sku));
-          return isNaN(num) ? 0 : num;
-        })
-        .filter(num => num > 0);
+      // MUHIM: Asosiy mahsulotlar VA xillarning SKU larini ham tekshirish
+      const skuNumbers: number[] = [];
+      
+      allProducts.forEach(p => {
+        // Asosiy mahsulotning SKU si
+        const mainSkuNum = parseInt(String(p.sku));
+        if (!isNaN(mainSkuNum) && mainSkuNum > 0) {
+          skuNumbers.push(mainSkuNum);
+        }
+        
+        // Xillarning SKU larini ham tekshirish
+        if (p.variantSummaries && Array.isArray(p.variantSummaries)) {
+          p.variantSummaries.forEach((v: any) => {
+            const variantSkuNum = parseInt(String(v.sku));
+            if (!isNaN(variantSkuNum) && variantSkuNum > 0) {
+              skuNumbers.push(variantSkuNum);
+            }
+          });
+        }
+      });
       
       if (skuNumbers.length > 0) {
         const maxSku = Math.max(...skuNumbers);
         nextSku = maxSku + 1;
-        console.log('[Excel Import] Max SKU found:', maxSku, '-> Next SKU:', nextSku);
+        console.log('[Excel Import] Max SKU found (including variants):', maxSku, '-> Next SKU:', nextSku);
       }
     }
 
@@ -426,6 +442,7 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
     const errors: string[] = [];
     const multiplier = defaultMultiplier / 100;
     let globalSku = nextSku;
+    let importOrderCounter = 1; // Import tartib raqami (yangi)
     
     // Saytdagi mavjud mahsulotlarni olish - variant qo'shish uchun
     const existingProducts = await collection.find({ userId }).toArray();
@@ -600,11 +617,14 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
                     status: defaultStatus,
                     categoryId: variantCategoryId,
                     description: row.category || '',
+                    importSource: fileName || 'unknown', // Excel fayl nomi
+                    importOrder: importOrderCounter, // Tartib raqami
                   }
                 }
               } as any
             );
             
+            importOrderCounter++; // Har bir mahsulot/xil uchun increment
             addedAsVariants++;
             
             // Tarixga saqlash
@@ -701,6 +721,10 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
           ? Math.round((basePrice * (1 + productMultiplierDecimal)) * 100) / 100 
           : 0;
         
+        // MUHIM: Asosiy mahsulotga AVVAL importOrder berish
+        const productImportOrder = importOrderCounter;
+        importOrderCounter++; // Darhol increment qilish
+        
         // Xillarni yaratish
         const variantSummaries: any[] = [];
         
@@ -789,7 +813,12 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
               status: defaultStatus,
               categoryId: variantCategoryId,
               description: variantRow.category || '',
+              importSource: fileName || 'unknown', // Excel fayl nomi
+              importOrder: importOrderCounter, // Tartib raqami
             });
+            
+            console.log('[Excel Import] Variant added:', variantRow.name, '- importOrder:', importOrderCounter);
+            importOrderCounter++; // Har bir xil uchun increment
           }
         }
 
@@ -819,7 +848,13 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
           createdAt: new Date(),
           updatedAt: new Date(),
           source: 'excel-import',
+          importSource: fileName || 'unknown', // Excel fayl nomi
+          importOrder: productImportOrder, // Tartib raqami
         });
+        
+        console.log('[Excel Import] Product added to insert queue:', productName, '- importSource:', fileName, '- importOrder:', productImportOrder);
+        
+        createdNewProducts++;
         
       } catch (err: any) {
         errors.push(err.message);

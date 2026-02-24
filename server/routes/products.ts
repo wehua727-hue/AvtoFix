@@ -117,10 +117,23 @@ export const handleProductsGet: RequestHandler = async (req, res) => {
     console.log("[products] Final filter:", JSON.stringify(filter));
     
     // Mahsulotlarni olish - MongoDB'ga qo'shilgan tartibda (_id bo'yicha)
-    // _id MongoDB'da avtomatik yaratiladi va qo'shilgan vaqtni o'z ichiga oladi
-    const products = await collection.find(filter).sort({ _id: 1 }).toArray();
+    // Agar importOrder bo'lsa, u bo'yicha tartiblash
+    const products = await collection.find(filter).toArray();
     
-    console.log("[products] Products fetched in insertion order (by _id)");
+    // Import order bo'yicha tartiblash (agar mavjud bo'lsa)
+    products.sort((a: any, b: any) => {
+      // Agar ikkala mahsulotda ham importOrder bo'lsa
+      if (a.importOrder !== undefined && b.importOrder !== undefined) {
+        return a.importOrder - b.importOrder;
+      }
+      // Agar faqat bitta mahsulotda importOrder bo'lsa
+      if (a.importOrder !== undefined) return -1;
+      if (b.importOrder !== undefined) return 1;
+      // Agar ikkalasida ham yo'q bo'lsa - _id bo'yicha
+      return 0;
+    });
+    
+    console.log("[products] Products fetched and sorted by importOrder");
 
     // Kategoriyalarni olish (categoryName yo'q bo'lgan mahsulotlar uchun)
     const categoryIds = [...new Set(products.map((p: any) => p.categoryId).filter(Boolean))];
@@ -142,6 +155,11 @@ export const handleProductsGet: RequestHandler = async (req, res) => {
       } catch (catErr) {
         console.error('[api/products GET] Error fetching categories:', catErr);
       }
+    }
+
+    // DEBUG: Log first product to check importSource
+    if (products.length > 0) {
+      console.log('[api/products GET] First product importSource:', products[0].importSource, 'importOrder:', products[0].importOrder);
     }
 
     // Ensure variantSummaries have currency from product if not set
@@ -198,6 +216,9 @@ export const handleProductsGet: RequestHandler = async (req, res) => {
             // ✅ CRITICAL: Explicitly include customId and barcodeId
             customId: v.customId,
             barcodeId: v.barcodeId,
+            // ✅ CRITICAL: Explicitly include importSource and importOrder
+            importSource: v.importSource,
+            importOrder: v.importOrder,
           };
         });
       }
@@ -215,6 +236,9 @@ export const handleProductsGet: RequestHandler = async (req, res) => {
         categoryName,
         // ✅ CRITICAL: Explicitly include barcodeId for main product
         barcodeId: product.barcodeId,
+        // ✅ CRITICAL: Explicitly include importSource and importOrder
+        importSource: product.importSource,
+        importOrder: product.importOrder,
       };
       
       // MUHIM: Debug logging - final result
