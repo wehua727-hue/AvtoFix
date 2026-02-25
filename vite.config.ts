@@ -14,10 +14,15 @@ export default defineConfig({
       "127.0.0.1",
       "shop.avtofix.uz",
       "avtofix.uz",
+      "www.avtofix.uz",
       ".avtofix.uz", // Barcha subdomenlar
       ".wpshost.ru", // WPS hosting
       ".hosting", // Boshqa hosting provayderlar
     ],
+    hmr: {
+      host: "shop.avtofix.uz", // HMR uchun host
+      protocol: "wss", // WebSocket Secure
+    },
     fs: {
       allow: ["./", "./client", "./shared"],
       deny: [".env", ".env.*", "*.{crt,pem}", "**/.git/**", "server/**"],
@@ -37,6 +42,14 @@ export default defineConfig({
     host: "0.0.0.0",
     port: 5174,
     strictPort: false,
+    allowedHosts: [
+      "localhost",
+      "127.0.0.1",
+      "shop.avtofix.uz",
+      "avtofix.uz",
+      "www.avtofix.uz",
+      ".avtofix.uz",
+    ],
   },
   build: {
     outDir: "dist",
