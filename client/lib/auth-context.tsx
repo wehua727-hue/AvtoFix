@@ -26,7 +26,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// API base URL - WPS hosting va mobil uchun optimallashtirilgan
+// API base URL - production da relative paths ishlatish
 const API_BASE = (() => {
   if (typeof window === 'undefined') return '';
   
@@ -38,21 +38,13 @@ const API_BASE = (() => {
   // Environment variable'dan URL olish
   const envUrl = import.meta.env.VITE_API_URL;
   
-  // Development rejimida
-  if (envUrl && (envUrl.includes('127.0.0.1') || envUrl.includes('localhost'))) {
+  // Agar VITE_API_URL aniq belgilangan bo'lsa (bo'sh bo'lmasa)
+  if (envUrl && envUrl.trim() !== '') {
     return envUrl.replace(/\/$/, '');
   }
   
-  // Production rejimida (WPS hosting)
-  // Agar BASE_URL environment variable'da bo'lsa, uni ishlatish
-  const baseUrl = import.meta.env.VITE_BASE_URL || window.location.origin;
-  
-  // WPS hosting uchun to'g'ri API path
-  if (baseUrl.includes('shop.avtofix.uz') || baseUrl.includes('wpshost') || baseUrl.includes('hosting')) {
-    return baseUrl.replace(/\/$/, '');
-  }
-  
-  // Fallback: relative paths
+  // Production rejimida - relative paths (same origin)
+  // Bu nginx orqali backend ga proxy qilinadi
   return '';
 })();
 
