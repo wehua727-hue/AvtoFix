@@ -11,13 +11,20 @@ export async function createServer() {
   const app = await createBaseServer();
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
-  const distPath = path.join(__dirname, "..");
+  // In production, built server is at dist/server/node-build.mjs
+  // Frontend dist is at dist/ (two levels up from dist/server/)
+  const distPath = path.join(__dirname, "..", "..");
   if (!fs.existsSync(distPath)) {
-    throw new Error(`Dist directory not found at ${distPath}`);
+    console.warn(`⚠️  Dist directory not found at ${distPath}, serving without static files`);
   }
 
   // Serve static files
-  app.use(express.static(distPath));
+  if (fs.existsSync(distPath)) {
+    console.log(`📁 Serving static files from: ${distPath}`);
+    app.use(express.static(distPath));
+  } else {
+    console.warn(`⚠️  Static files not found at ${distPath}`);
+  }
 
   // Set strong Content Security Policy for packaged app
   app.use((_, res, next) => {

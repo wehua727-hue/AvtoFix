@@ -14,8 +14,8 @@ module.exports = {
       // Environment variables
       env: {
         NODE_ENV: 'production',
-        PORT: 5176,  // AvtoFixShop uchun alohida port (avtofix 5173 da)
-        API_PORT: 5176,
+        PORT: 5177,  // AvtoFixShop uchun alohida port (nginx bilan mos)
+        API_PORT: 5177,
       },
       
       // PM2 sozlamalari
