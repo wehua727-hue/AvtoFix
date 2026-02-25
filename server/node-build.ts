@@ -11,19 +11,27 @@ export async function createServer() {
   const app = await createBaseServer();
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
+  
   // In production, built server is at dist/server/node-build.mjs
-  // Frontend dist is at dist/ (two levels up from dist/server/)
-  const distPath = path.join(__dirname, "..", "..");
-  if (!fs.existsSync(distPath)) {
-    console.warn(`⚠️  Dist directory not found at ${distPath}, serving without static files`);
+  // We need to go up one level to dist/ folder
+  // __dirname = /var/www/shop/dist/server
+  // distPath should be /var/www/shop/dist
+  const distPath = path.join(__dirname, "..");
+  
+  console.log(`[Server] Looking for dist at: ${distPath}`);
+  console.log(`[Server] Checking if index.html exists: ${path.join(distPath, "index.html")}`);
+  
+  const hasIndexHtml = fs.existsSync(path.join(distPath, "index.html"));
+  if (!hasIndexHtml) {
+    console.warn(`⚠️  index.html not found at ${distPath}, serving without static files`);
   }
 
   // Serve static files
-  if (fs.existsSync(distPath)) {
+  if (hasIndexHtml) {
     console.log(`📁 Serving static files from: ${distPath}`);
     app.use(express.static(distPath));
   } else {
-    console.warn(`⚠️  Static files not found at ${distPath}`);
+    console.warn(`⚠️  Static files not available, skipping static file serving`);
   }
 
   // Set strong Content Security Policy for packaged app
