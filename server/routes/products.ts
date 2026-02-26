@@ -1702,6 +1702,7 @@ export const handleProductsDeleteBySkuRange: RequestHandler = async (req, res) =
     console.log(`[api/products/delete-by-sku-range] Products to update: ${productsToUpdate?.length || 0}`);
     
     const collection = db.collection(PRODUCTS_COLLECTION);
+    const historyCollection = db.collection(PRODUCT_HISTORY_COLLECTION);
     let deletedCount = 0;
     let updatedCount = 0;
     
@@ -1715,6 +1716,16 @@ export const handleProductsDeleteBySkuRange: RequestHandler = async (req, res) =
         }
       });
       
+      // Tarixga saqlash uchun mahsulotlarni olish
+      const productsToLog = await collection.find({
+        userId: userId,
+        $or: [
+          { _id: { $in: objectIds } },
+          { _id: { $in: productsToDelete } }
+        ]
+      }).toArray();
+      
+      // O'chirish
       const result = await collection.deleteMany({
         userId: userId,
         $or: [
@@ -1725,6 +1736,28 @@ export const handleProductsDeleteBySkuRange: RequestHandler = async (req, res) =
       
       deletedCount += result.deletedCount;
       console.log(`[api/products/delete-by-sku-range] Deleted ${result.deletedCount} products completely`);
+      
+      // Tarixga saqlash
+      if (productsToLog.length > 0) {
+        const historyEntries = productsToLog.map(product => ({
+          userId,
+          type: 'delete',
+          productId: product._id.toString(),
+          productName: product.name,
+          sku: product.sku,
+          stock: product.stock,
+          price: product.price,
+          currency: product.currency,
+          message: `SKU oralig'i bo'yicha o'chirildi (${minSku}-${maxSku})`,
+          source: 'sku-range-delete',
+          variants: product.variantSummaries || [],
+          timestamp: new Date(),
+          createdAt: new Date(),
+        }));
+        
+        await historyCollection.insertMany(historyEntries);
+        console.log(`[api/products/delete-by-sku-range] Added ${historyEntries.length} entries to history`);
+      }
     }
     
     // 2. Xillari o'chiriladigan mahsulotlar
@@ -1746,11 +1779,34 @@ export const handleProductsDeleteBySkuRange: RequestHandler = async (req, res) =
           const productSku = parseInt(product.sku);
           const isProductInRange = !isNaN(productSku) && productSku >= minSku && productSku <= maxSku;
           
+          // O'chirilgan xillarni aniqlash
+          const originalVariants = product.variantSummaries || [];
+          const deletedVariants = originalVariants.filter(v => 
+            !variantsToKeep.some(k => k.sku === v.sku)
+          );
+          
           if (isProductInRange && variantsToKeep.length > 0) {
             // Asosiy mahsulot o'chadi, xillar yangi mahsulot bo'ladi
             // Birinchi xilni asosiy mahsulot qilamiz
             const firstVariant = variantsToKeep[0];
             const remainingVariants = variantsToKeep.slice(1);
+            
+            // Tarixga saqlash - asosiy mahsulot o'chirildi
+            await historyCollection.insertOne({
+              userId,
+              type: 'delete',
+              productId: product._id.toString(),
+              productName: product.name,
+              sku: product.sku,
+              stock: product.stock,
+              price: product.price,
+              currency: product.currency,
+              message: `SKU oralig'i bo'yicha o'chirildi, xil asosiy mahsulotga aylandi (${minSku}-${maxSku})`,
+              source: 'sku-range-delete',
+              variants: deletedVariants,
+              timestamp: new Date(),
+              createdAt: new Date(),
+            });
             
             await collection.updateOne(
               { _id: objectId },
@@ -1778,6 +1834,26 @@ export const handleProductsDeleteBySkuRange: RequestHandler = async (req, res) =
             console.log(`[api/products/delete-by-sku-range] Updated product ${productId}: promoted variant to main product`);
           } else if (!isProductInRange && variantsToKeep.length >= 0) {
             // Asosiy mahsulot qoladi, faqat xillar o'chadi
+            
+            // Tarixga saqlash - faqat xillar o'chirildi
+            if (deletedVariants.length > 0) {
+              await historyCollection.insertOne({
+                userId,
+                type: 'delete',
+                productId: product._id.toString(),
+                productName: product.name,
+                sku: product.sku,
+                stock: product.stock,
+                price: product.price,
+                currency: product.currency,
+                message: `Xillari SKU oralig'i bo'yicha o'chirildi (${minSku}-${maxSku})`,
+                source: 'sku-range-delete',
+                variants: deletedVariants,
+                timestamp: new Date(),
+                createdAt: new Date(),
+              });
+            }
+            
             await collection.updateOne(
               { _id: objectId },
               {
