@@ -1648,11 +1648,38 @@ export const handleProductsClearAll: RequestHandler = async (req, res) => {
     console.log(`[api/products/clear-all] Clearing products for userId: ${userId}`);
 
     const collection = db.collection(PRODUCTS_COLLECTION);
+    const historyCollection = db.collection(PRODUCT_HISTORY_COLLECTION);
+    
+    // Tarixga saqlash uchun mahsulotlarni olish
+    const productsToDelete = await collection.find({ userId: userId }).toArray();
+    console.log(`[api/products/clear-all] Found ${productsToDelete.length} products to delete`);
     
     // Faqat o'z mahsulotlarini o'chirish
     const result = await collection.deleteMany({ userId: userId });
 
     console.log(`[api/products/clear-all] ✅ Deleted ${result.deletedCount} products for user ${userId}`);
+
+    // Tarixga saqlash
+    if (productsToDelete.length > 0) {
+      const historyEntries = productsToDelete.map(product => ({
+        userId,
+        type: 'delete',
+        productId: product._id.toString(),
+        productName: product.name,
+        sku: product.sku || '',
+        stock: product.stock || 0,
+        price: product.price || 0,
+        currency: product.currency || 'UZS',
+        message: 'Barcha mahsulotlar tozalandi',
+        source: 'clear-all',
+        variants: product.variantSummaries || [],
+        timestamp: new Date(),
+        createdAt: new Date(),
+      }));
+      
+      await historyCollection.insertMany(historyEntries);
+      console.log(`[api/products/clear-all] Added ${historyEntries.length} entries to history`);
+    }
 
     // WebSocket orqali xabar yuborish
     wsManager.broadcastToUser(userId, {
