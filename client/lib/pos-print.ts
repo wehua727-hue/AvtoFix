@@ -1449,8 +1449,8 @@ export function printLabelViaBrowser(label: LabelData): boolean {
   
   // STANDARD font o'lchamlari - barcha senik chiqarish usullari uchun bir xil
   // Bu o'lchamlar ommaviy senik, product card va product detail dan chiqarilgan seniklar uchun bir xil
-  const nameFontSize = '14px';  // STANDARD - mahsulot nomi
-  const priceFontSize = '16px'; // STANDARD - narx
+  const nameFontSize = '12px';  // STANDARD - mahsulot nomi (kichikroq)
+  const priceFontSize = '14px'; // STANDARD - narx (kichikroq)
   const smallFontSize = '10px'; // STANDARD - SKU va kod
   
   // STANDARD barcode o'lchamlari - barcha usullar uchun bir xil
@@ -1550,10 +1550,10 @@ export function printLabelViaBrowser(label: LabelData): boolean {
     </head>
     <body>
       <div class="label">
-        <div class="name" style="font-weight: bold;"><strong>${label.name}</strong> (${label.price.toLocaleString()})</div>
+        <div class="name">${label.name} (${label.price.toLocaleString()})</div>
         <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 1mm;">
           ${label.sku ? `<div class="barcode-id" style="color: #000;">(${label.sku})</div>` : '<div></div>'}
-          ${label.code ? `<div class="barcode-id" style="color: #000; font-weight: bold;"><strong>Kod:</strong> ${label.code}</div>` : '<div></div>'}
+          ${label.code ? `<div class="barcode-id" style="color: #000;"><strong>Kod:</strong> ${label.code}</div>` : '<div></div>'}
         </div>
         ${barcodeValue ? `
           <div class="barcode-container">
