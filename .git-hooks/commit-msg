@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# Git commit-msg hook - Commit message formatini tekshirish
+
+COMMIT_MSG_FILE=$1
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+
+# Commit message formatini tekshirish
+# Format: type(scope): message
+# Misol: feat(kassa): yangi funksiya qo'shildi
+
+if ! echo "$COMMIT_MSG" | grep -qE "^(feat|fix|docs|style|refactor|test|chore)(\(.+\))?: .+"; then
+    echo ""
+    echo "❌ Xato: Commit message formati noto'g'ri!"
+    echo ""
+    echo "📝 To'g'ri format:"
+    echo "   type(scope): qisqacha tavsif"
+    echo ""
+    echo "📋 Type'lar:"
+    echo "   feat     - Yangi funksiya"
+    echo "   fix      - Bug fix"
+    echo "   docs     - Faqat hujjatlar"
+    echo "   style    - Kod formatlash"
+    echo "   refactor - Kod refaktoring"
+    echo "   test     - Testlar"
+    echo "   chore    - Boshqa o'zgarishlar"
+    echo ""
+    echo "✅ Misol:"
+    echo "   feat(kassa): chegirma funksiyasi qo'shildi"
+    echo "   fix(mahsulotlar): qidiruv xatosi tuzatildi"
+    echo "   docs(readme): o'rnatish bo'limi yangilandi"
+    echo ""
+    exit 1
+fi
+
+exit 0

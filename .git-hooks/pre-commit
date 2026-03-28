@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Git pre-commit hook - Yangi funksiyalarni hujjatlashtirish eslatmasi
+
+echo "🔍 O'zgarishlar tekshirilmoqda..."
+
+# O'zgargan fayllarni topish
+CHANGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
+
+# Agar client yoki server fayllar o'zgargan bo'lsa
+if echo "$CHANGED_FILES" | grep -qE "(client/|server/)"; then
+    echo ""
+    echo "⚠️  ESLATMA: Yangi funksiya qo'shildi yoki o'zgartirildi!"
+    echo ""
+    echo "📝 Iltimos, quyidagilarni yangilang:"
+    echo "   1. beets/ papkasida tegishli .md faylni yangilang"
+    echo "   2. agents.md faylini yangilang"
+    echo ""
+    echo "📂 O'zgargan fayllar:"
+    echo "$CHANGED_FILES" | grep -E "(client/|server/)" | sed 's/^/   - /'
+    echo ""
+    
+    # Foydalanuvchidan tasdiqlash so'rash
+    read -p "Hujjatlarni yangaladingizmi? (y/n): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "❌ Commit bekor qilindi. Iltimos, hujjatlarni yangilang."
+        exit 1
+    fi
+fi
+
+echo "✅ Commit davom etmoqda..."
+exit 0
