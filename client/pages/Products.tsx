@@ -683,6 +683,7 @@ export default function Products() {
   // 🆕 Bo'sh kodlar state'lari
   const [emptyCodesDialogOpen, setEmptyCodesDialogOpen] = useState(false);
   const [emptyCodes, setEmptyCodes] = useState<number[]>([]);
+  const [deletedProductsMap, setDeletedProductsMap] = useState<Map<number, any>>(new Map());
 
   // 🆕 Bulk kategoriya yangilash state'lari
   const [bulkCategoryDialogOpen, setBulkCategoryDialogOpen] = useState(false);
@@ -1070,65 +1071,113 @@ export default function Products() {
     }
   };
 
-  // 🆕 Bo'sh kodlarni topish funksiyasi
+  // 🆕 Bo'sh kodlarni topish funksiyasi - faqat haqiqiy o'chirilgan mahsulotlar
   const findEmptyCodes = () => {
     console.log('[findEmptyCodes] Boshlandi...');
 
-    // Barcha mavjud SKU larni to'plash (mahsulotlar + xillar)
-    const allSkus: number[] = [];
+    if (!user?.id) {
+      toast.error('Foydalanuvchi ma\'lumotlari topilmadi');
+      return;
+    }
 
+    // Agar mahsulotlar yo'q bo'lsa, bosh kodlar ham bo'lmasligi kerak
+    if (products.length === 0) {
+      console.log('[findEmptyCodes] Mahsulotlar yo\'q - bosh kodlar ham yo\'q');
+      setEmptyCodes([]);
+      setDeletedProductsMap(new Map());
+      setEmptyCodesDialogOpen(true);
+      toast.success('✅ Mahsulotlar yo\'q - bosh kodlar ham yo\'q!');
+      return;
+    }
+
+    // localStorage dan tarixni olish
+    const historyData = productHistory;
+    
+    console.log('[findEmptyCodes] Tarix ma\'lumotlari:', historyData.length, 'ta');
+    console.log('[findEmptyCodes] Hozirgi mahsulotlar:', products.length, 'ta');
+
+    // Faqat oxirgi 7 kun ichidagi o'chirilgan mahsulotlarni olish (30 kun emas, 7 kun)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const deletedSkus: number[] = [];
+    const deletedProductsMap = new Map<number, any>(); // SKU -> product data
+
+    historyData.forEach((item: any) => {
+      // Faqat oxirgi 7 kun ichidagi o'chirilgan mahsulotlar
+      const itemDate = new Date(item.timestamp || item.createdAt);
+      if (itemDate < sevenDaysAgo) {
+        console.log('[findEmptyCodes] Eski tarix yozuvi o\'tkazib yuborildi:', item.productName, itemDate);
+        return;
+      }
+
+      if (item.type === 'delete' && item.productName && item.sku) {
+        const sku = item.sku;
+        if (sku && /^\d+$/.test(sku.toString())) {
+          const skuNum = parseInt(sku.toString(), 10);
+          if (Number.isFinite(skuNum)) {
+            deletedSkus.push(skuNum);
+            deletedProductsMap.set(skuNum, {
+              name: item.productName,
+              sku: item.sku,
+              price: item.price || 0,
+              basePrice: item.basePrice || 0,
+              stock: item.stock || 0,
+              category: item.category || '',
+              description: item.description || '',
+              currency: item.currency || 'UZS',
+              status: item.status || 'available',
+              deletedAt: itemDate,
+            });
+          }
+        }
+      }
+    });
+
+    // Hozir mavjud SKU larni tekshirish
+    const currentSkus: number[] = [];
     products.forEach((p) => {
-      // Mahsulotning o'z SKU si
       const mainSku = (p.sku ?? '').trim();
       if (/^\d+$/.test(mainSku)) {
         const num = parseInt(mainSku, 10);
         if (Number.isFinite(num)) {
-          allSkus.push(num);
+          currentSkus.push(num);
         }
       }
 
-      // variantSummaries - xillarning SKU lari
       if (Array.isArray(p.variantSummaries)) {
         p.variantSummaries.forEach((vs) => {
           const variantSku = (vs.sku ?? '').trim();
           if (/^\d+$/.test(variantSku)) {
             const num = parseInt(variantSku, 10);
             if (Number.isFinite(num)) {
-              allSkus.push(num);
+              currentSkus.push(num);
             }
           }
         });
       }
     });
 
-    if (allSkus.length === 0) {
-      toast.info('Hech qanday mahsulot topilmadi');
-      return;
-    }
+    // Faqat haqiqatan o'chirilgan va hozir mavjud bo'lmagan SKU larni olish
+    const actuallyEmptySkus = deletedSkus.filter(sku => !currentSkus.includes(sku));
+    
+    // Dublikatlarni olib tashlash va tartiblash
+    const uniqueEmptySkus = [...new Set(actuallyEmptySkus)].sort((a, b) => a - b);
 
-    // Eng katta SKU ni topish
-    const maxSku = Math.max(...allSkus);
-    console.log('[findEmptyCodes] Eng katta SKU:', maxSku);
-    console.log('[findEmptyCodes] Mavjud SKU lar:', allSkus.length, 'ta');
+    console.log('[findEmptyCodes] Oxirgi 7 kun ichidagi o\'chirilgan SKU lar:', deletedSkus.length, 'ta');
+    console.log('[findEmptyCodes] Hozirgi mavjud SKU lar:', currentSkus.length, 'ta');
+    console.log('[findEmptyCodes] Haqiqiy bo\'sh kodlar:', uniqueEmptySkus.length, 'ta');
+    console.log('[findEmptyCodes] Bo\'sh kodlar ro\'yxati:', uniqueEmptySkus.slice(0, 10), '...');
 
-    // 1 dan maxSku gacha bo'sh kodlarni topish
-    const empty: number[] = [];
-    for (let i = 1; i <= maxSku; i++) {
-      if (!allSkus.includes(i)) {
-        empty.push(i);
-      }
-    }
-
-    console.log('[findEmptyCodes] Bo\'sh kodlar:', empty.length, 'ta');
-    console.log('[findEmptyCodes] Bo\'sh kodlar ro\'yxati:', empty);
-
-    setEmptyCodes(empty);
+    // State ga saqlash
+    setEmptyCodes(uniqueEmptySkus);
+    setDeletedProductsMap(deletedProductsMap);
     setEmptyCodesDialogOpen(true);
 
-    if (empty.length === 0) {
-      toast.success('✅ Barcha kodlar band! Bo\'sh kod yo\'q.');
+    if (uniqueEmptySkus.length === 0) {
+      toast.success('✅ Oxirgi 7 kun ichida o\'chirilgan mahsulot kodi topilmadi!');
     } else {
-      toast.info(`📋 ${empty.length} ta bo'sh kod topildi`);
+      toast.info(`📋 ${uniqueEmptySkus.length} ta o'chirilgan mahsulot kodi topildi (oxirgi 7 kun)`);
     }
   };
 
@@ -1136,7 +1185,7 @@ export default function Products() {
   const handleClearAll = async () => {
     showConfirmModal({
       title: "To'liq tozalash",
-      description: `Barcha ${products.length} ta mahsulot o'chiriladi. Bu amalni qaytarib bo'lmaydi!`,
+      description: `Barcha ${products.length} ta mahsulot va barcha tarix ma'lumotlari o'chiriladi. Bu amalni qaytarib bo'lmaydi!`,
       confirmText: "Barchasini o'chirish",
       cancelText: "Bekor qilish",
       variant: 'destructive',
@@ -1152,7 +1201,20 @@ export default function Products() {
             const data = await res.json();
             if (data.success) {
               setProducts([]);
-              toast.success(data.message || "Barcha mahsulotlar o'chirildi");
+              
+              // Tarixni ham tozalash
+              try {
+                localStorage.removeItem(`productHistory_${user.id}`);
+                sessionStorage.removeItem(`productHistory_${user.id}`);
+                setProductHistory([]);
+                setEmptyCodes([]);
+                setDeletedProductsMap(new Map());
+                console.log('[handleClearAll] Tarix ham tozalandi');
+              } catch (historyError) {
+                console.error('[handleClearAll] Tarixni tozalashda xato:', historyError);
+              }
+              
+              toast.success(data.message || "Barcha mahsulotlar va tarix tozalandi");
               setShowClearDialog(false);
             } else {
               toast.error(data.error || "Xatolik yuz berdi");
@@ -7762,7 +7824,7 @@ export default function Products() {
               Bo'sh Kodlar
             </DialogTitle>
             <p className="text-slate-400 text-sm mt-2">
-              O'chirilgan mahsulotlar kodlari. Yangi mahsulot qo'shganda bu kodlarni ishlatishingiz mumkin.
+              Oxirgi 7 kun ichida o'chirilgan mahsulotlar kodlari. Agar mahsulotlar yo'q bo'lsa, bosh kodlar ham bo'lmaydi.
             </p>
           </DialogHeader>
 
@@ -7807,7 +7869,44 @@ export default function Products() {
             )}
           </div>
 
-          <div className="flex justify-end gap-3 mt-6">
+          <div className="flex justify-between items-center gap-3 mt-6">
+            {/* Tarixni tozalash tugmasi */}
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                showConfirmModal({
+                  title: "Mahsulot tarixini tozalash",
+                  description: `Barcha mahsulot tarixi (${productHistory.length} ta yozuv) o'chiriladi. Bu amalni qaytarib bo'lmaydi!`,
+                  confirmText: "Tarixni tozalash",
+                  cancelText: "Bekor qilish",
+                  variant: 'destructive',
+                  onConfirm: async () => {
+                    closeConfirmModal();
+                    try {
+                      // localStorage dan tarixni tozalash
+                      localStorage.removeItem(`productHistory_${user?.id}`);
+                      sessionStorage.removeItem(`productHistory_${user?.id}`);
+                      
+                      // State ni tozalash
+                      setProductHistory([]);
+                      setEmptyCodes([]);
+                      setDeletedProductsMap(new Map());
+                      setEmptyCodesDialogOpen(false);
+                      
+                      toast.success('✅ Mahsulot tarixi tozalandi!');
+                    } catch (error) {
+                      console.error('[clearHistory] Xato:', error);
+                      toast.error('Tarixni tozalashda xato yuz berdi');
+                    }
+                  }
+                });
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Tarixni tozalash
+            </Button>
+
             <Button
               variant="outline"
               onClick={() => setEmptyCodesDialogOpen(false)}
@@ -8411,6 +8510,18 @@ export default function Products() {
             console.error('Fix endpoint error:', err);
           }
 
+          // Tarixni tozalash - yangi Excel import qilganda eski tarix kerak emas
+          try {
+            localStorage.removeItem(`productHistory_${user?.id}`);
+            sessionStorage.removeItem(`productHistory_${user?.id}`);
+            setProductHistory([]);
+            setEmptyCodes([]);
+            setDeletedProductsMap(new Map());
+            console.log('[Excel Import] Tarix tozalandi - yangi import uchun');
+          } catch (historyError) {
+            console.error('[Excel Import] Tarixni tozalashda xato:', historyError);
+          }
+
           // Mahsulotlarni qayta yuklash
           fetch(`${API_BASE_URL}/api/products?userId=${user?.id}&userPhone=${user?.phone || ''}`)
             .then(res => res.json())
@@ -8423,7 +8534,7 @@ export default function Products() {
               }
             })
             .catch(err => console.error('Failed to reload products:', err));
-          toast.success('Mahsulotlar import qilindi');
+          toast.success('Mahsulotlar import qilindi va tarix tozalandi');
         }}
       />
 
