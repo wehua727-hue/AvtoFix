@@ -1851,11 +1851,10 @@ export default function Kassa() {
                             <div className="text-xs text-purple-400 mb-1 flex items-center gap-1">
                               <Package className="w-3 h-3" />
                               <span className="truncate">{highlightText(parentName, searchQuery)}</span>
-                              <span className="text-purple-500/50">→</span>
                             </div>
                           )}
 
-                          {/* Product Name */}
+                          {/* Product Name - FAQAT xil nomi */}
                           <div className="flex items-center gap-2 mb-2">
                             <h3 className={`text-lg font-bold truncate ${isOutOfStock ? "text-slate-500" :
                                 isVariantResult ? "text-purple-300" : "text-white"

@@ -404,7 +404,7 @@ const searchProductsAndVariants = (
             product,
             variant,
             variantIndex: i,
-            displayName: `${variant.name} (${product.name})`,
+            displayName: variant.name, // FAQAT xil nomi
             displayPrice: variantPrice,
             displayStock: variantStock, // MUHIM: Faqat xilning o'z stocki
             displayImage: variantImage,
@@ -709,8 +709,6 @@ export default function Products() {
     description: '',
     onConfirm: () => { },
   });
-
-  const navigate = useNavigate();
 
   // Helper function to show confirmation modal
   const showConfirmModal = useCallback((options: {

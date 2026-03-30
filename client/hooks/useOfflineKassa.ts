@@ -512,7 +512,7 @@ export function useOfflineKassa(userId: string, userPhone?: string, defectiveCou
                   variant,
                   variantIndex: i,
                   isVariant: true,
-                  displayName: variant.name || `Xil ${variant.sku || i + 1}`,
+                  displayName: variant.name || `Xil ${variant.sku || i + 1}`, // FAQAT xil nomi
                   displaySku: variant.sku || product.sku,
                   displayPrice: variant.price || product.price,
                   displayStock: variant.stock ?? 0,
@@ -597,7 +597,7 @@ export function useOfflineKassa(userId: string, userPhone?: string, defectiveCou
                       variant,
                       variantIndex: i,
                       isVariant: true,
-                      displayName: variant.name || `Xil ${variant.sku || i + 1}`,
+                      displayName: variant.name || `Xil ${variant.sku || i + 1}`, // FAQAT xil nomi
                       displaySku: variant.sku || product.sku,
                       displayPrice: variant.price || product.price,
                       displayStock: variant.stock ?? 0,
