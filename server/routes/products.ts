@@ -116,9 +116,40 @@ export const handleProductsGet: RequestHandler = async (req, res) => {
     
     console.log("[products] Final filter:", JSON.stringify(filter));
     
+    // MUHIM: Avval jami mahsulotlar sonini tekshirish
+    const totalCount = await collection.countDocuments(filter);
+    console.log(`[products] Total products matching filter: ${totalCount}`);
+    
+    // DIQQAT: Agar juda kam mahsulot topilsa, userId muammosini tekshirish
+    if (totalCount < 500 && userId) {
+      console.log(`⚠️ [products] DIQQAT: Faqat ${totalCount}ta mahsulot topildi userId ${userId} uchun`);
+      
+      // Jami mahsulotlar sonini tekshirish (userId filtrisiz)
+      const allProductsCount = await collection.countDocuments({});
+      console.log(`[products] Jami bazadagi mahsulotlar: ${allProductsCount}`);
+      
+      // Sizning importSource bilan nechta mahsulot bor?
+      const importSourceCount = await collection.countDocuments({
+        importSource: "mahsulotlar_A6_A7_T7_SHAANXI_FOTON_CHAKMAN_FAW_HOWO_XCMG_2026_02.xlsx"
+      });
+      console.log(`[products] Excel fayl bilan import qilingan: ${importSourceCount}`);
+      
+      // userId yo'q mahsulotlar
+      const noUserIdCount = await collection.countDocuments({
+        $or: [
+          { userId: { $exists: false } },
+          { userId: null },
+          { userId: "" }
+        ]
+      });
+      console.log(`[products] userId yo'q mahsulotlar: ${noUserIdCount}`);
+    }
+    
     // Mahsulotlarni olish - MongoDB'ga qo'shilgan tartibda (_id bo'yicha)
     // Agar importOrder bo'lsa, u bo'yicha tartiblash
     const products = await collection.find(filter).toArray();
+    
+    console.log(`[products] Actually fetched: ${products.length} products`);
     
     // Import order bo'yicha tartiblash (agar mavjud bo'lsa)
     products.sort((a: any, b: any) => {
@@ -2704,5 +2735,300 @@ export const handleBulkCategoryUpdate: RequestHandler = async (req, res) => {
   } catch (error) {
     console.error("[api/products/bulk-category-update POST] Error:", error);
     return res.status(500).json({ success: false, error: "Failed to update products" });
+  }
+};
+
+/**
+ * POST /api/products/fix-missing-userid
+ * Excel import qilingan mahsulotlarning userId sini tuzatish
+ */
+export const handleFixMissingUserId: RequestHandler = async (req, res) => {
+  try {
+    const conn = await connectMongo();
+    if (!conn || !conn.db) {
+      return res.status(500).json({ error: "Database not available" });
+    }
+
+    const db = conn.db;
+    const collection = db.collection(PRODUCTS_COLLECTION);
+    const { userId, importSource } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: "userId majburiy" });
+    }
+
+    console.log(`[Fix Missing UserId] Starting fix for userId: ${userId}`);
+    console.log(`[Fix Missing UserId] ImportSource: ${importSource}`);
+
+    // 1. Avval jami mahsulotlar sonini tekshirish
+    const allProductsCount = await collection.countDocuments({});
+    console.log(`[Fix Missing UserId] Jami bazadagi mahsulotlar: ${allProductsCount}`);
+
+    // 2. Sizning userId bilan mahsulotlar
+    const userProductsCount = await collection.countDocuments({ userId: userId });
+    console.log(`[Fix Missing UserId] Sizning mahsulotlaringiz: ${userProductsCount}`);
+
+    // 3. ImportSource bilan mahsulotlar (userId yo'q)
+    const importSourceFilter: any = {};
+    if (importSource) {
+      importSourceFilter.importSource = importSource;
+    } else {
+      // Agar importSource berilmagan bo'lsa, oxirgi Excel fayl nomini ishlatish
+      importSourceFilter.importSource = "mahsulotlar_A6_A7_T7_SHAANXI_FOTON_CHAKMAN_FAW_HOWO_XCMG_2026_02.xlsx";
+    }
+
+    const importSourceProducts = await collection.find(importSourceFilter).toArray();
+    console.log(`[Fix Missing UserId] ImportSource bilan jami mahsulotlar: ${importSourceProducts.length}`);
+    
+    // MUHIM: Agar import qilingan mahsulotlar kam bo'lsa, boshqa userId larda qidirish
+    if (importSourceProducts.length < 500) {
+      console.log(`⚠️ [Fix Missing UserId] DIQQAT: Faqat ${importSourceProducts.length}ta mahsulot topildi!`);
+      
+      // Boshqa userId larda ham qidirish
+      const allImportSourceProducts = await collection.find(importSourceFilter).toArray();
+      console.log(`[Fix Missing UserId] Barcha userId larda: ${allImportSourceProducts.length}`);
+      
+      // Har bir userId bo'yicha guruhlash
+      const userGroups: Record<string, number> = {};
+      allImportSourceProducts.forEach(p => {
+        const uid = p.userId || 'NO_USER_ID';
+        userGroups[uid] = (userGroups[uid] || 0) + 1;
+      });
+      
+      console.log('[Fix Missing UserId] UserId bo\'yicha taqsimot:', userGroups);
+      
+      // Agar boshqa userId da ko'p mahsulot bo'lsa, ularni ham tuzatish
+      for (const [uid, count] of Object.entries(userGroups)) {
+        if (uid !== userId && uid !== 'NO_USER_ID' && count > 50) {
+          console.log(`⚠️ [Fix Missing UserId] ${uid} da ${count}ta mahsulot bor - bu sizniki bo'lishi mumkin!`);
+        }
+      }
+    }
+
+    // 4. ImportSource mahsulotlaridan userId yo'qlari
+    const missingUserIdProducts = importSourceProducts.filter(p => 
+      !p.userId || p.userId === null || p.userId === ""
+    );
+    console.log(`[Fix Missing UserId] UserId yo'q mahsulotlar: ${missingUserIdProducts.length}`);
+
+    // 5. UserId yo'q mahsulotlarni tuzatish
+    if (missingUserIdProducts.length > 0) {
+      const updateResult = await collection.updateMany(
+        {
+          ...importSourceFilter,
+          $or: [
+            { userId: { $exists: false } },
+            { userId: null },
+            { userId: "" }
+          ]
+        },
+        { $set: { userId: userId } }
+      );
+
+      console.log(`[Fix Missing UserId] Tuzatilgan mahsulotlar: ${updateResult.modifiedCount}`);
+
+      return res.json({
+        success: true,
+        message: `${updateResult.modifiedCount} ta mahsulotning userId si tuzatildi`,
+        totalProducts: importSourceProducts.length,
+        fixedProducts: updateResult.modifiedCount,
+        userProductsBefore: userProductsCount,
+        userProductsAfter: userProductsCount + updateResult.modifiedCount
+      });
+    } else {
+      // MUHIM: Agar userId yo'q mahsulot topilmasa, boshqa userId lardagi mahsulotlarni tekshirish
+      const allImportProducts = await collection.find(importSourceFilter).toArray();
+      const otherUserProducts = allImportProducts.filter(p => p.userId && p.userId !== userId);
+      
+      if (otherUserProducts.length > 0) {
+        console.log(`[Fix Missing UserId] Boshqa userId larda ${otherUserProducts.length}ta mahsulot topildi`);
+        
+        // Boshqa userId dagi mahsulotlarni sizning userId ga o'tkazish
+        const transferResult = await collection.updateMany(
+          {
+            ...importSourceFilter,
+            userId: { $ne: userId, $exists: true, $ne: null, $ne: "" }
+          },
+          { $set: { userId: userId } }
+        );
+        
+        console.log(`[Fix Missing UserId] Boshqa userId dan o'tkazilgan: ${transferResult.modifiedCount}`);
+        
+        return res.json({
+          success: true,
+          message: `${transferResult.modifiedCount} ta mahsulot boshqa userId dan o'tkazildi`,
+          totalProducts: allImportProducts.length,
+          fixedProducts: transferResult.modifiedCount,
+          userProductsBefore: userProductsCount,
+          userProductsAfter: userProductsCount + transferResult.modifiedCount,
+          transferredFromOtherUsers: true
+        });
+      }
+      
+      return res.json({
+        success: true,
+        message: "Barcha mahsulotlarda userId mavjud",
+        totalProducts: importSourceProducts.length,
+        fixedProducts: 0,
+        userProducts: userProductsCount
+      });
+    }
+
+  } catch (error) {
+    console.error("[Fix Missing UserId] Error:", error);
+    return res.status(500).json({ error: "Failed to fix missing userId" });
+  }
+};
+
+/**
+ * POST /api/products/recover-lost-products
+ * Yo'qolgan mahsulotlarni product_history dan qayta tiklash
+ */
+export const handleRecoverLostProducts: RequestHandler = async (req, res) => {
+  try {
+    const conn = await connectMongo();
+    if (!conn || !conn.db) {
+      return res.status(500).json({ error: "Database not available" });
+    }
+
+    const db = conn.db;
+    const collection = db.collection(PRODUCTS_COLLECTION);
+    const historyCollection = db.collection(PRODUCT_HISTORY_COLLECTION);
+    const { userId, importSource } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: "userId majburiy" });
+    }
+
+    console.log(`[Recover Lost Products] Starting recovery for userId: ${userId}`);
+    console.log(`[Recover Lost Products] ImportSource: ${importSource}`);
+
+    // 1. Hozirgi mahsulotlar sonini tekshirish
+    const currentProducts = await collection.countDocuments({ userId: userId });
+    console.log(`[Recover Lost Products] Hozirgi mahsulotlar: ${currentProducts}`);
+
+    // 2. Product history dan Excel import qilingan mahsulotlarni topish
+    const importSourceFilter = importSource || "mahsulotlar_A6_A7_T7_SHAANXI_FOTON_CHAKMAN_FAW_HOWO_XCMG_2026_02.xlsx";
+    
+    const historyProducts = await historyCollection.find({
+      userId: userId,
+      type: { $in: ['create', 'variant_create'] },
+      importSource: importSourceFilter
+    }).toArray();
+
+    console.log(`[Recover Lost Products] History da topilgan: ${historyProducts.length}`);
+
+    // 3. History dan unique mahsulotlarni ajratish
+    const uniqueProductNames = new Set();
+    const productsToRecover: any[] = [];
+
+    for (const historyItem of historyProducts) {
+      if (historyItem.type === 'create') {
+        // Asosiy mahsulot
+        const productName = historyItem.productName || historyItem.name;
+        if (productName && !uniqueProductNames.has(productName)) {
+          uniqueProductNames.add(productName);
+          
+          // Bazada mavjudligini tekshirish
+          const existingProduct = await collection.findOne({
+            userId: userId,
+            name: productName
+          });
+
+          if (!existingProduct) {
+            productsToRecover.push({
+              name: productName,
+              sku: historyItem.sku || '',
+              type: 'main',
+              historyData: historyItem
+            });
+          }
+        }
+      }
+    }
+
+    console.log(`[Recover Lost Products] Tiklash kerak bo'lgan mahsulotlar: ${productsToRecover.length}`);
+
+    if (productsToRecover.length === 0) {
+      return res.json({
+        success: true,
+        message: "Barcha mahsulotlar mavjud, tiklash kerak emas",
+        currentProducts: currentProducts,
+        recoveredProducts: 0
+      });
+    }
+
+    // 4. Yo'qolgan mahsulotlarni qayta yaratish
+    const recoveredProducts: any[] = [];
+    let recoveredCount = 0;
+
+    for (const productData of productsToRecover) {
+      try {
+        // Asosiy ma'lumotlarni history dan olish
+        const historyItem = productData.historyData;
+        
+        const newProduct = {
+          name: productData.name,
+          sku: productData.sku || `recovered_${Date.now()}_${recoveredCount}`,
+          code: historyItem.code || '',
+          catalogNumber: historyItem.catalogNumber || '',
+          barcodeId: historyItem.barcodeId || '',
+          basePrice: historyItem.basePrice || 0,
+          price: historyItem.price || 0,
+          priceMultiplier: historyItem.priceMultiplier || 25,
+          currency: historyItem.currency || 'USD',
+          stock: historyItem.stock || 1,
+          initialStock: historyItem.initialStock || 1,
+          status: historyItem.status || 'available',
+          categoryId: historyItem.categoryId || '',
+          categoryName: historyItem.categoryName || '',
+          userId: userId,
+          source: 'recovery',
+          importSource: importSourceFilter,
+          importOrder: historyItem.importOrder || 9999,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          variantSummaries: []
+        };
+
+        // Mahsulotni saqlash
+        const insertResult = await collection.insertOne(newProduct);
+        
+        if (insertResult.insertedId) {
+          recoveredProducts.push(newProduct);
+          recoveredCount++;
+          
+          // History ga yozish
+          await historyCollection.insertOne({
+            userId: userId,
+            type: 'recover',
+            productId: insertResult.insertedId.toString(),
+            productName: newProduct.name,
+            sku: newProduct.sku,
+            message: `Mahsulot history dan tiklandi`,
+            timestamp: new Date(),
+            createdAt: new Date(),
+            importSource: importSourceFilter
+          });
+        }
+      } catch (err) {
+        console.error(`[Recover Lost Products] Error recovering ${productData.name}:`, err);
+      }
+    }
+
+    console.log(`[Recover Lost Products] Tiklangan mahsulotlar: ${recoveredCount}`);
+
+    return res.json({
+      success: true,
+      message: `${recoveredCount} ta mahsulot tiklandi`,
+      currentProducts: currentProducts,
+      recoveredProducts: recoveredCount,
+      totalAfterRecovery: currentProducts + recoveredCount,
+      recoveredList: recoveredProducts.map(p => ({ name: p.name, sku: p.sku }))
+    });
+
+  } catch (error) {
+    console.error("[Recover Lost Products] Error:", error);
+    return res.status(500).json({ error: "Failed to recover lost products" });
   }
 };

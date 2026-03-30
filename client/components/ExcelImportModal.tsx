@@ -57,6 +57,9 @@ interface ImportResult {
     existingStock: number;
   }>;
   errors?: string[];
+  expectedTotal?: number;
+  actualCount?: number;
+  autoFixApplied?: boolean;
 }
 
 // Ustun nomlari
@@ -584,6 +587,18 @@ export function ExcelImportModal({
       console.log('[Excel Import] Response data:', data);
       console.log('[Excel Import] duplicatesList:', data.duplicatesList);
       
+      if (data.success) {
+        console.log(`✅ [Excel Import] MUVAFFAQIYATLI: ${data.totalProducts} ta mahsulot import qilindi`);
+        console.log(`📊 [Excel Import] Jami variantlar: ${data.totalVariants}`);
+        console.log(`📈 [Excel Import] Kutilgan jami: ${data.expectedTotal}, Haqiqiy: ${data.actualCount}`);
+        
+        if (data.autoFixApplied) {
+          console.log(`🔧 [Excel Import] Avtomatik tuzatish qo'llanildi!`);
+        }
+        
+        console.log(`⚠️ [Excel Import] DIQQAT: Endi mahsulotlar sahifasini yangilang va "Xillar soni" ni tekshiring`);
+      }
+      
       setImportResult({
         success: data.success,
         message: data.message || (data.success ? 'Import muvaffaqiyatli' : 'Import xatosi'),
@@ -592,6 +607,9 @@ export function ExcelImportModal({
         skippedDuplicates: data.skippedDuplicates || 0,
         duplicatesList: data.duplicatesList || [],
         errors: data.errors,
+        expectedTotal: data.expectedTotal,
+        actualCount: data.actualCount,
+        autoFixApplied: data.autoFixApplied
       });
       
       setStep('result');
@@ -1116,15 +1134,35 @@ export function ExcelImportModal({
                 </div>
 
                 {importResult.success && (
-                  <div className="grid grid-cols-2 gap-6 max-w-2xl mx-auto">
-                    <div className="p-6 rounded-2xl bg-green-500/10 border border-green-500/30 text-center">
-                      <p className="text-4xl font-bold text-green-400 mb-2">{importResult.totalProducts}</p>
-                      <p className="text-sm text-muted-foreground">Mahsulot</p>
+                  <div className="space-y-4 max-w-2xl mx-auto">
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="p-6 rounded-2xl bg-green-500/10 border border-green-500/30 text-center">
+                        <p className="text-4xl font-bold text-green-400 mb-2">{importResult.totalProducts}</p>
+                        <p className="text-sm text-muted-foreground">Mahsulot</p>
+                      </div>
+                      <div className="p-6 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-center">
+                        <p className="text-4xl font-bold text-amber-400 mb-2">{importResult.totalVariants}</p>
+                        <p className="text-sm text-muted-foreground">Xil</p>
+                      </div>
                     </div>
-                    <div className="p-6 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-center">
-                      <p className="text-4xl font-bold text-amber-400 mb-2">{importResult.totalVariants}</p>
-                      <p className="text-sm text-muted-foreground">Xil</p>
-                    </div>
+                    
+                    {/* Avtomatik tuzatish ma'lumoti */}
+                    {importResult.autoFixApplied && (
+                      <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/30">
+                        <div className="flex items-center gap-2 text-blue-400 mb-2">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="font-medium">Avtomatik tuzatish qo'llanildi</span>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Kutilgan: {importResult.expectedTotal}, Bazada: {importResult.actualCount}
+                        </p>
+                        <p className="text-sm text-blue-300 mt-1">
+                          Yo'qolgan mahsulotlar avtomatik tiklandi
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 

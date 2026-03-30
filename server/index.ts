@@ -14,7 +14,7 @@ import { dirname } from "path";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-import { handleProductsGet, handleProductsCreate, handleProductGetById, handleProductUpdate, handleProductDelete, handleProductsClearAll, handleProductsDeleteBySkuRange, handleProductStockUpdate, handleProductHistoryGet, handleProductHistoryCreate, handleProductHistoryDelete, handleProductHistoryClear, handleProductImageUpload, handleBulkCategoryUpdate } from "./routes/products";
+import { handleProductsGet, handleProductsCreate, handleProductGetById, handleProductUpdate, handleProductDelete, handleProductsClearAll, handleProductsDeleteBySkuRange, handleProductStockUpdate, handleProductHistoryGet, handleProductHistoryCreate, handleProductHistoryDelete, handleProductHistoryClear, handleProductImageUpload, handleBulkCategoryUpdate, handleFixMissingUserId, handleRecoverLostProducts } from "./routes/products";
 import { dbConnectionMiddleware, validateSkuMiddleware } from "./middleware/sku-validation";
 import { handleCategoriesGet, handleCategoriesCreate, handleCategoryUpdate, handleCategoryDelete, handleCategoryMarkupUpdate } from "./routes/categories";
 import { handleStoresGet, handleStoresCreate, handleStoreDelete } from "./routes/stores";
@@ -116,6 +116,8 @@ export async function createServer() {
   app.post("/api/products", dbConnectionMiddleware, validateSkuMiddleware, handleProductsCreate);
   app.post("/api/products/upload-image", upload.single('image'), handleProductImageUpload);
   app.post("/api/products/bulk-category-update", handleBulkCategoryUpdate); // ✅ YANGI: Bulk kategoriya yangilash
+  app.post("/api/products/fix-missing-userid", handleFixMissingUserId); // ✅ YANGI: UserId tuzatish
+  app.post("/api/products/recover-lost-products", handleRecoverLostProducts); // ✅ YANGI: Yo'qolgan mahsulotlarni tiklash
   app.get("/api/products", handleProductsGet);
   // Все "словарные" GET роуты должны быть выше /api/products/:id
   app.get("/api/products/all", handleGetAllProducts);

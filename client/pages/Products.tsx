@@ -1941,6 +1941,18 @@ export default function Products() {
         if (!res.ok) return;
         const data = await res.json();
         console.log('[Products] Loaded products:', data);
+        const serverProductCount = Array.isArray(data) ? data.length : (Array.isArray(data?.products) ? data.products.length : 0);
+        console.log('[Products] Products count from server:', serverProductCount);
+        
+        // MUHIM: Agar server 567ta emas, 316ta mahsulot qaytarsa, bu muammo
+        if (serverProductCount !== 567) {
+          console.warn(`⚠️ DIQQAT: Server ${serverProductCount}ta mahsulot qaytardi, 567ta emas!`);
+          console.warn('Bu quyidagi sabablar bo\'lishi mumkin:');
+          console.warn('1. Ba\'zi mahsulotlar import paytida saqlanmagan');
+          console.warn('2. Mahsulotlar boshqa userId bilan bog\'langan');
+          console.warn('3. Ba\'zi mahsulotlar yashirin (isHidden: true)');
+          console.warn('4. Database connection muammosi import paytida');
+        }
         
         // DEBUG: Birinchi mahsulotni to'liq ko'rish
         if (Array.isArray(data) && data.length > 0) {
@@ -3505,18 +3517,28 @@ export default function Products() {
             <span>
               Xillar soni: <span className="font-bold text-green-400">
                 {(() => {
-                  let totalTypes = 0;
+                  // Jami mahsulotlar va xillar soni
+                  let totalCount = 0;
+                  
                   for (const product of products) {
-                    // Har bir mahsulotdan 1 ta
-                    totalTypes += 1;
-                    // Har bir xildan ham 1 ta
+                    totalCount += 1; // Asosiy mahsulot
+                    
+                    // Xillar ham qo'shiladi
                     if (product.variantSummaries && product.variantSummaries.length > 0) {
-                      totalTypes += product.variantSummaries.length;
+                      totalCount += product.variantSummaries.length;
                     }
                   }
-                  return totalTypes;
+                  
+                  // Console ga debug ma'lumot chiqarish
+                  console.log('[Products Debug] Jami mahsulotlar va xillar:', {
+                    loadedProducts: products.length,
+                    totalWithVariants: totalCount,
+                    serverResponse: 'Check network tab for /api/products response'
+                  });
+                  
+                  return totalCount;
                 })()}
-              </span> xil
+              </span>
             </span>
             <span className="text-gray-600">|</span>
             <button

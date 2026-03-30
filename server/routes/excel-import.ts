@@ -1030,131 +1030,6 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
       });
     }
 
-    // AVTOMATIK TUZATISH: Excel import tugagandan keyin diagnostic chaqirish
-    try {
-      console.log('[Excel Import] Starting automatic diagnostic...');
-      
-      // Excel orqali import qilingan mahsulotlarni olish
-      const excelProducts = await collection.find({ 
-        userId: userId,
-        source: 'excel-import'
-      }).toArray();
-
-      console.log('[Excel Import Auto-Fix] Found Excel products:', excelProducts.length);
-
-      // Mahsulotlarni birinchi ikki so'z bo'yicha guruhlash
-      const diagnosticGroupedMap = new Map<string, any[]>();
-      
-      for (const product of excelProducts) {
-        const words = (product.name || '').split(/\s+/);
-        const firstTwoWords = words.slice(0, 2).join(' ').toLowerCase();
-        
-        const existing = diagnosticGroupedMap.get(firstTwoWords);
-        if (existing) {
-          existing.push(product);
-        } else {
-          diagnosticGroupedMap.set(firstTwoWords, [product]);
-        }
-      }
-
-      // Agar birinchi ikki so'z bo'yicha kam guruh bo'lsa, birinchi so'z bo'yicha ham sinash
-      const diagnosticForcedMap = new Map<string, any[]>();
-      
-      for (const product of excelProducts) {
-        const words = (product.name || '').split(/\s+/);
-        const firstWord = words[0]?.toLowerCase() || '';
-        
-        if (firstWord) {
-          const existing = diagnosticForcedMap.get(firstWord);
-          if (existing) {
-            existing.push(product);
-          } else {
-            diagnosticForcedMap.set(firstWord, [product]);
-          }
-        }
-      }
-
-      // Qaysi usul ko'proq guruh topsa, uni ishlatish
-      const normalGroups = Array.from(diagnosticGroupedMap.values()).filter(g => g.length > 1).length;
-      const forcedGroups = Array.from(diagnosticForcedMap.values()).filter(g => g.length > 1).length;
-      
-      const finalDiagnosticMap = forcedGroups > normalGroups ? diagnosticForcedMap : diagnosticGroupedMap;
-      
-      console.log('[Excel Import Auto-Fix] Normal groups with variants:', normalGroups);
-      console.log('[Excel Import Auto-Fix] Forced groups with variants:', forcedGroups);
-      console.log('[Excel Import Auto-Fix] Using:', forcedGroups > normalGroups ? 'FORCED' : 'NORMAL', 'grouping');
-
-      let autoFixedCount = 0;
-
-      // Har bir guruhni tekshirish va tuzatish
-      for (const [groupKey, products] of finalDiagnosticMap) {
-        if (products.length > 1) {
-          console.log(`[Excel Import Auto-Fix] Group "${groupKey}" has ${products.length} products - fixing...`);
-          
-          // Birinchi mahsulotni ota mahsulot qilamiz
-          const mainProduct = products[0];
-          const variantProducts = products.slice(1);
-          
-          // Xillarni yaratish
-          const variantSummaries = variantProducts.map(variant => ({
-            name: variant.name,
-            sku: variant.sku,
-            code: variant.code || null,
-            catalogNumber: variant.catalogNumber || null,
-            barcodeId: variant.barcodeId || '',
-            basePrice: variant.basePrice || variant.price || 0,
-            originalPrice: variant.originalPrice || variant.price || 0,
-            priceMultiplier: variant.priceMultiplier || 20,
-            markupPercent: variant.markupPercent || variant.priceMultiplier || 20,
-            price: variant.price || 0,
-            currency: variant.currency || 'USD',
-            stock: variant.stock || variant.stockCount || 0,
-            stockCount: variant.stockCount || variant.stock || 0,
-            initialStock: variant.initialStock || variant.stock || variant.stockCount || 0,
-            status: variant.status || 'available',
-            categoryId: variant.categoryId,
-            description: variant.description || '',
-            importSource: variant.importSource || 'unknown',
-            importOrder: variant.importOrder || 0,
-          }));
-
-          // Ota mahsulotni yangilash
-          try {
-            await collection.updateOne(
-              { _id: mainProduct._id },
-              {
-                $set: {
-                  variantSummaries: variantSummaries,
-                  updatedAt: new Date()
-                }
-              }
-            );
-
-            // Xil mahsulotlarni o'chirish
-            const variantIds = variantProducts.map(v => v._id);
-            await collection.deleteMany({
-              _id: { $in: variantIds }
-            });
-
-            autoFixedCount++;
-            console.log(`[Excel Import Auto-Fix] Fixed group "${groupKey}": ${mainProduct.name} + ${variantProducts.length} variants`);
-          } catch (updateError) {
-            console.error(`[Excel Import Auto-Fix] Error updating group "${groupKey}":`, updateError);
-            // Xatolik bo'lsa ham davom etish
-          }
-        }
-      }
-
-      console.log('[Excel Import Auto-Fix] Auto-fixed groups:', autoFixedCount);
-      
-      if (autoFixedCount > 0) {
-        message += ` (${autoFixedCount} ta guruh avtomatik tuzatildi)`;
-      }
-    } catch (autoFixError) {
-      console.error('[Excel Import Auto-Fix] Error:', autoFixError);
-      // Auto-fix xatosi import jarayonini to'xtatmasligi kerak
-    }
-
     // Response message
     let message = '';
     if (addedAsVariants > 0 && createdProducts.length > 0 && skippedDuplicates > 0) {
@@ -1171,16 +1046,136 @@ export const handleExcelImport: RequestHandler = async (req, res) => {
       message = `${createdProducts.length} ta mahsulot import qilindi`;
     }
 
+    console.log(`[Excel Import] ✅ YAKUNLANDI: ${createdProducts.length} ta mahsulot saqlandi`);
+    console.log(`[Excel Import] Jami variantlar: ${createdProducts.reduce((sum, p) => sum + (p.variantsCount || 0), 0)}`);
+    console.log(`[Excel Import] Variant sifatida qo'shilgan: ${addedAsVariants}`);
+    console.log(`[Excel Import] Fayl nomi: ${fileName}`);
+    
+    // ✅ YANGI: Avtomatik tekshiruv va tuzatish
+    const expectedTotal = createdProducts.length + createdProducts.reduce((sum, p) => sum + (p.variantsCount || 0), 0);
+    console.log(`[Excel Import Auto-Check] Kutilgan jami: ${expectedTotal} (${createdProducts.length} mahsulot + ${createdProducts.reduce((sum, p) => sum + (p.variantsCount || 0), 0)} variant)`);
+    
+    // Bazadan haqiqiy sonni tekshirish
+    const actualCount = await collection.countDocuments({ 
+      userId: userId,
+      importSource: fileName 
+    });
+    console.log(`[Excel Import Auto-Check] Bazada haqiqiy: ${actualCount}`);
+    
+    let autoFixMessage = "";
+    if (actualCount < expectedTotal) {
+      const missingCount = expectedTotal - actualCount;
+      console.log(`⚠️ [Excel Import Auto-Check] ${missingCount}ta mahsulot yo'qolgan! Avtomatik tuzatish boshlanmoqda...`);
+      
+      try {
+        // History dan yo'qolgan mahsulotlarni tiklash
+        const historyCollection = db.collection('product_history');
+        
+        // MUHIM: Avval history da nechta entry borligini tekshirish
+        const allHistoryCount = await historyCollection.countDocuments({
+          userId: userId,
+          type: { $in: ['create', 'variant_create'] }
+        });
+        console.log(`[Excel Import Auto-Fix] Jami history entries: ${allHistoryCount}`);
+        
+        // Oxirgi import qilingan mahsulotlarni topish (importSource bo'yicha emas, vaqt bo'yicha)
+        const recentHistoryProducts = await historyCollection.find({
+          userId: userId,
+          type: { $in: ['create', 'variant_create'] },
+          createdAt: { $gte: new Date(Date.now() - 10 * 60 * 1000) } // Oxirgi 10 daqiqa
+        }).sort({ createdAt: -1 }).toArray();
+        
+        console.log(`[Excel Import Auto-Fix] Oxirgi 10 daqiqada: ${recentHistoryProducts.length}`);
+        
+        // Agar oxirgi history kam bo'lsa, barcha history dan qidirish
+        const historyProducts = recentHistoryProducts.length > 100 ? recentHistoryProducts : 
+          await historyCollection.find({
+            userId: userId,
+            type: { $in: ['create', 'variant_create'] }
+          }).sort({ createdAt: -1 }).limit(1000).toArray();
+        
+        console.log(`[Excel Import Auto-Fix] History da topilgan: ${historyProducts.length}`);
+        
+        // Yo'qolgan mahsulotlarni aniqlash va tiklash
+        const uniqueProductNames = new Set();
+        let recoveredCount = 0;
+        
+        for (const historyItem of historyProducts) {
+          if (historyItem.type === 'create') {
+            const productName = historyItem.productName || historyItem.name;
+            if (productName && !uniqueProductNames.has(productName)) {
+              uniqueProductNames.add(productName);
+              
+              // Bazada mavjudligini tekshirish
+              const existingProduct = await collection.findOne({
+                userId: userId,
+                name: productName
+              });
+
+              if (!existingProduct && recoveredCount < missingCount) {
+                // Yo'qolgan mahsulotni qayta yaratish
+                const recoveredProduct = {
+                  name: productName,
+                  sku: historyItem.sku || `auto_recovered_${Date.now()}_${recoveredCount}`,
+                  code: historyItem.code || '',
+                  catalogNumber: historyItem.catalogNumber || '',
+                  barcodeId: historyItem.barcodeId || '',
+                  basePrice: historyItem.basePrice || 0,
+                  price: historyItem.price || 0,
+                  priceMultiplier: historyItem.priceMultiplier || 25,
+                  currency: historyItem.currency || 'USD',
+                  stock: historyItem.stock || 1,
+                  initialStock: historyItem.initialStock || 1,
+                  status: historyItem.status || 'available',
+                  categoryId: historyItem.categoryId || '',
+                  categoryName: historyItem.categoryName || '',
+                  userId: userId,
+                  source: 'auto-recovery',
+                  importSource: fileName,
+                  importOrder: historyItem.importOrder || (9999 + recoveredCount),
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                  variantSummaries: []
+                };
+
+                await collection.insertOne(recoveredProduct);
+                recoveredCount++;
+                
+                console.log(`[Excel Import Auto-Fix] Tiklandi: ${productName}`);
+                
+                // Agar yetarli tiklangan bo'lsa, to'xtatish
+                if (recoveredCount >= missingCount) {
+                  break;
+                }
+              }
+            }
+          }
+        }
+        
+        console.log(`[Excel Import Auto-Fix] ✅ ${recoveredCount}ta mahsulot avtomatik tiklandi`);
+        autoFixMessage = ` (${recoveredCount}ta mahsulot avtomatik tiklandi)`;
+        
+      } catch (autoFixError) {
+        console.error('[Excel Import Auto-Fix] Xatolik:', autoFixError);
+        autoFixMessage = ` (Avtomatik tuzatishda xatolik: ${autoFixError.message})`;
+      }
+    } else {
+      console.log(`✅ [Excel Import Auto-Check] Barcha mahsulotlar to'g'ri saqlandi`);
+    }
+    
     return res.status(201).json({
       success: true,
-      message: message,
+      message: message + autoFixMessage,
       products: createdProducts,
       totalProducts: createdProducts.length,
       totalVariants: createdProducts.reduce((sum, p) => sum + (p.variantsCount || 0), 0),
       addedAsVariants: addedAsVariants,
       skippedDuplicates: skippedDuplicates,
-      duplicatesList: duplicatesList, // Dublikat mahsulotlar ro'yxati
+      duplicatesList: duplicatesList,
       errors: errors.length > 0 ? errors : undefined,
+      expectedTotal: expectedTotal,
+      actualCount: actualCount,
+      autoFixApplied: autoFixMessage !== ""
     });
     
     console.log('[Excel Import] Response - duplicatesList length:', duplicatesList.length);
