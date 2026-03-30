@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Search,
   CreditCard,
@@ -164,6 +165,7 @@ interface SaleHistory {
 
 export default function Kassa() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const userId = user?.id || "";
   const userPhone = user?.phone || "";
 
@@ -1170,7 +1172,7 @@ export default function Kassa() {
                 <RefreshCw className={`w-4 h-4 ${isSyncing || isLoading ? "animate-spin" : ""}`} />
               </button>
             )}
-            <button onClick={() => setHistoryOpen(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800/80 border border-slate-700/50 text-slate-300 hover:bg-slate-700/80 hover:border-slate-600/50 transition-all shadow-md">
+            <button onClick={() => navigate('/sales-history')} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800/80 border border-slate-700/50 text-slate-300 hover:bg-slate-700/80 hover:border-slate-600/50 transition-all shadow-md">
               <History className="w-4 h-4" />
               <span className="hidden sm:inline text-sm font-medium">Tarix</span>
               {salesHistory.length > 0 && <span className="bg-emerald-500 text-white text-xs rounded-full px-1.5 py-0.5 font-bold">{salesHistory.length}</span>}

@@ -34,6 +34,8 @@ import CustomerData from "./pages/CustomerData";
 import OfflineProducts from "./pages/OfflineProducts";
 import TelegramSetup from "./pages/TelegramSetup";
 import Kassa from "./pages/Kassa";
+import SalesHistory from "./pages/SalesHistory";
+import ProductHistory from "./pages/ProductHistory";
 import AccountBlocked from "./pages/AccountBlocked";
 import ProtectedRoute from "@/components/Layout/ProtectedRoute";
 
@@ -96,6 +98,8 @@ const AppWithAuth = () => {
                 <Route path="/customer-data" element={<ProtectedRoute><CustomerData /></ProtectedRoute>} />
                 <Route path="/offline-products" element={<ProtectedRoute><OfflineProducts /></ProtectedRoute>} />
                 <Route path="/kassa" element={<ProtectedRoute><Kassa /></ProtectedRoute>} />
+                <Route path="/sales-history" element={<ProtectedRoute><SalesHistory /></ProtectedRoute>} />
+                <Route path="/product-history" element={<ProtectedRoute><ProductHistory /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Router>

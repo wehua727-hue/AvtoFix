@@ -420,6 +420,7 @@ const searchProductsAndVariants = (
 
 export default function Products() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { toggleTheme } = useTheme();
 
   // Xodim mahsulotlarni tahrirlash/o'chirish huquqi
@@ -3455,7 +3456,7 @@ export default function Products() {
                 <span>Qo'shish</span>
               </button>
               <button
-                onClick={() => setShowHistoryModal(true)}
+                onClick={() => navigate('/product-history')}
                 className="inline-flex items-center justify-center gap-1.5 px-4 py-2 min-w-[44px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm sm:text-base font-semibold transition-colors shadow-lg"
                 title="Mahsulot tarixini ko'rish"
               >
@@ -8617,7 +8618,7 @@ export default function Products() {
 
           {/* History Button */}
           <button
-            onClick={() => setShowHistoryModal(true)}
+            onClick={() => navigate('/product-history')}
             className="flex flex-col items-center justify-center gap-1 p-3 rounded-xl bg-green-600/20 hover:bg-green-600/30 border border-green-500/30 text-green-400 hover:text-green-300 transition-all duration-200 shadow-lg min-w-[60px]"
             title="Mahsulot tarixi"
           >
